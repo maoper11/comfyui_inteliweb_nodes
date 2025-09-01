@@ -624,7 +624,7 @@ app.registerExtension({
         }
 
         node.__inteliweb_y_end = y;
-        const desired = Math.min(1100, Math.max(220, y + PAD));
+        const desired = Math.max(220, y + PAD);
         if (node.size[1] !== desired) node.size[1] = desired;
       } else {
         ctx.font =
