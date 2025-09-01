@@ -65,8 +65,14 @@ const COLORS = {
 function lighten(hex, amt = 20) {
   const num = parseInt(hex.replace("#", ""), 16);
   const r = Math.min(255, Math.max(0, (num >> 16) + Math.round(2.55 * amt)));
-  const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00ff) + Math.round(2.55 * amt)));
-  const b = Math.min(255, Math.max(0, (num & 0x0000ff) + Math.round(2.55 * amt)));
+  const g = Math.min(
+    255,
+    Math.max(0, ((num >> 8) & 0x00ff) + Math.round(2.55 * amt))
+  );
+  const b = Math.min(
+    255,
+    Math.max(0, (num & 0x0000ff) + Math.round(2.55 * amt))
+  );
   return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
@@ -118,7 +124,8 @@ function drawBadge(ctx, x, y, w, h, label, value, icon, baseColor, animT) {
 
   ctx.textBaseline = "alphabetic";
 
-  ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  ctx.font =
+    "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
   let valW = ctx.measureText(valStr).width;
   const maxValW = Math.max(80, Math.floor(innerWidth * 0.55));
   if (valW > maxValW) {
@@ -130,10 +137,14 @@ function drawBadge(ctx, x, y, w, h, label, value, icon, baseColor, animT) {
   }
 
   const maxLabelW = innerWidth - valW - 8;
-  ctx.font = "bold 12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto";
+  ctx.font =
+    "bold 12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto";
   let labelDraw = labelStr;
   if (ctx.measureText(labelDraw).width > maxLabelW) {
-    while (labelDraw.length && ctx.measureText(labelDraw + "…").width > maxLabelW) {
+    while (
+      labelDraw.length &&
+      ctx.measureText(labelDraw + "…").width > maxLabelW
+    ) {
       labelDraw = labelDraw.slice(0, -1);
     }
     labelDraw += "…";
@@ -143,7 +154,8 @@ function drawBadge(ctx, x, y, w, h, label, value, icon, baseColor, animT) {
   ctx.textAlign = "left";
   ctx.fillText(labelDraw, innerLeft, y + 18);
 
-  ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  ctx.font =
+    "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
   ctx.textAlign = "right";
   ctx.fillText(valStr, innerRight, y + h - 8);
 
@@ -155,10 +167,14 @@ function drawVRAMBadge(ctx, x, y, w, h, vram, baseColor, animT) {
   const total = Math.max(vram?.total_mb || 0, 0);
   const pct = total > 0 ? Math.min(used / total, 1) : 0;
   const label = "VRAM";
-  const value = total > 0 ? `${used} / ${total} MB (${Math.round(pct * 100)}%)` : "0 / 0 MB";
+  const value =
+    total > 0
+      ? `${used} / ${total} MB (${Math.round(pct * 100)}%)`
+      : "0 / 0 MB";
   drawBadge(ctx, x, y, w, h, label, value, "🧠", baseColor, animT);
 
-  const pad = 10, stripeW = 36;
+  const pad = 10,
+    stripeW = 36;
   const innerX = x + stripeW + pad;
   const innerW = w - stripeW - pad * 2;
 
@@ -187,11 +203,15 @@ function drawRAMBadge(ctx, x, y, w, h, ram, baseColor, animT) {
   const usedGB = (used / 1024).toFixed(2);
   const totalGB = (total / 1024).toFixed(2);
   const label = "RAM";
-  const value = total > 0 ? `${usedGB} / ${totalGB} GB (${Math.round(pct * 100)}%)` : "0.00 / 0.00 GB";
+  const value =
+    total > 0
+      ? `${usedGB} / ${totalGB} GB (${Math.round(pct * 100)}%)`
+      : "0.00 / 0.00 GB";
 
   drawBadge(ctx, x, y, w, h, label, value, "🧠", baseColor, animT);
 
-  const pad = 10, stripeW = 36;
+  const pad = 10,
+    stripeW = 36;
   const innerX = x + stripeW + pad;
   const innerW = w - stripeW - pad * 2;
 
@@ -223,30 +243,81 @@ function getWidgetsBottomY(node) {
   const SPACING = 4;
   let y = startY;
   if (Array.isArray(node.widgets)) {
-    for (const w of node.widgets) y += (typeof w?.height === "number" ? w.height : 20) + SPACING;
+    for (const w of node.widgets)
+      y += (typeof w?.height === "number" ? w.height : 20) + SPACING;
   }
   return y;
 }
 
 const CATEGORIES = {
   "== System ==": ["Python version", "Operating System", "CPU", "RAM"],
-  "== GPU / CUDA ==": ["VRAM", "GPU", "CUDA version", "Flash Attention", "flash-attn (package)"],
+  "== GPU / CUDA ==": [
+    "VRAM",
+    "GPU",
+    "CUDA version",
+    "Flash Attention",
+    "flash-attn (package)",
+  ],
   "== Core libs ==": ["PyTorch", "torchvision", "xformers", "numpy"],
   "== Vision / Audio ==": ["OpenCV", "Pillow", "ultralytics", "mediapipe"],
   "== ONNX / Runtime ==": ["onnx", "onnxruntime", "accelerate", "bitsandbytes"],
-  "== Text ==": ["transformers", "diffusers", "huggingface_hub", "tokenizers", "sentencepiece"],
-  "== Others ==": ["kornia", "insightface", "scipy", "scikit-image", "pandas", "triton", "sageattention"],
+  "== Text ==": [
+    "transformers",
+    "diffusers",
+    "huggingface_hub",
+    "tokenizers",
+    "sentencepiece",
+  ],
+  "== Others ==": [
+    "kornia",
+    "insightface",
+    "scipy",
+    "scikit-image",
+    "pandas",
+    "triton",
+    "sageattention",
+  ],
 };
 const CATEGORY_ORDER = Object.keys(CATEGORIES);
 
 function prettyFormat(info) {
   const cat = {
-    "== GPU / CUDA ==": ["GPU", "CUDA version", "Flash Attention", "flash-attn (package)"],
+    "== GPU / CUDA ==": [
+      "GPU",
+      "CUDA version",
+      "Flash Attention",
+      "flash-attn (package)",
+    ],
     "== Core libs ==": ["PyTorch", "torchvision", "xformers", "numpy"],
-    "== Vision / Audio ==": ["OpenCV", "Pillow", "timm", "ultralytics", "mediapipe"],
-    "== ONNX / Runtime ==": ["onnx", "onnxruntime", "accelerate", "bitsandbytes"],
-    "== Text ==": ["transformers", "diffusers", "huggingface_hub", "tokenizers", "sentencepiece"],
-    "== Others ==": ["kornia", "insightface", "scipy", "scikit-image", "pandas", "triton", "sageattention"],
+    "== Vision / Audio ==": [
+      "OpenCV",
+      "Pillow",
+      "timm",
+      "ultralytics",
+      "mediapipe",
+    ],
+    "== ONNX / Runtime ==": [
+      "onnx",
+      "onnxruntime",
+      "accelerate",
+      "bitsandbytes",
+    ],
+    "== Text ==": [
+      "transformers",
+      "diffusers",
+      "huggingface_hub",
+      "tokenizers",
+      "sentencepiece",
+    ],
+    "== Others ==": [
+      "kornia",
+      "insightface",
+      "scipy",
+      "scikit-image",
+      "pandas",
+      "triton",
+      "sageattention",
+    ],
   };
   let out = `RAM: ${info["RAM"] || "Unknown"}\n`;
   for (const [title, keys] of Object.entries(cat)) {
@@ -257,7 +328,6 @@ function prettyFormat(info) {
   }
   return out.trim();
 }
-
 
 function startInteliwebTelemetry(node) {
   if (node.__inteliweb_timer) return; // already running
@@ -327,7 +397,8 @@ app.registerExtension({
 
         if (!node.__inteliweb_firstRunDone) {
           node.__inteliweb_collapsed = node.__inteliweb_collapsed || {};
-          const order = typeof CATEGORY_ORDER !== "undefined" ? CATEGORY_ORDER : [];
+          const order =
+            typeof CATEGORY_ORDER !== "undefined" ? CATEGORY_ORDER : [];
           for (let i = 0; i < order.length; i++) {
             node.__inteliweb_collapsed[order[i]] = i < 3 ? false : true;
           }
@@ -348,18 +419,25 @@ app.registerExtension({
           const res = await fetchJSON(`/inteliweb/free_vram?mode=aggressive`);
           if (res?.vram) node._inteliweb_vram = res.vram;
           node.setDirtyCanvas(true);
-        } catch (e) { console.error(e); }
+        } catch (e) {
+          console.error(e);
+        }
       },
       async free_ram() {
         try {
           const res = await fetchJSON(`/inteliweb/free_ram`);
           if (res?.ram) node._inteliweb_ram = res.ram;
           node.setDirtyCanvas(true);
-        } catch (e) { console.error(e); }
+        } catch (e) {
+          console.error(e);
+        }
       },
       copy() {
-        try { navigator.clipboard.writeText(node._inteliweb_text || ""); }
-        catch (e) { console.warn("Clipboard not available", e); }
+        try {
+          navigator.clipboard.writeText(node._inteliweb_text || "");
+        } catch (e) {
+          console.warn("Clipboard not available", e);
+        }
       },
     };
 
@@ -378,7 +456,9 @@ app.registerExtension({
       const toolbarY = getWidgetsBottomY(node) + TOOLBAR_GAP_TOP;
 
       if (!Array.isArray(node.__inteliweb_hits)) node.__inteliweb_hits = [];
-      node.__inteliweb_hits = node.__inteliweb_hits.filter((h) => h.type !== "btn" && h.type !== "cat");
+      node.__inteliweb_hits = node.__inteliweb_hits.filter(
+        (h) => h.type !== "btn" && h.type !== "cat"
+      );
 
       function drawToolbarBtn(x, y, w, h, label) {
         ctx.save();
@@ -394,13 +474,40 @@ app.registerExtension({
       }
 
       drawToolbarBtn(toolbarX, toolbarY, colW, BTN_H, "Free VRAM");
-      node.__inteliweb_hits.push({ type: "btn", key: "free_vram", x: toolbarX, y: toolbarY, w: colW, h: BTN_H });
+      node.__inteliweb_hits.push({
+        type: "btn",
+        key: "free_vram",
+        x: toolbarX,
+        y: toolbarY,
+        w: colW,
+        h: BTN_H,
+      });
 
       drawToolbarBtn(toolbarX + colW + GAP, toolbarY, colW, BTN_H, "Free RAM");
-      node.__inteliweb_hits.push({ type: "btn", key: "free_ram", x: toolbarX + colW + GAP, y: toolbarY, w: colW, h: BTN_H });
+      node.__inteliweb_hits.push({
+        type: "btn",
+        key: "free_ram",
+        x: toolbarX + colW + GAP,
+        y: toolbarY,
+        w: colW,
+        h: BTN_H,
+      });
 
-      drawToolbarBtn(toolbarX + (colW + GAP) * 2, toolbarY, colW, BTN_H, "Copy");
-      node.__inteliweb_hits.push({ type: "btn", key: "copy", x: toolbarX + (colW + GAP) * 2, y: toolbarY, w: colW, h: BTN_H });
+      drawToolbarBtn(
+        toolbarX + (colW + GAP) * 2,
+        toolbarY,
+        colW,
+        BTN_H,
+        "Copy"
+      );
+      node.__inteliweb_hits.push({
+        type: "btn",
+        key: "copy",
+        x: toolbarX + (colW + GAP) * 2,
+        y: toolbarY,
+        w: colW,
+        h: BTN_H,
+      });
 
       let y = toolbarY + BTN_H + TOOLBAR_GAP_BOTTOM;
       const prettyMode = !!node.__inteliweb_data;
@@ -409,27 +516,40 @@ app.registerExtension({
         const data = node.__inteliweb_data;
         node.__inteliweb_collapsed = node.__inteliweb_collapsed || {};
         for (const cat of CATEGORY_ORDER) {
-          if (!(cat in node.__inteliweb_collapsed)) node.__inteliweb_collapsed[cat] = false;
+          if (!(cat in node.__inteliweb_collapsed))
+            node.__inteliweb_collapsed[cat] = false;
         }
 
         const badgeH = 30;
         const gap = 8;
         const catH = 24;
-        const animT0 = (performance.now() / 2000 + (node.__inteliweb_anim0 || 0)) % 1;
+        const animT0 =
+          (performance.now() / 2000 + (node.__inteliweb_anim0 || 0)) % 1;
 
         for (const cat of CATEGORY_ORDER) {
-          const hx = PAD, hy = y, hw = innerW, hh = catH;
+          const hx = PAD,
+            hy = y,
+            hw = innerW,
+            hh = catH;
           ctx.fillStyle = lighten(COLORS.headerBg, -10);
           roundRect(ctx, hx, hy, hw, hh, 6);
           ctx.fill();
 
           ctx.fillStyle = "#fff";
-          ctx.font = "12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto";
+          ctx.font =
+            "12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto";
           const collapsed = !!node.__inteliweb_collapsed[cat];
           const chev = collapsed ? "▶" : "▼";
           ctx.fillText(`${chev} ${cat}`, hx + 8, hy + 16);
 
-          node.__inteliweb_hits.push({ type: "cat", key: cat, x: hx, y: hy, w: hw, h: hh });
+          node.__inteliweb_hits.push({
+            type: "cat",
+            key: cat,
+            x: hx,
+            y: hy,
+            w: hw,
+            h: hh,
+          });
 
           y += catH + 6;
           if (collapsed) continue;
@@ -439,14 +559,37 @@ app.registerExtension({
             if (k === "VRAM") {
               const vram = node._inteliweb_vram || { free_mb: 0, total_mb: 0 };
               const base = "#4a90e2";
-              drawVRAMBadge(ctx, PAD, y, innerW, badgeH, vram, base, (animT0 + (y % 1000) * 0.0003) % 1);
+              drawVRAMBadge(
+                ctx,
+                PAD,
+                y,
+                innerW,
+                badgeH,
+                vram,
+                base,
+                (animT0 + (y % 1000) * 0.0003) % 1
+              );
               y += badgeH + gap;
               continue;
             }
             if (k === "RAM") {
-              const ram = node._inteliweb_ram || { used_mb: 0, total_mb: 0, free_mb: 0 };
-              const base = statusColor(String(data?.["RAM"] ?? "")) || "#4a90e2";
-              drawRAMBadge(ctx, PAD, y, innerW, badgeH, ram, base, (animT0 + (y % 1000) * 0.0003) % 1);
+              const ram = node._inteliweb_ram || {
+                used_mb: 0,
+                total_mb: 0,
+                free_mb: 0,
+              };
+              const base =
+                statusColor(String(data?.["RAM"] ?? "")) || "#4a90e2";
+              drawRAMBadge(
+                ctx,
+                PAD,
+                y,
+                innerW,
+                badgeH,
+                ram,
+                base,
+                (animT0 + (y % 1000) * 0.0003) % 1
+              );
               y += badgeH + gap;
               continue;
             }
@@ -454,7 +597,18 @@ app.registerExtension({
             const v = data[k];
             const icon = ICONS[k] || "ℹ️";
             const base = statusColor(String(v));
-            drawBadge(ctx, PAD, y, innerW, badgeH, k, v, icon, base, (animT0 + (y % 1000) * 0.0003) % 1);
+            drawBadge(
+              ctx,
+              PAD,
+              y,
+              innerW,
+              badgeH,
+              k,
+              v,
+              icon,
+              base,
+              (animT0 + (y % 1000) * 0.0003) % 1
+            );
             y += badgeH + gap;
           }
         }
@@ -463,11 +617,15 @@ app.registerExtension({
         const desired = Math.min(1100, Math.max(220, y + PAD));
         if (node.size[1] !== desired) node.size[1] = desired;
       } else {
-        ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+        ctx.font =
+          "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
         ctx.fillStyle = "#ddd";
         const text = node._inteliweb_text || " ";
         const lines = text.split("\n");
-        for (const ln of lines) { ctx.fillText(ln, PAD, y); y += 16; }
+        for (const ln of lines) {
+          ctx.fillText(ln, PAD, y);
+          y += 16;
+        }
         node.__inteliweb_y_end = y;
         const desired = Math.max(180, y + 10);
         if (node.size[1] !== desired) node.size[1] = desired;
@@ -479,7 +637,10 @@ app.registerExtension({
     function renderCurrent(node) {
       const info = node._inteliweb_info;
       node.__inteliweb_data = info;
-      if (!info) { node._inteliweb_text = ""; return; }
+      if (!info) {
+        node._inteliweb_text = "";
+        return;
+      }
       const header = [
         `Python version: ${info["Python version"]}`,
         `Operating System: ${info["Operating System"]}`,
@@ -496,12 +657,21 @@ app.registerExtension({
     node.onMouseDown = function (e, pos, graphcanvas) {
       if (Array.isArray(node.__inteliweb_hits)) {
         for (const hit of node.__inteliweb_hits) {
-          if (pos[0] >= hit.x && pos[0] <= hit.x + hit.w && pos[1] >= hit.y && pos[1] <= hit.h + hit.y) {
+          if (
+            pos[0] >= hit.x &&
+            pos[0] <= hit.x + hit.w &&
+            pos[1] >= hit.y &&
+            pos[1] <= hit.h + hit.y
+          ) {
             if (hit.type === "cat") {
-              node.__inteliweb_collapsed[hit.key] = !node.__inteliweb_collapsed[hit.key];
+              node.__inteliweb_collapsed[hit.key] =
+                !node.__inteliweb_collapsed[hit.key];
               node.setDirtyCanvas(true, true);
               return true;
-            } else if (hit.type === "btn" && node.__inteliweb_actions?.[hit.key]) {
+            } else if (
+              hit.type === "btn" &&
+              node.__inteliweb_actions?.[hit.key]
+            ) {
               node.__inteliweb_actions[hit.key]();
               return true;
             }
@@ -513,23 +683,47 @@ app.registerExtension({
 
     // Future-proof cursor handling: only while the pointer is inside *this node*
     node.onMouseMove = function (e, pos, graphcanvas) {
-      const c = graphcanvas?.canvas || app?.graph?.canvas?.canvas || app?.canvas?.canvas;
+      const c =
+        graphcanvas?.canvas ||
+        app?.graph?.canvas?.canvas ||
+        app?.canvas?.canvas;
       if (!c) return false;
 
-      const insideNode = pos[0] >= 0 && pos[1] >= 0 && pos[0] <= this.size[0] && pos[1] <= this.size[1];
+      const insideNode =
+        pos[0] >= 0 &&
+        pos[1] >= 0 &&
+        pos[0] <= this.size[0] &&
+        pos[1] <= this.size[1];
       let overHotspot = false;
+
       if (insideNode && Array.isArray(node.__inteliweb_hits)) {
         for (const h of node.__inteliweb_hits) {
-          if (pos[0] >= h.x && pos[0] <= h.x + h.w && pos[1] >= h.y && pos[1] <= h.y + h.h) { overHotspot = true; break; }
+          if (
+            pos[0] >= h.x &&
+            pos[0] <= h.x + h.w &&
+            pos[1] >= h.y &&
+            pos[1] <= h.y + h.h
+          ) {
+            overHotspot = true;
+            break;
+          }
         }
       }
 
       if (insideNode) {
         c.setAttribute("data-inteliweb-cursor", overHotspot ? "hand" : "arrow");
       } else {
+        // 🔑 siempre limpiamos al salir
         c.removeAttribute("data-inteliweb-cursor");
       }
+
+      // 🔑 importante: no bloquear otros cursores de LiteGraph
       return false;
+    };
+
+    node.onMouseLeave = function () {
+      const c = app?.graph?.canvas?.canvas || app?.canvas?.canvas;
+      if (c) c.removeAttribute("data-inteliweb-cursor");
     };
 
     const _origOnRemoved = node.onRemoved;
