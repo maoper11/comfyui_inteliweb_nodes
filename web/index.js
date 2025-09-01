@@ -681,7 +681,6 @@ app.registerExtension({
       return _origMouse ? _origMouse.apply(this, arguments) : false;
     };
 
-    // Future-proof cursor handling: only while the pointer is inside *this node*
     node.onMouseMove = function (e, pos, graphcanvas) {
       const c =
         graphcanvas?.canvas ||
@@ -710,15 +709,13 @@ app.registerExtension({
         }
       }
 
-      if (insideNode) {
-        c.setAttribute("data-inteliweb-cursor", overHotspot ? "hand" : "arrow");
+      if (insideNode && overHotspot) {
+        c.setAttribute("data-inteliweb-cursor", "hand");
       } else {
-        // 🔑 siempre limpiamos al salir
+        // ⬇️ Importante: no fijar cursor si no es hotspot; permite el cursor de resize de LiteGraph
         c.removeAttribute("data-inteliweb-cursor");
       }
-
-      // 🔑 importante: no bloquear otros cursores de LiteGraph
-      return false;
+      return false; // deja pasar el manejo normal de LiteGraph
     };
 
     node.onMouseLeave = function () {
