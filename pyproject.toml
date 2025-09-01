@@ -11,8 +11,8 @@ Repository = "https://github.com/maoper11/comfyui_inteliweb_nodes"
 [tool.comfy]
 PublisherId = "maoper11"          # tu Publisher de registry.comfy.org
 DisplayName = "System Check (Inteliweb)"
-Icon = "https://raw.githubusercontent.com/maoper11/comfyui_inteliweb_nodes/main/assets/system_check_collapsed.png"
-Banner = "https://raw.githubusercontent.com/maoper11/comfyui_inteliweb_nodes/main/assets/system_check_expanded.png"
+Icon = ""
+Banner = ""
 Categories = ["Utility"]          # Categorías en comfyui.org
 Tags = ["system", "check", "ram", "vram", "flash-attn", "inteliweb"]  # Etiquetas en comfyui.org
 Models = []                       # Modelos que usa tu nodo, si no usa ninguno, déjalo vacío
