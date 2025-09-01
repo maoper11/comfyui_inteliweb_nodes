@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.13-blue" alt="version 0.13" />
+  <img src="https://img.shields.io/badge/version-0.14.0-blue" alt="version 0.14.0" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -55,8 +55,6 @@ Reinicia ComfyUI.
 2. Pulsa **Run** una vez.
    - Desde ese momento verás las barras de **RAM/VRAM** actualizándose cada segundo.
 3. Usa **Free VRAM** y **Free RAM** cuando quieras liberar memoria:
-   - _Free VRAM_ llama a PyTorch (`empty_cache`, `ipc_collect`, `synchronize`) + `gc.collect()`.
-   - _Free RAM_ hace `gc.collect()` y, cuando es posible, trim del _allocator_ (Linux) o _working set_ (Windows).
 4. **Copy** copia un resumen en texto de la info mostrada.
 
 > Tip: Los botones **funcionan aunque no presiones Run**; Run solo activa la vista Pretty y las barras.

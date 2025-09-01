@@ -1,9 +1,9 @@
 [project]
-name = "comfyui_inteliweb_nodes"   # id único (no pongas "ComfyUI" en el nombre)
-version = "0.13.0"
+name = "comfyui_inteliweb_nodes"  
+version = "0.14.0"
 description = "System Check (Inteliweb): RAM/VRAM live, Free RAM/VRAM buttons, Flash-Attn check."
 license = { text = "Apache-2.0" }
-dependencies = []  # si no instalas nada por pip, déjalo vacío
+dependencies = [] # No dependencies required
 
 [project.urls]
 Repository = "https://github.com/maoper11/comfyui_inteliweb_nodes"
@@ -11,8 +11,7 @@ Repository = "https://github.com/maoper11/comfyui_inteliweb_nodes"
 [tool.comfy]
 PublisherId = "maoper11"          # tu Publisher de registry.comfy.org
 DisplayName = "ComfyUI_Inteliweb_nodes"
-Icon = ""
-Banner = ""
+Icon = "https://github.com/maoper11/comfyui_inteliweb_nodes/blob/main/assets/icon.png"
 Categories = ["Utility"]          # Categorías en comfyui.org
 Tags = ["system", "check", "ram", "vram", "flash-attn", "inteliweb"]  # Etiquetas en comfyui.org
 
