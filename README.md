@@ -44,7 +44,7 @@
 
 ```bash
 cd /ruta/a/ComfyUI/custom_nodes
-git clone <URL_DE_TU_REPO> comfyui_inteliweb_nodes
+git clone https://github.com/maoper11/comfyui_inteliweb_nodes.git
 ```
 
 Reinicia ComfyUI.
