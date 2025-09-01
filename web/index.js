@@ -352,10 +352,13 @@ function stopInteliwebTelemetry(node) {
   }
 }
 
-async function fetchJSON(url) {
-  const r = await fetch(url);
+// ⬇️ Cambiado: ahora acepta init y tolera respuestas sin JSON (p.ej. 204)
+async function fetchJSON(url, init) {
+  const r = await fetch(url, init);
   if (!r.ok) throw new Error(`${url} -> ${r.status}`);
-  return await r.json();
+  const ct = r.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return await r.json();
+  return {};
 }
 
 app.registerExtension({
@@ -413,21 +416,27 @@ app.registerExtension({
     });
     runBtn.serialize = false;
 
+    // ⬇️ Cambiado: usar el endpoint oficial /free de ComfyUI
     node.__inteliweb_actions = {
       async free_vram() {
         try {
-          const res = await fetchJSON(`/inteliweb/free_vram?mode=aggressive`);
-          if (res?.vram) node._inteliweb_vram = res.vram;
-          node.setDirtyCanvas(true);
+          await fetchJSON("/free", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ unload_models: true, free_memory: true }),
+          });
+          // Telemetría se refresca cada segundo; opcionalmente puedes forzar un tick aquí.
         } catch (e) {
           console.error(e);
         }
       },
       async free_ram() {
         try {
-          const res = await fetchJSON(`/inteliweb/free_ram`);
-          if (res?.ram) node._inteliweb_ram = res.ram;
-          node.setDirtyCanvas(true);
+          await fetchJSON("/free", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ unload_models: false, free_memory: true }),
+          });
         } catch (e) {
           console.error(e);
         }
@@ -473,6 +482,7 @@ app.registerExtension({
         ctx.restore();
       }
 
+      // ⬇️ Misma posición que antes
       drawToolbarBtn(toolbarX, toolbarY, colW, BTN_H, "Free VRAM");
       node.__inteliweb_hits.push({
         type: "btn",
