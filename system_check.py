@@ -82,9 +82,10 @@ def _collect():
         "xformers", "numpy", "Pillow", "cv2", "transformers", "diffusers",
         "huggingface_hub", "tokenizers", "onnx", "onnxruntime", "timm",
         "accelerate", "bitsandbytes", "sentencepiece", "kornia", "insightface",
-        "ultralytics", "mediapipe", "scipy", "skimage", "pandas", "triton", "sageattention"
+        "ultralytics", "mediapipe", "scipy", "skimage", "pandas", "triton", "sageattention", "av"
     ]
-    aliases = {"cv2": "OpenCV", "Pillow": "Pillow", "skimage": "scikit-image"}
+    aliases = {"cv2": "OpenCV", "Pillow": "Pillow",
+               "skimage": "scikit-image", "av": "AV"}
     for m in libs:
         label = aliases.get(m, m)
         info[label] = _get(m)
@@ -128,7 +129,6 @@ def _ram_info():
         }
     except Exception:
         return {"used_mb": 0, "free_mb": 0, "total_mb": 0}
-
 
 
 if routes is not None:

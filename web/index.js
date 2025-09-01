@@ -50,6 +50,7 @@ const ICONS = {
   triton: "🔱",
   sageattention: "🌿",
   "flash-attn (package)": "⚡",
+  AV: "🎞️",
 };
 
 const COLORS = {
@@ -276,6 +277,7 @@ const CATEGORIES = {
     "pandas",
     "triton",
     "sageattention",
+    "AV",
   ],
 };
 const CATEGORY_ORDER = Object.keys(CATEGORIES);
@@ -317,6 +319,7 @@ function prettyFormat(info) {
       "pandas",
       "triton",
       "sageattention",
+      "AV",
     ],
   };
   let out = `RAM: ${info["RAM"] || "Unknown"}\n`;
