@@ -1,6 +1,6 @@
 [project]
 name = "comfyui_inteliweb_nodes"  
-version = "0.14.0"
+version = "0.14.1"
 description = "System Check (Inteliweb): RAM/VRAM live, Free RAM/VRAM buttons, Flash-Attn check."
 license = { text = "Apache-2.0" }
 dependencies = [] # No dependencies required
