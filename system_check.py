@@ -90,6 +90,76 @@ def _collect():
         label = aliases.get(m, m)
         info[label] = _get(m)
 
+    # --- SageAttention: versión y soporte (robusto) ---
+    try:
+        import importlib
+        from importlib import metadata as im
+
+        sa = importlib.import_module("sageattention")
+
+        # 1) versión: probar varios lugares y nombres de distribución
+        ver = getattr(sa, "__version__", None)
+
+        # intentos en submódulos comunes
+        if not ver:
+            for attr_path in ("__about__.__version__", "version.__version__"):
+                try:
+                    mod, var = attr_path.split(".")
+                    sub = getattr(sa, mod)
+                    ver = getattr(sub, var, None)
+                    if ver:
+                        break
+                except Exception:
+                    pass
+
+        # metadata de distribución (varias variantes)
+        if not ver:
+            for dist in ("sageattention", "sage-attention", "SageAttention", "Sage-Attention"):
+                try:
+                    ver = im.version(dist)
+                    if ver:
+                        break
+                except Exception:
+                    pass
+
+        # 2) soporte: funciones típicas + supports_device + heurístico torch.ops
+        supported = None
+        for name in ("is_available", "is_supported", "available"):
+            fn = getattr(sa, name, None)
+            if callable(fn):
+                try:
+                    supported = bool(fn())
+                except Exception:
+                    pass
+                break
+
+        if supported is None:
+            fn = getattr(sa, "supports_device", None)
+            if callable(fn):
+                try:
+                    import torch
+                    dev = torch.device(
+                        "cuda") if torch.cuda.is_available() else torch.device("cpu")
+                    supported = bool(fn(dev))
+                except Exception:
+                    supported = None
+
+        if supported is None:
+            try:
+                import torch
+                supported = hasattr(torch.ops, "sageattention") or hasattr(
+                    torch.ops, "sage_attention")
+            except Exception:
+                supported = None
+
+        # 3) badge
+        info["sageattention"] = (
+            ver or "present") if supported is None else f"{ver or 'present'} (supported={supported})"
+
+    except Exception:
+        # si falla todo, dejamos el valor anterior (o 'Not installed')
+        pass
+
     return info
 
 
