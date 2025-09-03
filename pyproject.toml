@@ -1,17 +1,18 @@
 [project]
-name = "comfyui_inteliweb_nodes"  
-version = "0.14.1"
-description = "System Check (Inteliweb): RAM/VRAM live, Free RAM/VRAM buttons, Flash-Attn check."
+name = "comfyui_inteliweb_nodes"
+version = "0.15.0"
+description = "System Check (Inteliweb): RAM/VRAM live, Free RAM/VRAM buttons, Py Libs. + Photopea Editor integration (menu contextual)."
+readme = "README.md"
 license = { text = "Apache-2.0" }
-dependencies = [] # No dependencies required
+dependencies = []
 
 [project.urls]
 Repository = "https://github.com/maoper11/comfyui_inteliweb_nodes"
+Homepage = "https://github.com/maoper11/comfyui_inteliweb_nodes"
 
 [tool.comfy]
-PublisherId = "maoper11"          # tu Publisher de registry.comfy.org
+PublisherId = "maoper11"
 DisplayName = "ComfyUI_Inteliweb_nodes"
 Icon = "https://github.com/maoper11/comfyui_inteliweb_nodes/blob/main/assets/icon.png?raw=1"
-Categories = ["Utility"]          # Categorías en comfyui.org
-Tags = ["system", "check", "ram", "vram", "flash-attn", "inteliweb"]  # Etiquetas en comfyui.org
-
+Categories = ["Utility", "Editor"]
+Tags = ["system", "check", "ram", "vram", "flash-attn", "inteliweb", "photopea", "clipspace", "editor", "right-click-menu"]

@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.14.1-blue" alt="version 0.14.1" />
+  <img src="https://img.shields.io/badge/version-0.15.0-blue" alt="version 0.15.0" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -22,12 +22,38 @@
 
 </div>
 
+---
+
+## ✨ Photopea Editor (Inteliweb)
+
+Integra **Photopea** dentro de ComfyUI:
+
+- Menú contextual (**clic derecho**) en nodos con salida `IMAGE`/`MASK`: **Open in Photopea Editor**.
+- Edición en modal con **Fullscreen** y opción **Save / Save to node**:
+  - Sube el PNG a `/upload/image`, lo añade al **Clipspace** y si abriste desde un nodo, actualiza su widget `image` con `… [input]`.
+- Implementación **sin dependencias Python** (solo JS en `web/`).
+- Requiere conexión a internet (Photopea corre en el navegador).
+
+<div align="center">
+
+<!-- Coloca aquí tu captura del modal de Photopea -->
+<img src="assets/photopea_editor.png" alt="Photopea Editor (Inteliweb) dentro de ComfyUI" width="900"/>
+
+</div>
+
+**Tips**
+
+- Si trabajas con imágenes muy grandes, la apertura/guardado puede tardar unos segundos (normal en Photopea).
+
+---
+
 ## Características
 
 - Vista **Estilizada** con categorías colapsables (System, GPU/CUDA, Core libs, etc.).
 - **Botones rápidos**: Free VRAM, Free RAM y Copy.
 - **Barras de RAM/VRAM** con **actualización automática cada 1s** (end-point ligero, sin recalcular todo).
 - Detección de **Flash Attention** (soporte/estado del paquete).
+- **Photopea Editor (Inteliweb)** integrado (menú contextual + Clipspace + guardado al nodo).
 
 ## Instalación
 
@@ -52,16 +78,29 @@ Reinicia ComfyUI.
 ## Uso
 
 1. Añade el nodo **System Check (Inteliweb)** al lienzo.
-2. Pulsa **Run** una vez.
-   - Desde ese momento verás las barras de **RAM/VRAM** actualizándose cada segundo.
-3. Usa **Free VRAM** y **Free RAM** cuando quieras liberar memoria:
+2. Pulsa **Run** una vez.  
+   Desde ese momento verás las barras de **RAM/VRAM** actualizándose cada segundo.
+3. Usa **Free VRAM** y **Free RAM** cuando quieras liberar memoria.
 4. **Copy** copia un resumen en texto de la info mostrada.
 
-> Tip: Los botones **funcionan aunque no presiones Run**; Run solo activa la vista Pretty y las barras.
+### Uso de Photopea
+
+- **Opción 1 (desde un nodo):** clic derecho en un nodo con salida `IMAGE/MASK` → **Open in Photopea Editor**.
+- Edita en Photopea y pulsa **Save** (o **Save to node** si volviste desde un nodo).
+
+> Nota: Photopea corre embebido en un iframe (en tu navegador). No se envía información a servidores del autor del nodo.
 
 ## Compatibilidad
 
 - Probado en Windows y Linux (NVIDIA).
+
+---
+
+## Créditos
+
+- **Photopea Editor (Inteliweb):** adaptación namespaced a partir de la idea de  
+  [`coolzilj/ComfyUI-Photopea`](https://github.com/coolzilj/ComfyUI-Photopea) (licencia **MIT**).  
+  Gracias a @coolzilj por el flujo original de integración.
 
 ---
 
@@ -78,4 +117,4 @@ Este proyecto está licenciado bajo **Apache License 2.0**. Consulta el archivo 
 
 - YouTube (tutoriales de flujos profesionales para ComfyUI):  
   **https://www.youtube.com/@InteliwebAI**
-- Mentorías personalizadas 1:1 (ComfyUI, instalación optimizada, flujos avanzados, Character Sheet, VTON, Flux, etc.). Email en la descripción del canal.
+- Mentorías personalizadas 1:1 (ComfyUI, instalación optimizada, flujos avanzados, Character Sheet, VTON, Flux, etc.)

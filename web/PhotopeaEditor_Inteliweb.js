@@ -105,12 +105,27 @@ class InteliwebPhotopeaEditorDialog extends ComfyDialog {
     bottom_panel.style.bottom = "0px";
     bottom_panel.style.left = "20px";
     bottom_panel.style.right = "20px";
-    bottom_panel.style.height = "50px";
+    bottom_panel.style.height = "36px";
     this.element.appendChild(bottom_panel);
 
     self.fullscreenButton = this.createLeftButton("Fullscreen", () => {
       self.toggleFullscreen();
     });
+
+    // Brand link (left, subtle)
+    var brand = document.createElement("a");
+    brand.href = "https://www.youtube.com/@InteliwebAI";
+    brand.target = "_blank";
+    brand.rel = "noopener noreferrer";
+    brand.textContent = "Inteliweb AI";
+    brand.style.cssFloat = "left";
+    brand.style.marginLeft = "8px";
+    brand.style.marginTop = "6px";
+    brand.style.fontSize = "20px";
+    brand.style.opacity = "0.6";
+    brand.style.textDecoration = "none";
+    brand.addEventListener("mouseenter", () => (brand.style.opacity = "0.85"));
+    brand.addEventListener("mouseleave", () => (brand.style.opacity = "0.6"));
 
     var cancelButton = this.createRightButton("Cancel", () => {
       self.close();
@@ -121,6 +136,7 @@ class InteliwebPhotopeaEditorDialog extends ComfyDialog {
     });
 
     bottom_panel.appendChild(self.fullscreenButton);
+    bottom_panel.appendChild(brand);
     bottom_panel.appendChild(self.saveButton);
     bottom_panel.appendChild(cancelButton);
   }
@@ -149,12 +165,12 @@ class InteliwebPhotopeaEditorDialog extends ComfyDialog {
 
     this.iframe_container = document.createElement("div");
     this.iframe_container.style.flex = "1";
-    this.iframe_container.style.paddingBottom = "70px";
+    this.iframe_container.style.paddingBottom = "40px";
     this.element.appendChild(this.iframe_container);
     this.element.style.display = "flex";
     this.element.style.flexDirection = "column";
-    this.element.style.width = "80vw";
-    this.element.style.height = "80vh";
+    this.element.style.width = "90vw";
+    this.element.style.height = "90vh";
     this.element.style.maxWidth = "100vw";
     this.element.style.maxHeight = "100vh";
     this.element.style.padding = "0";

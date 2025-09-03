@@ -9,7 +9,7 @@ Muestra información del sistema (CPU, RAM, GPU/CUDA) y versiones de librerías 
 1. Coloca el nodo en el canvas y pulsa **Run** para recolectar la información.
 2. Expande o colapsa categorías con el triangulo ▸/▾.
 3. Usa los botones de la parte superior del nodo:
-   - **Free VRAM** — descarga todos los modelos y limpia cachés (igual al botón de la barra de ComfyUI “Free model and node cache”)
+   - **Free VRAM** — descarga todos los modelos y limpia cachés.
    - **Free RAM** — limpia cachés sin descargar modelos
    - **Copy** — copia un resumen de toda la info al portapapeles.
 
