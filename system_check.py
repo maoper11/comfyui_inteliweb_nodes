@@ -4,7 +4,6 @@ import platform
 import importlib
 import json
 
-
 def _get(mod):
     """Return module version or 'Not installed'."""
     try:
@@ -20,6 +19,46 @@ def _get(mod):
         return "Not installed"
 
 
+def _flash_attn_simple():
+    """
+    Devuelve: version (o 'Not installed'), supported (True/False), sm (int o None).
+    - supported se toma de torch.backends.cuda.flash_sdp_supported()
+    - version se obtiene via importlib.metadata sin forzar el import del paquete
+    """
+    version = "Not installed"
+    supported = False
+    sm = None
+    # Paquete (sin importar)
+    try:
+        from importlib import metadata as im
+    except Exception:
+        import importlib_metadata as im  # fallback
+    for dist in ("flash-attn", "flash_attn", "FlashAttention"):
+        try:
+            version = im.version(dist)
+            break
+        except Exception:
+            continue
+    # Soporte y SM
+    try:
+        import torch
+        if torch.cuda.is_available():
+            try:
+                major, minor = torch.cuda.get_device_capability(0)
+                sm = major * 10 + minor
+            except Exception:
+                sm = None
+        # soporte de Flash SDP nativa
+        try:
+            supported = bool(getattr(torch.backends.cuda, "flash_sdp_supported", lambda: False)())
+        except Exception:
+            supported = False
+    except Exception:
+        supported = False
+        sm = None
+    return version, supported, sm
+
+
 def _collect():
     info = {}
     # Basics
@@ -33,7 +72,7 @@ def _collect():
     except Exception:
         info["RAM"] = "Unknown"
 
-    # PyTorch / CUDA + Flash Attention
+    # PyTorch / CUDA
     try:
         import torch
         import torchvision
@@ -51,31 +90,13 @@ def _collect():
 
         info["CUDA version"] = getattr(torch.version, "cuda", "unknown")
 
-        # Flash Attention status (PyTorch flash SDP)
-        try:
-            sup = getattr(torch.backends.cuda,
-                          "flash_sdp_supported", lambda: False)()
-            en = getattr(torch.backends.cuda,
-                         "flash_sdp_enabled", lambda: False)()
-            info["Flash Attention"] = f"supported={sup}, enabled={en}"
-        except Exception:
-            info["Flash Attention"] = "Unknown"
+        # Flash Attention (simple, estilo sageattention)
+        ver, sup, sm = _flash_attn_simple()
+        sm_s = f", sm={sm}" if sm is not None else ""
+        info["Flash Attention"] = f"{ver} (supported={sup}{sm_s})"
 
     except Exception:
         info["PyTorch"] = "Not installed"
-
-    # External package 'flash-attn' if present
-    try:
-        _fa = importlib.import_module("flash_attn")
-        _ver = getattr(_fa, "__version__", None)
-        if not _ver and hasattr(_fa, "version"):
-            try:
-                _ver = _fa.version()
-            except Exception:
-                _ver = None
-        info["flash-attn (package)"] = _ver or "present"
-    except Exception:
-        info["flash-attn (package)"] = "Not installed"
 
     # Other useful libs
     libs = [
@@ -92,15 +113,12 @@ def _collect():
 
     # --- SageAttention: versión y soporte (robusto) ---
     try:
-        import importlib
         from importlib import metadata as im
 
         sa = importlib.import_module("sageattention")
 
-        # 1) versión: probar varios lugares y nombres de distribución
+        # 1) versión
         ver = getattr(sa, "__version__", None)
-
-        # intentos en submódulos comunes
         if not ver:
             for attr_path in ("__about__.__version__", "version.__version__"):
                 try:
@@ -111,8 +129,6 @@ def _collect():
                         break
                 except Exception:
                     pass
-
-        # metadata de distribución (varias variantes)
         if not ver:
             for dist in ("sageattention", "sage-attention", "SageAttention", "Sage-Attention"):
                 try:
@@ -122,7 +138,7 @@ def _collect():
                 except Exception:
                     pass
 
-        # 2) soporte: funciones típicas + supports_device + heurístico torch.ops
+        # 2) soporte
         supported = None
         for name in ("is_available", "is_supported", "available"):
             fn = getattr(sa, name, None)
@@ -132,32 +148,25 @@ def _collect():
                 except Exception:
                     pass
                 break
-
         if supported is None:
             fn = getattr(sa, "supports_device", None)
             if callable(fn):
                 try:
                     import torch
-                    dev = torch.device(
-                        "cuda") if torch.cuda.is_available() else torch.device("cpu")
+                    dev = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
                     supported = bool(fn(dev))
                 except Exception:
                     supported = None
-
         if supported is None:
             try:
                 import torch
-                supported = hasattr(torch.ops, "sageattention") or hasattr(
-                    torch.ops, "sage_attention")
+                supported = hasattr(torch.ops, "sageattention") or hasattr(torch.ops, "sage_attention")
             except Exception:
                 supported = None
 
-        # 3) badge
-        info["sageattention"] = (
-            ver or "present") if supported is None else f"{ver or 'present'} (supported={supported})"
+        info["sageattention"] = (ver or "present") if supported is None else f"{ver or 'present'} (supported={supported})"
 
     except Exception:
-        # si falla todo, dejamos el valor anterior (o 'Not installed')
         pass
 
     return info
@@ -173,7 +182,6 @@ try:
     async def inteliweb_sysinfo(request):
         return web.json_response(_collect())
 except Exception:
-    # In headless import-path contexts, server routes may not be available
     routes = None
 
 
@@ -239,25 +247,24 @@ if routes is not None:
     async def inteliweb_free_ram(request):
         try:
             import gc
-            import sys
+            import sys as _sys
             gc.collect()
 
             trimmed = False
             try:
-                if sys.platform.startswith("linux"):
+                if _sys.platform.startswith("linux"):
                     import ctypes
                     libc = ctypes.CDLL("libc.so.6")
                     libc.malloc_trim(0)
                     trimmed = True
-                elif sys.platform.startswith("win"):
+                elif _sys.platform.startswith("win"):
                     import ctypes
                     psapi = ctypes.WinDLL("psapi")
                     kernel32 = ctypes.WinDLL("kernel32")
                     handle = kernel32.GetCurrentProcess()
                     psapi.EmptyWorkingSet(handle)
                     trimmed = True
-                # macOS: no hay una API pública estable para recortar working set;
-                # dejamos gc.collect() como mejor esfuerzo.
+                # macOS: no API pública estable; queda gc.collect() como mejor esfuerzo.
             except Exception:
                 pass
 

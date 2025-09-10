@@ -49,7 +49,7 @@ const ICONS = {
   pandas: "🐼",
   triton: "🔱",
   sageattention: "🌿",
-  "flash-attn (package)": "⚡",
+  "Flash Attention": "⚡",
   AV: "🎞️",
 };
 
@@ -252,13 +252,7 @@ function getWidgetsBottomY(node) {
 
 const CATEGORIES = {
   "== System ==": ["Python version", "Operating System", "CPU", "RAM"],
-  "== GPU / CUDA ==": [
-    "VRAM",
-    "GPU",
-    "CUDA version",
-    "Flash Attention",
-    "flash-attn (package)",
-  ],
+  "== GPU / CUDA ==": ["VRAM", "GPU", "CUDA version", "Flash Attention"],
   "== Core libs ==": ["PyTorch", "torchvision", "xformers", "numpy"],
   "== Vision / Audio ==": ["OpenCV", "Pillow", "ultralytics", "mediapipe"],
   "== ONNX / Runtime ==": ["onnx", "onnxruntime", "accelerate", "bitsandbytes"],
@@ -284,12 +278,7 @@ const CATEGORY_ORDER = Object.keys(CATEGORIES);
 
 function prettyFormat(info) {
   const cat = {
-    "== GPU / CUDA ==": [
-      "GPU",
-      "CUDA version",
-      "Flash Attention",
-      "flash-attn (package)",
-    ],
+    "== GPU / CUDA ==": ["GPU", "CUDA version", "Flash Attention"],
     "== Core libs ==": ["PyTorch", "torchvision", "xformers", "numpy"],
     "== Vision / Audio ==": [
       "OpenCV",
