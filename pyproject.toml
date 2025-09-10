@@ -1,6 +1,6 @@
 [project]
 name = "comfyui_inteliweb_nodes"
-version = "0.15.0"
+version = "0.15.1"
 description = "System Check (Inteliweb): RAM/VRAM live, Free RAM/VRAM buttons, Py Libs. + Photopea Editor integration (menu contextual)."
 readme = "README.md"
 license = { text = "Apache-2.0" }

@@ -4,6 +4,7 @@ import platform
 import importlib
 import json
 
+
 def _get(mod):
     """Return module version or 'Not installed'."""
     try:
@@ -50,7 +51,8 @@ def _flash_attn_simple():
                 sm = None
         # soporte de Flash SDP nativa
         try:
-            supported = bool(getattr(torch.backends.cuda, "flash_sdp_supported", lambda: False)())
+            supported = bool(getattr(torch.backends.cuda,
+                             "flash_sdp_supported", lambda: False)())
         except Exception:
             supported = False
     except Exception:
@@ -100,12 +102,12 @@ def _collect():
 
     # Other useful libs
     libs = [
-        "xformers", "numpy", "Pillow", "cv2", "transformers", "diffusers",
+        "xformers", "numpy", "PIL", "cv2", "transformers", "diffusers",
         "huggingface_hub", "tokenizers", "onnx", "onnxruntime", "timm",
         "accelerate", "bitsandbytes", "sentencepiece", "kornia", "insightface",
         "ultralytics", "mediapipe", "scipy", "skimage", "pandas", "triton", "sageattention", "av"
     ]
-    aliases = {"cv2": "OpenCV", "Pillow": "Pillow",
+    aliases = {"cv2": "OpenCV", "PIL": "Pillow",
                "skimage": "scikit-image", "av": "AV"}
     for m in libs:
         label = aliases.get(m, m)
@@ -153,18 +155,21 @@ def _collect():
             if callable(fn):
                 try:
                     import torch
-                    dev = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+                    dev = torch.device(
+                        "cuda") if torch.cuda.is_available() else torch.device("cpu")
                     supported = bool(fn(dev))
                 except Exception:
                     supported = None
         if supported is None:
             try:
                 import torch
-                supported = hasattr(torch.ops, "sageattention") or hasattr(torch.ops, "sage_attention")
+                supported = hasattr(torch.ops, "sageattention") or hasattr(
+                    torch.ops, "sage_attention")
             except Exception:
                 supported = None
 
-        info["sageattention"] = (ver or "present") if supported is None else f"{ver or 'present'} (supported={supported})"
+        info["sageattention"] = (
+            ver or "present") if supported is None else f"{ver or 'present'} (supported={supported})"
 
     except Exception:
         pass

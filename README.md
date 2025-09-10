@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.15.0-blue" alt="version 0.15.0" />
+  <img src="https://img.shields.io/badge/version-0.15.1-blue" alt="version 0.15.1" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -19,6 +19,8 @@
 
 **Expandido (después de Run)**  
 <img src="assets/system_check_expanded.png" alt="System Check - estado expandido" width="700"/>
+<img src="assets/system_check_expanded_2.png" alt="System Check - estado expandido" width="700"/>
+<img src="assets/system_check_expanded_3.png" alt="System Check - estado expandido" width="700"/>
 
 </div>
 
