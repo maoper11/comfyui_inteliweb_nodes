@@ -70,6 +70,11 @@ class InteliwebPhotopeaEditorDialog extends ComfyDialog {
     ]);
     this.iframe = null;
     this.iframe_container = null;
+
+    // --- fullscreen state ---
+    this.is_fullscreen = false;
+    this.default_vw = "90vw";
+    this.default_vh = "90vh";
   }
 
   createButtons() {
@@ -95,6 +100,21 @@ class InteliwebPhotopeaEditorDialog extends ComfyDialog {
     button.style.cssFloat = "right";
     button.style.marginLeft = "4px";
     return button;
+  }
+
+  setWindowedLayout() {
+    this.element.style.width = this.default_vw;
+    this.element.style.height = this.default_vh;
+    this.is_fullscreen = false;
+    if (this.fullscreenButton) this.fullscreenButton.innerText = "Fullscreen";
+  }
+
+  setFullscreenLayout() {
+    this.element.style.width = "100vw";
+    this.element.style.height = "100vh";
+    this.is_fullscreen = true;
+    if (this.fullscreenButton)
+      this.fullscreenButton.innerText = "Exit Fullscreen";
   }
 
   setlayout() {
@@ -147,6 +167,9 @@ class InteliwebPhotopeaEditorDialog extends ComfyDialog {
       this.is_layout_created = true;
     }
 
+    // SIEMPRE reset al abrir
+    this.setWindowedLayout();
+
     if (ComfyApp.clipspace_return_node) {
       this.saveButton.innerText = "Save to node";
     } else {
@@ -187,7 +210,14 @@ class InteliwebPhotopeaEditorDialog extends ComfyDialog {
   }
 
   close() {
-    this.element.removeChild(this.iframe_container);
+    // resetea estado/label y limpia el iframe al cerrar
+    this.setWindowedLayout();
+    if (
+      this.iframe_container &&
+      this.iframe_container.parentNode === this.element
+    ) {
+      this.element.removeChild(this.iframe_container);
+    }
     super.close();
   }
 
@@ -218,14 +248,10 @@ class InteliwebPhotopeaEditorDialog extends ComfyDialog {
   }
 
   toggleFullscreen() {
-    if (this.element.style.width === "100vw") {
-      this.element.style.width = "80vw";
-      this.element.style.height = "80vh";
-      this.fullscreenButton.innerText = "Fullscreen";
+    if (this.is_fullscreen) {
+      this.setWindowedLayout();
     } else {
-      this.element.style.width = "100vw";
-      this.element.style.height = "100vh";
-      this.fullscreenButton.innerText = "Exit Fullscreen";
+      this.setFullscreenLayout();
     }
   }
 
