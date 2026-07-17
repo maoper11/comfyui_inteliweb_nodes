@@ -8,7 +8,7 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "InteliwebSystemCheck": "System Check (Inteliweb)",
-    "InteliwebPurgeVRAM": "Purge VRAM (Inteliweb)",
+    "InteliwebPurgeVRAM": "Free Memory (Inteliweb)",
 }
 
 import os as _os
