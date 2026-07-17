@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.17.0-blue" alt="version 0.17.0" />
+  <img src="https://img.shields.io/badge/version-0.18.0-blue" alt="version 0.18.0" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -10,7 +10,7 @@
   </a>
 </p>
 
-> **System Check (Inteliweb)** — Nodo utilitario para ComfyUI que muestra información del sistema (OS/CPU/Python), detecta librerías clave de IA, verifica Flash Attention y añade botones para liberar VRAM y RAM.
+> **System Check (Inteliweb)** — Nodo utilitario para ComfyUI que muestra información del sistema, detecta librerías clave de IA, verifica Flash Attention y añade botones para liberar VRAM y RAM.
 
 <div align="center">
 
@@ -23,6 +23,38 @@
 <img src="assets/system_check_expanded_3.png" alt="System Check - estado expandido" width="700"/>
 
 </div>
+
+---
+
+## 📊 Resource Monitor (Inteliweb)
+
+Monitor compacto integrado en la barra superior de ComfyUI.
+
+Muestra en tiempo real:
+
+- Uso de disco.
+- Uso de CPU.
+- Uso de RAM.
+- Utilización de GPU.
+- Uso de VRAM.
+- Temperatura de GPU.
+
+Características:
+
+- Intervalo configurable: 0.5, 1, 2 o 5 segundos.
+- Cada indicador puede ocultarse individualmente.
+- Tooltip con valores detallados y nombre de GPU.
+- Soporte para múltiples fuentes de telemetría GPU:
+  1. `pynvml`, cuando ya está instalado.
+  2. `nvidia-smi`, sin instalar paquetes Python adicionales.
+  3. PyTorch como fallback para medir VRAM.
+- No inicia hilos de fondo: el navegador solicita snapshots mediante `/inteliweb/resource_monitor`.
+- Implementación independiente de System Check.
+- No añade requirements obligatorios.
+
+Pulsa el botón `⋮` del monitor para cambiar su configuración.
+
+> Cuando solo está disponible el fallback de PyTorch, se muestra VRAM pero la utilización y la temperatura pueden aparecer como `--`.
 
 ---
 
@@ -106,6 +138,7 @@ trim_ram = true
 
 ## Características
 
+- Monitor de recursos en la barra superior.
 - Vista estilizada de System Check con categorías colapsables.
 - Botones rápidos: Free VRAM, Free RAM y Copy.
 - Barras de RAM/VRAM con actualización automática.
@@ -136,13 +169,15 @@ Reinicia ComfyUI.
 ## Compatibilidad
 
 - Windows y Linux.
-- Diseñado alrededor de las funciones oficiales de gestión de memoria de ComfyUI.
-- Sin dependencias adicionales para Free Memory.
+- NVIDIA: métricas completas mediante `pynvml` o `nvidia-smi`.
+- Otros aceleradores: CPU, RAM, disco y VRAM cuando PyTorch puede reportarla.
+- Diseñado alrededor de funciones oficiales de ComfyUI.
 
 ---
 
 ## Créditos
 
+- **Resource Monitor (Inteliweb):** monitor independiente inspirado en [`crystian/ComfyUI-Crystools`](https://github.com/crystian/ComfyUI-Crystools), licencia MIT.
 - **Free Memory (Inteliweb):** implementación adaptada del concepto `PurgeVRAM` de [`chflame163/ComfyUI_LayerStyle`](https://github.com/chflame163/ComfyUI_LayerStyle), licencia MIT.
 - Ideas de diagnóstico estudiadas en `VRAM Debug` de [`kijai/ComfyUI-KJNodes`](https://github.com/kijai/ComfyUI-KJNodes) y en los nodos de limpieza de [`yolain/ComfyUI-Easy-Use`](https://github.com/yolain/ComfyUI-Easy-Use). La implementación de Inteliweb es independiente.
 - **Photopea Editor (Inteliweb):** adaptación namespaced a partir de [`coolzilj/ComfyUI-Photopea`](https://github.com/coolzilj/ComfyUI-Photopea), licencia MIT.
