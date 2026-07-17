@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.15.1-blue" alt="version 0.15.1" />
+  <img src="https://img.shields.io/badge/version-0.17.0-blue" alt="version 0.17.0" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -10,7 +10,7 @@
   </a>
 </p>
 
-> **System Check (Inteliweb)** — Nodo utilitario para ComfyUI que muestra información del sistema (OS/CPU/Python), detecta librerías clave de IA (PyTorch, torchvision, xformers, etc.), verifica Flash Attention y añade botones para **liberar VRAM** y **liberar RAM**. Incluye modo _Estilizado_ con badges y **auto-refresh de RAM/VRAM cada 1s**.
+> **System Check (Inteliweb)** — Nodo utilitario para ComfyUI que muestra información del sistema (OS/CPU/Python), detecta librerías clave de IA, verifica Flash Attention y añade botones para liberar VRAM y RAM.
 
 <div align="center">
 
@@ -30,32 +30,88 @@
 
 Integra **Photopea** dentro de ComfyUI:
 
-- Menú contextual (**clic derecho**) en nodos con salida `IMAGE`/`MASK`: **Open in Photopea Editor**.
-- Edición en modal con **Fullscreen** y opción **Save / Save to node**:
-  - Sube el PNG a `/upload/image`, lo añade al **Clipspace** y si abriste desde un nodo, actualiza su widget `image` con `… [input]`.
-- Implementación **sin dependencias Python** (solo JS en `web/`).
-- Requiere conexión a internet (Photopea corre en el navegador).
+- Menú contextual en nodos con salida `IMAGE`/`MASK`: **Open in Photopea Editor**.
+- Edición en modal con **Fullscreen** y opción **Save / Save to node**.
+- Implementación sin dependencias Python.
+- Requiere conexión a internet porque Photopea corre en el navegador.
 
 <div align="center">
-
-<!-- Coloca aquí tu captura del modal de Photopea -->
 <img src="assets/photopea_editor.png" alt="Photopea Editor (Inteliweb) dentro de ComfyUI" width="900"/>
-
 </div>
 
-**Tips**
+---
 
-- Si trabajas con imágenes muy grandes, la apertura/guardado puede tardar unos segundos (normal en Photopea).
+## 🧹 Free Memory (Inteliweb)
+
+Nodo pass-through para liberar recursos entre etapas pesadas de un workflow. El ID interno continúa siendo `InteliwebPurgeVRAM` para conservar compatibilidad con workflows existentes.
+
+Funciones:
+
+- Acepta cualquier tipo de entrada y la devuelve sin modificar.
+- Mide VRAM y RAM disponibles antes y después.
+- Muestra en consola la memoria liberada y el nombre de la etapa.
+- Expone salidas numéricas con VRAM/RAM antes, después y diferencia.
+- Actualiza las etiquetas de las salidas después de ejecutarse.
+- Puede descargar modelos administrados por ComfyUI.
+- Puede ejecutar garbage collection de Python.
+- Limpia la caché del acelerador mediante `comfy.model_management.soft_empty_cache()`.
+- Puede intentar devolver RAM sin uso al sistema operativo mediante `malloc_trim` en Linux o `EmptyWorkingSet` en Windows.
+- No añade requirements externos.
+
+### Opciones
+
+- `purge_cache`: limpia la caché del acelerador. Predeterminado: `true`.
+- `purge_models`: descarga todos los modelos administrados por ComfyUI. Predeterminado: `false`.
+- `gc_collect`: ejecuta `gc.collect()`. Predeterminado: `true`.
+- `trim_ram`: intenta devolver RAM libre al sistema operativo. Predeterminado: `false`.
+- `show_report`: escribe el reporte en la consola. Predeterminado: `true`.
+- `stage_name`: identifica el nodo en los logs, por ejemplo `After Sampler` o `Final Cleanup`.
+
+> `trim_ram` no puede liberar tensores, modelos o resultados que todavía tengan referencias activas. Tampoco limpia la caché de ejecución general de ComfyUI.
+
+### Uso recomendado
+
+```text
+Sampler → Free Memory → VAE Decode
+```
+
+Para una limpieza segura entre etapas:
+
+```text
+purge_cache = true
+purge_models = false
+gc_collect = true
+trim_ram = false
+```
+
+Para liberar la mayor cantidad de VRAM antes de cargar otro modelo o VAE:
+
+```text
+purge_cache = true
+purge_models = true
+gc_collect = true
+trim_ram = false
+```
+
+Para una limpieza final de VRAM y un intento de reducción del working set de RAM:
+
+```text
+purge_cache = true
+purge_models = true
+gc_collect = true
+trim_ram = true
+```
 
 ---
 
 ## Características
 
-- Vista **Estilizada** con categorías colapsables (System, GPU/CUDA, Core libs, etc.).
-- **Botones rápidos**: Free VRAM, Free RAM y Copy.
-- **Barras de RAM/VRAM** con **actualización automática cada 1s** (end-point ligero, sin recalcular todo).
-- Detección de **Flash Attention** (soporte/estado del paquete).
-- **Photopea Editor (Inteliweb)** integrado (menú contextual + Clipspace + guardado al nodo).
+- Vista estilizada de System Check con categorías colapsables.
+- Botones rápidos: Free VRAM, Free RAM y Copy.
+- Barras de RAM/VRAM con actualización automática.
+- Detección de Flash Attention.
+- Photopea Editor integrado.
+- Free Memory como nodo de paso y diagnóstico dentro del workflow.
 
 ## Instalación
 
@@ -64,7 +120,7 @@ Integra **Photopea** dentro de ComfyUI:
 **Opción A — ZIP**
 
 1. En GitHub: **Code → Download ZIP**.
-2. Descomprime el contenido en:  
+2. Descomprime el contenido en:
    `ComfyUI/custom_nodes/comfyui_inteliweb_nodes/`
 3. Reinicia ComfyUI.
 
@@ -77,39 +133,27 @@ git clone https://github.com/maoper11/comfyui_inteliweb_nodes.git
 
 Reinicia ComfyUI.
 
-## Uso
-
-1. Añade el nodo **System Check (Inteliweb)** al lienzo.
-2. Pulsa **Run** una vez.  
-   Desde ese momento verás las barras de **RAM/VRAM** actualizándose cada segundo.
-3. Usa **Free VRAM** y **Free RAM** cuando quieras liberar memoria.
-4. **Copy** copia un resumen en texto de la info mostrada.
-
-### Uso de Photopea
-
-- **Opción 1 (desde un nodo):** clic derecho en un nodo con salida `IMAGE/MASK` → **Open in Photopea Editor**.
-- Edita en Photopea y pulsa **Save** (o **Save to node** si volviste desde un nodo).
-
-> Nota: Photopea corre embebido en un iframe (en tu navegador). No se envía información a servidores del autor del nodo.
-
 ## Compatibilidad
 
-- Probado en Windows y Linux (NVIDIA).
+- Windows y Linux.
+- Diseñado alrededor de las funciones oficiales de gestión de memoria de ComfyUI.
+- Sin dependencias adicionales para Free Memory.
 
 ---
 
 ## Créditos
 
-- **Photopea Editor (Inteliweb):** adaptación namespaced a partir de la idea de  
-  [`coolzilj/ComfyUI-Photopea`](https://github.com/coolzilj/ComfyUI-Photopea) (licencia **MIT**).  
-  Gracias a @coolzilj por el flujo original de integración.
+- **Free Memory (Inteliweb):** implementación adaptada del concepto `PurgeVRAM` de [`chflame163/ComfyUI_LayerStyle`](https://github.com/chflame163/ComfyUI_LayerStyle), licencia MIT.
+- Ideas de diagnóstico estudiadas en `VRAM Debug` de [`kijai/ComfyUI-KJNodes`](https://github.com/kijai/ComfyUI-KJNodes) y en los nodos de limpieza de [`yolain/ComfyUI-Easy-Use`](https://github.com/yolain/ComfyUI-Easy-Use). La implementación de Inteliweb es independiente.
+- **Photopea Editor (Inteliweb):** adaptación namespaced a partir de [`coolzilj/ComfyUI-Photopea`](https://github.com/coolzilj/ComfyUI-Photopea), licencia MIT.
+
+Consulta `THIRD_PARTY_NOTICES.md` para los avisos de terceros.
 
 ---
 
-## Licencia (Apache-2.0)
+## Licencia
 
-Este proyecto está licenciado bajo **Apache License 2.0**. Consulta el archivo `LICENSE` para el texto completo.  
-**Sin garantías**; el software se distribuye “TAL CUAL”. El autor **no asume responsabilidad** por daños o pérdidas derivados del uso.
+Este proyecto está licenciado bajo Apache License 2.0. Consulta `LICENSE` para el texto completo.
 
 ---
 
@@ -117,6 +161,5 @@ Este proyecto está licenciado bajo **Apache License 2.0**. Consulta el archivo 
 
 **Mauricio Perdomo — Inteliweb AI**
 
-- YouTube (tutoriales de flujos profesionales para ComfyUI):  
-  **https://www.youtube.com/@InteliwebAI**
-- Mentorías personalizadas 1:1 (ComfyUI, instalación optimizada, flujos avanzados, Character Sheet, VTON, Flux, etc.)
+- YouTube: **https://www.youtube.com/@InteliwebAI**
+- Mentorías personalizadas 1:1 sobre ComfyUI, instalación optimizada y flujos avanzados.
