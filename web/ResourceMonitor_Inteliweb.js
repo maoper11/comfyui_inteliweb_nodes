@@ -47,7 +47,6 @@ function ensureStyles() {
       user-select: none;
       flex: 0 0 auto;
     }
-    #${MONITOR_ID}[data-disabled="true"] { display: none !important; }
     #${MONITOR_ID} .iw-resource {
       position: relative;
       display: flex;
@@ -68,15 +67,18 @@ function ensureStyles() {
       left: 0;
       right: 0;
       bottom: 0;
-      height: 3px;
+      height: 5px;
+      border-radius: 3px 3px 0 0;
       transform-origin: left center;
       transform: scaleX(var(--iw-progress, 0));
       background: var(--iw-color, #3b82f6);
+      box-shadow: 0 -1px 5px color-mix(in srgb, var(--iw-color, #3b82f6) 55%, transparent);
       transition: transform .35s ease;
     }
     #${MONITOR_ID} .iw-label { opacity: .62; font-size: 9px; }
     #${MONITOR_ID} .iw-value { font-variant-numeric: tabular-nums; font-weight: 650; }
-    #${MONITOR_ID} .iw-settings {
+    #${MONITOR_ID} .iw-settings,
+    #${MONITOR_ID} .iw-restore {
       min-width: 30px;
       border: 0;
       border-left: 1px solid rgba(255,255,255,.08);
@@ -84,8 +86,21 @@ function ensureStyles() {
       color: #d1d5db;
       cursor: pointer;
       font-size: 14px;
+      align-items: center;
+      justify-content: center;
     }
-    #${MONITOR_ID} .iw-settings:hover { background: rgba(255,255,255,.08); }
+    #${MONITOR_ID} .iw-settings { display: flex; }
+    #${MONITOR_ID} .iw-restore {
+      display: none;
+      width: 38px;
+      border-left: 0;
+      font-size: 17px;
+    }
+    #${MONITOR_ID} .iw-settings:hover,
+    #${MONITOR_ID} .iw-restore:hover { background: rgba(255,255,255,.08); }
+    #${MONITOR_ID}[data-disabled="true"] .iw-resource,
+    #${MONITOR_ID}[data-disabled="true"] .iw-settings { display: none !important; }
+    #${MONITOR_ID}[data-disabled="true"] .iw-restore { display: flex; }
     .iw-resource-popover {
       position: fixed;
       z-index: 100000;
@@ -162,11 +177,32 @@ function applyVisibility(root) {
 
 function createPopover(button, root, restart) {
   document.querySelectorAll(".iw-resource-popover").forEach((el) => el.remove());
+
   const popover = document.createElement("div");
   popover.className = "iw-resource-popover";
+  let closed = false;
+
+  const closePopover = () => {
+    if (closed) return;
+    closed = true;
+    popover.remove();
+    window.removeEventListener("pointerdown", closeIfOutside, true);
+    window.removeEventListener("mousedown", closeIfOutside, true);
+    window.removeEventListener("blur", closePopover);
+    document.removeEventListener("keydown", closeOnEscape, true);
+  };
+
+  const closeIfOutside = (event) => {
+    const target = event.target;
+    if (!popover.contains(target) && !button.contains(target)) closePopover();
+  };
+
+  const closeOnEscape = (event) => {
+    if (event.key === "Escape") closePopover();
+  };
 
   const toggles = [
-    ["enabled", "Enable monitor"],
+    ["enabled", "Show monitor"],
     ["showDisk", "Disk"],
     ["showCPU", "CPU"],
     ["showRAM", "RAM"],
@@ -183,6 +219,7 @@ function createPopover(button, root, restart) {
     checkbox.addEventListener("change", () => {
       writeSetting(key, checkbox.checked);
       applyVisibility(root);
+      if (key === "enabled" && !checkbox.checked) closePopover();
     });
     row.append(label, checkbox);
     popover.appendChild(row);
@@ -210,13 +247,12 @@ function createPopover(button, root, restart) {
   popover.style.top = `${Math.min(window.innerHeight - popover.offsetHeight - 8, rect.bottom + 6)}px`;
   popover.style.left = `${Math.max(8, rect.right - popover.offsetWidth)}px`;
 
-  const close = (event) => {
-    if (!popover.contains(event.target) && event.target !== button) {
-      popover.remove();
-      document.removeEventListener("mousedown", close, true);
-    }
-  };
-  setTimeout(() => document.addEventListener("mousedown", close, true), 0);
+  setTimeout(() => {
+    window.addEventListener("pointerdown", closeIfOutside, true);
+    window.addEventListener("mousedown", closeIfOutside, true);
+    window.addEventListener("blur", closePopover);
+    document.addEventListener("keydown", closeOnEscape, true);
+  }, 0);
 }
 
 function createMonitor() {
@@ -234,6 +270,17 @@ function createMonitor() {
     makeMetric("vram", "VRAM", "#2563eb"),
     makeMetric("temp", "TEMP", "#f59e0b")
   );
+
+  const restore = document.createElement("button");
+  restore.className = "iw-restore";
+  restore.type = "button";
+  restore.textContent = "▥";
+  restore.title = "Show Inteliweb Resource Monitor";
+  restore.addEventListener("click", () => {
+    writeSetting("enabled", true);
+    applyVisibility(root);
+  });
+  root.appendChild(restore);
 
   const settings = document.createElement("button");
   settings.className = "iw-settings";
@@ -315,9 +362,6 @@ function createMonitor() {
 }
 
 function findToolbarAnchor() {
-  // Preferred path: use the official ComfyUI menu object. Insert the monitor
-  // as a sibling of a button group so ComfyUI cannot remove it with
-  // buttonGroup.replaceChildren().
   const settingsGroup = app?.menu?.settingsGroup?.element;
   if (settingsGroup?.parentElement) {
     return { parent: settingsGroup.parentElement, before: settingsGroup };
