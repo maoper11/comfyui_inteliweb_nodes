@@ -36,6 +36,7 @@ function ensureStyles() {
       display: inline-flex;
       align-items: stretch;
       height: 34px;
+      padding: 0;
       overflow: hidden;
       border: 1px solid rgba(255,255,255,.12);
       border-radius: 6px;
@@ -44,7 +45,7 @@ function ensureStyles() {
       font: 11px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
       color: #e5e7eb;
       user-select: none;
-      flex-shrink: 0;
+      flex: 0 0 auto;
     }
     #${MONITOR_ID}[data-disabled="true"] { display: none !important; }
     #${MONITOR_ID} .iw-resource {
@@ -58,12 +59,15 @@ function ensureStyles() {
       border-left: 1px solid rgba(255,255,255,.08);
       overflow: hidden;
       cursor: default;
+      box-sizing: border-box;
     }
     #${MONITOR_ID} .iw-resource:first-child { border-left: 0; }
     #${MONITOR_ID} .iw-resource::before {
       content: "";
       position: absolute;
-      left: 0; right: 0; bottom: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       height: 3px;
       transform-origin: left center;
       transform: scaleX(var(--iw-progress, 0));
@@ -109,6 +113,10 @@ function ensureStyles() {
       border-radius: 4px;
       padding: 3px;
     }
+    @media (max-width: 1200px) {
+      #${MONITOR_ID} .iw-label { display: none; }
+      #${MONITOR_ID} .iw-resource { min-width: 38px; padding: 0 5px; }
+    }
   `;
   document.head.appendChild(style);
 }
@@ -130,7 +138,8 @@ function makeMetric(key, label, color) {
 function updateMetric(root, key, value, progress, title) {
   const el = root.querySelector(`[data-metric="${key}"]`);
   if (!el) return;
-  el.querySelector(".iw-value").textContent = value;
+  const valueElement = el.querySelector(".iw-value");
+  if (valueElement) valueElement.textContent = value;
   el.style.setProperty("--iw-progress", String(percent(progress) / 100));
   el.title = title || "";
 }
@@ -216,6 +225,7 @@ function createMonitor() {
 
   const root = document.createElement("div");
   root.id = MONITOR_ID;
+  root.className = "comfyui-button-group";
   root.append(
     makeMetric("disk", "DISK", "#64748b"),
     makeMetric("cpu", "CPU", "#22c55e"),
@@ -240,26 +250,53 @@ function createMonitor() {
       const data = await response.json();
       const gpu = Array.isArray(data.gpus) && data.gpus.length ? data.gpus[0] : null;
 
-      updateMetric(root, "disk", `${Math.round(data.disk_percent)}%`, data.disk_percent,
-        `Disk ${data.disk_path || ""}: ${(data.disk_used_mb / 1024).toFixed(1)} / ${(data.disk_total_mb / 1024).toFixed(1)} GB`);
+      updateMetric(
+        root,
+        "disk",
+        `${Math.round(data.disk_percent)}%`,
+        data.disk_percent,
+        `Disk ${data.disk_path || ""}: ${(data.disk_used_mb / 1024).toFixed(1)} / ${(data.disk_total_mb / 1024).toFixed(1)} GB`
+      );
       updateMetric(root, "cpu", `${Math.round(data.cpu_percent)}%`, data.cpu_percent, "CPU utilization");
-      updateMetric(root, "ram", `${Math.round(data.ram_percent)}%`, data.ram_percent,
-        `RAM: ${(data.ram_used_mb / 1024).toFixed(1)} / ${(data.ram_total_mb / 1024).toFixed(1)} GB`);
+      updateMetric(
+        root,
+        "ram",
+        `${Math.round(data.ram_percent)}%`,
+        data.ram_percent,
+        `RAM: ${(data.ram_used_mb / 1024).toFixed(1)} / ${(data.ram_total_mb / 1024).toFixed(1)} GB`
+      );
 
       if (gpu) {
-        updateMetric(root, "gpu", gpu.gpu_percent >= 0 ? `${Math.round(gpu.gpu_percent)}%` : "--",
-          gpu.gpu_percent, `${gpu.index}: ${gpu.name} (${gpu.source})`);
-        updateMetric(root, "vram", `${Math.round(gpu.vram_percent)}%`, gpu.vram_percent,
-          `VRAM: ${gpu.vram_used_mb} / ${gpu.vram_total_mb} MB`);
-        updateMetric(root, "temp", gpu.temperature_c >= 0 ? `${Math.round(gpu.temperature_c)}°` : "--",
-          gpu.temperature_c >= 0 ? gpu.temperature_c : 0, `${gpu.name} temperature`);
+        updateMetric(
+          root,
+          "gpu",
+          gpu.gpu_percent >= 0 ? `${Math.round(gpu.gpu_percent)}%` : "--",
+          gpu.gpu_percent,
+          `${gpu.index}: ${gpu.name} (${gpu.source})`
+        );
+        updateMetric(
+          root,
+          "vram",
+          `${Math.round(gpu.vram_percent)}%`,
+          gpu.vram_percent,
+          `VRAM: ${gpu.vram_used_mb} / ${gpu.vram_total_mb} MB`
+        );
+        updateMetric(
+          root,
+          "temp",
+          gpu.temperature_c >= 0 ? `${Math.round(gpu.temperature_c)}°` : "--",
+          gpu.temperature_c >= 0 ? gpu.temperature_c : 0,
+          `${gpu.name} temperature`
+        );
       } else {
         updateMetric(root, "gpu", "--", 0, "GPU telemetry unavailable");
         updateMetric(root, "vram", "--", 0, "VRAM telemetry unavailable");
         updateMetric(root, "temp", "--", 0, "Temperature telemetry unavailable");
       }
+      root.title = "";
     } catch (error) {
       root.title = `Inteliweb Resource Monitor: ${error.message}`;
+      console.warn("[Inteliweb] Resource Monitor polling failed:", error);
     }
   };
 
@@ -278,16 +315,27 @@ function createMonitor() {
 }
 
 function findToolbarAnchor() {
-  const managerButton = [...document.querySelectorAll("button")].find((button) =>
-    /manager/i.test((button.textContent || "").trim())
+  // Preferred path: use the official ComfyUI menu object. Insert the monitor
+  // as a sibling of a button group so ComfyUI cannot remove it with
+  // buttonGroup.replaceChildren().
+  const settingsGroup = app?.menu?.settingsGroup?.element;
+  if (settingsGroup?.parentElement) {
+    return { parent: settingsGroup.parentElement, before: settingsGroup };
+  }
+
+  const managerControl = [...document.querySelectorAll("button, [role='button']")].find((element) =>
+    /manager/i.test((element.textContent || "").trim())
   );
-  if (managerButton?.parentElement) return { parent: managerButton.parentElement, before: managerButton };
+  const managerGroup = managerControl?.closest?.(".comfyui-button-group");
+  if (managerGroup?.parentElement) {
+    return { parent: managerGroup.parentElement, before: managerGroup };
+  }
 
   const candidates = [
     ".comfyui-menu-right",
     ".comfy-menu-right",
-    "header .flex.items-center",
     "#comfy-menu-secondary",
+    "header .flex.items-center",
   ];
   for (const selector of candidates) {
     const parent = document.querySelector(selector);
@@ -298,23 +346,47 @@ function findToolbarAnchor() {
 
 function mountMonitor() {
   ensureStyles();
-  const monitor = createMonitor();
   const anchor = findToolbarAnchor();
   if (!anchor) return false;
-  if (monitor.parentElement !== anchor.parent) {
+  const monitor = createMonitor();
+  if (monitor.parentElement !== anchor.parent || monitor.nextSibling !== anchor.before) {
     anchor.parent.insertBefore(monitor, anchor.before);
   }
   return true;
 }
 
+function startMounting() {
+  let attempts = 0;
+  const tryMount = () => {
+    attempts += 1;
+    if (mountMonitor()) {
+      console.info("[Inteliweb] Resource Monitor mounted in the ComfyUI top bar.");
+      return true;
+    }
+    return false;
+  };
+
+  if (tryMount()) return;
+
+  const observer = new MutationObserver(() => {
+    if (tryMount()) observer.disconnect();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  const retryTimer = setInterval(() => {
+    if (tryMount() || attempts >= 60) {
+      clearInterval(retryTimer);
+      observer.disconnect();
+      if (!document.getElementById(MONITOR_ID)) {
+        console.warn("[Inteliweb] Resource Monitor could not find a top-bar anchor.");
+      }
+    }
+  }, 500);
+}
+
 app.registerExtension({
   name: "inteliweb.resource.monitor",
   setup() {
-    if (mountMonitor()) return;
-    const observer = new MutationObserver(() => {
-      if (mountMonitor()) observer.disconnect();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    setTimeout(() => observer.disconnect(), 30000);
+    startMounting();
   },
 });
