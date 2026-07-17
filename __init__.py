@@ -1,6 +1,12 @@
 from .system_check import InteliwebSystemCheck
 from .purge_vram import InteliwebPurgeVRAM
 
+# Registers the independent /inteliweb/resource_monitor endpoint.
+from . import resource_monitor as _resource_monitor  # noqa: F401
+
+# Adds AMD telemetry only when the existing NVIDIA/PyTorch path returns no GPU.
+from . import amd_monitor as _amd_monitor  # noqa: F401
+
 NODE_CLASS_MAPPINGS = {
     "InteliwebSystemCheck": InteliwebSystemCheck,
     "InteliwebPurgeVRAM": InteliwebPurgeVRAM,
