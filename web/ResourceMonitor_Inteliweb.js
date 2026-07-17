@@ -72,7 +72,7 @@ function ensureStyles() {
       transform-origin: left center;
       transform: scaleX(var(--iw-progress, 0));
       background: var(--iw-color, #3b82f6);
-      box-shadow: 0 -1px 5px color-mix(in srgb, var(--iw-color, #3b82f6) 55%, transparent);
+      box-shadow: 0 -1px 2px color-mix(in srgb, var(--iw-color, #3b82f6) 20%, transparent);
       transition: transform .35s ease;
     }
     #${MONITOR_ID} .iw-label { opacity: .62; font-size: 9px; }
@@ -176,7 +176,9 @@ function applyVisibility(root) {
 }
 
 function createPopover(button, root, restart) {
-  document.querySelectorAll(".iw-resource-popover").forEach((el) => el.remove());
+  document
+    .querySelectorAll(".iw-resource-popover")
+    .forEach((el) => el.remove());
 
   const popover = document.createElement("div");
   popover.className = "iw-resource-popover";
@@ -268,7 +270,7 @@ function createMonitor() {
     makeMetric("ram", "RAM", "#16a34a"),
     makeMetric("gpu", "GPU", "#3b82f6"),
     makeMetric("vram", "VRAM", "#2563eb"),
-    makeMetric("temp", "TEMP", "#f59e0b")
+    makeMetric("temp", "TEMP", "#f59e0b"),
   );
 
   const restore = document.createElement("button");
@@ -292,25 +294,34 @@ function createMonitor() {
   let timer = null;
   const poll = async () => {
     try {
-      const response = await fetch("/inteliweb/resource_monitor", { cache: "no-store" });
+      const response = await fetch("/inteliweb/resource_monitor", {
+        cache: "no-store",
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      const gpu = Array.isArray(data.gpus) && data.gpus.length ? data.gpus[0] : null;
+      const gpu =
+        Array.isArray(data.gpus) && data.gpus.length ? data.gpus[0] : null;
 
       updateMetric(
         root,
         "disk",
         `${Math.round(data.disk_percent)}%`,
         data.disk_percent,
-        `Disk ${data.disk_path || ""}: ${(data.disk_used_mb / 1024).toFixed(1)} / ${(data.disk_total_mb / 1024).toFixed(1)} GB`
+        `Disk ${data.disk_path || ""}: ${(data.disk_used_mb / 1024).toFixed(1)} / ${(data.disk_total_mb / 1024).toFixed(1)} GB`,
       );
-      updateMetric(root, "cpu", `${Math.round(data.cpu_percent)}%`, data.cpu_percent, "CPU utilization");
+      updateMetric(
+        root,
+        "cpu",
+        `${Math.round(data.cpu_percent)}%`,
+        data.cpu_percent,
+        "CPU utilization",
+      );
       updateMetric(
         root,
         "ram",
         `${Math.round(data.ram_percent)}%`,
         data.ram_percent,
-        `RAM: ${(data.ram_used_mb / 1024).toFixed(1)} / ${(data.ram_total_mb / 1024).toFixed(1)} GB`
+        `RAM: ${(data.ram_used_mb / 1024).toFixed(1)} / ${(data.ram_total_mb / 1024).toFixed(1)} GB`,
       );
 
       if (gpu) {
@@ -319,26 +330,32 @@ function createMonitor() {
           "gpu",
           gpu.gpu_percent >= 0 ? `${Math.round(gpu.gpu_percent)}%` : "--",
           gpu.gpu_percent,
-          `${gpu.index}: ${gpu.name} (${gpu.source})`
+          `${gpu.index}: ${gpu.name} (${gpu.source})`,
         );
         updateMetric(
           root,
           "vram",
           `${Math.round(gpu.vram_percent)}%`,
           gpu.vram_percent,
-          `VRAM: ${gpu.vram_used_mb} / ${gpu.vram_total_mb} MB`
+          `VRAM: ${gpu.vram_used_mb} / ${gpu.vram_total_mb} MB`,
         );
         updateMetric(
           root,
           "temp",
           gpu.temperature_c >= 0 ? `${Math.round(gpu.temperature_c)}°` : "--",
           gpu.temperature_c >= 0 ? gpu.temperature_c : 0,
-          `${gpu.name} temperature`
+          `${gpu.name} temperature`,
         );
       } else {
         updateMetric(root, "gpu", "--", 0, "GPU telemetry unavailable");
         updateMetric(root, "vram", "--", 0, "VRAM telemetry unavailable");
-        updateMetric(root, "temp", "--", 0, "Temperature telemetry unavailable");
+        updateMetric(
+          root,
+          "temp",
+          "--",
+          0,
+          "Temperature telemetry unavailable",
+        );
       }
       root.title = "";
     } catch (error) {
@@ -353,7 +370,9 @@ function createMonitor() {
     timer = setInterval(poll, Math.max(0.5, readSetting("interval")) * 1000);
   };
 
-  settings.addEventListener("click", () => createPopover(settings, root, restart));
+  settings.addEventListener("click", () =>
+    createPopover(settings, root, restart),
+  );
   root.__inteliwebStop = () => timer && clearInterval(timer);
   root.__inteliwebRestart = restart;
   applyVisibility(root);
@@ -367,9 +386,9 @@ function findToolbarAnchor() {
     return { parent: settingsGroup.parentElement, before: settingsGroup };
   }
 
-  const managerControl = [...document.querySelectorAll("button, [role='button']")].find((element) =>
-    /manager/i.test((element.textContent || "").trim())
-  );
+  const managerControl = [
+    ...document.querySelectorAll("button, [role='button']"),
+  ].find((element) => /manager/i.test((element.textContent || "").trim()));
   const managerGroup = managerControl?.closest?.(".comfyui-button-group");
   if (managerGroup?.parentElement) {
     return { parent: managerGroup.parentElement, before: managerGroup };
@@ -393,7 +412,10 @@ function mountMonitor() {
   const anchor = findToolbarAnchor();
   if (!anchor) return false;
   const monitor = createMonitor();
-  if (monitor.parentElement !== anchor.parent || monitor.nextSibling !== anchor.before) {
+  if (
+    monitor.parentElement !== anchor.parent ||
+    monitor.nextSibling !== anchor.before
+  ) {
     anchor.parent.insertBefore(monitor, anchor.before);
   }
   return true;
@@ -404,7 +426,9 @@ function startMounting() {
   const tryMount = () => {
     attempts += 1;
     if (mountMonitor()) {
-      console.info("[Inteliweb] Resource Monitor mounted in the ComfyUI top bar.");
+      console.info(
+        "[Inteliweb] Resource Monitor mounted in the ComfyUI top bar.",
+      );
       return true;
     }
     return false;
@@ -422,7 +446,9 @@ function startMounting() {
       clearInterval(retryTimer);
       observer.disconnect();
       if (!document.getElementById(MONITOR_ID)) {
-        console.warn("[Inteliweb] Resource Monitor could not find a top-bar anchor.");
+        console.warn(
+          "[Inteliweb] Resource Monitor could not find a top-bar anchor.",
+        );
       }
     }
   }, 500);
