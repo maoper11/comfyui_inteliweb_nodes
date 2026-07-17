@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.15.1-blue" alt="version 0.15.1" />
+  <img src="https://img.shields.io/badge/version-0.16.0-blue" alt="version 0.16.0" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -49,6 +49,18 @@ Integra **Photopea** dentro de ComfyUI:
 
 ---
 
+## 🧹 Purge VRAM (Inteliweb)
+
+Nodo de paso para liberar memoria durante la ejecución de un workflow:
+
+- Acepta cualquier tipo de entrada y la devuelve sin modificar.
+- `purge_models`: descarga de memoria los modelos administrados por ComfyUI.
+- `purge_cache`: ejecuta el recolector de Python y limpia las cachés de ComfyUI/CUDA.
+- Puede colocarse entre dos etapas pesadas del workflow o utilizarse como nodo de salida.
+- No añade dependencias externas al paquete.
+
+---
+
 ## Características
 
 - Vista **Estilizada** con categorías colapsables (System, GPU/CUDA, Core libs, etc.).
@@ -56,6 +68,7 @@ Integra **Photopea** dentro de ComfyUI:
 - **Barras de RAM/VRAM** con **actualización automática cada 1s** (end-point ligero, sin recalcular todo).
 - Detección de **Flash Attention** (soporte/estado del paquete).
 - **Photopea Editor (Inteliweb)** integrado (menú contextual + Clipspace + guardado al nodo).
+- **Purge VRAM (Inteliweb)** como nodo de paso dentro del workflow.
 
 ## Instalación
 
@@ -85,6 +98,14 @@ Reinicia ComfyUI.
 3. Usa **Free VRAM** y **Free RAM** cuando quieras liberar memoria.
 4. **Copy** copia un resumen en texto de la info mostrada.
 
+### Uso de Purge VRAM
+
+1. Añade **Purge VRAM (Inteliweb)** entre dos etapas del workflow.
+2. Conecta cualquier salida a `anything`.
+3. Deja `purge_models` activado para descargar modelos de ComfyUI.
+4. Deja `purge_cache` activado para limpiar las cachés de Python y CUDA.
+5. Continúa el workflow desde la salida `anything`.
+
 ### Uso de Photopea
 
 - **Opción 1 (desde un nodo):** clic derecho en un nodo con salida `IMAGE/MASK` → **Open in Photopea Editor**.
@@ -100,9 +121,14 @@ Reinicia ComfyUI.
 
 ## Créditos
 
+- **Purge VRAM (Inteliweb):** implementación adaptada del concepto `PurgeVRAM` de  
+  [`chflame163/ComfyUI_LayerStyle`](https://github.com/chflame163/ComfyUI_LayerStyle) (licencia **MIT**).  
+  La implementación de Inteliweb está aislada y no importa `imagefunc.py` ni las dependencias adicionales de LayerStyle.
 - **Photopea Editor (Inteliweb):** adaptación namespaced a partir de la idea de  
   [`coolzilj/ComfyUI-Photopea`](https://github.com/coolzilj/ComfyUI-Photopea) (licencia **MIT**).  
   Gracias a @coolzilj por el flujo original de integración.
+
+Consulta `THIRD_PARTY_NOTICES.md` para los avisos de terceros.
 
 ---
 
