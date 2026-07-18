@@ -22,7 +22,44 @@ Esta versión reemplaza las llamadas a ejecutables externos por APIs Python para
 - SageAttention se detecta mediante metadatos del paquete instalado, sin importar dinámicamente su código.
 - Se añadieron `requirements.txt` y dependencias declaradas en `pyproject.toml`.
 
-La implementación completa de v0.18.0, con fallbacks por comandos externos y telemetría AMD ampliada, permanece disponible en la rama:
+## Instalación de v0.18.1 — rama principal `main`
+
+### ComfyUI Manager
+
+Busca e instala:
+
+```text
+ComfyUI_Inteliweb_nodes
+```
+
+ComfyUI Manager debe instalar automáticamente las dependencias declaradas por el paquete.
+
+### Instalación manual con Git — Linux, macOS o entorno Python
+
+Ejecuta desde la carpeta `ComfyUI/custom_nodes`:
+
+```bash
+git clone https://github.com/maoper11/comfyui_inteliweb_nodes.git
+cd comfyui_inteliweb_nodes
+python -m pip install -r requirements.txt
+```
+
+### Instalación manual — ComfyUI Windows Portable
+
+Ejecuta desde la carpeta raíz de `ComfyUI_windows_portable`:
+
+```powershell
+cd .\ComfyUI\custom_nodes
+git clone https://github.com/maoper11/comfyui_inteliweb_nodes.git
+cd ..\..
+.\python_embeded\python.exe -m pip install -r .\ComfyUI\custom_nodes\comfyui_inteliweb_nodes\requirements.txt
+```
+
+Es importante utilizar el mismo intérprete de Python con el que se ejecuta ComfyUI. Después de instalar el paquete y sus dependencias, reinicia ComfyUI.
+
+## Variante legacy v0.18.0 con telemetría ampliada
+
+La implementación completa de v0.18.0, con fallbacks mediante comandos externos y telemetría AMD ampliada, permanece disponible en:
 
 ```text
 legacy/v0.18.0-full-gpu-monitor
@@ -37,9 +74,12 @@ cd comfyui_inteliweb_nodes
 python -m pip install -r requirements.txt
 ```
 
-Usa siempre el mismo Python con el que se ejecuta ComfyUI. En Windows Portable, desde la carpeta raíz de `ComfyUI_windows_portable`, instala las dependencias con:
+En ComfyUI Windows Portable, desde la carpeta raíz:
 
 ```powershell
+cd .\ComfyUI\custom_nodes
+git clone --branch legacy/v0.18.0-full-gpu-monitor --single-branch https://github.com/maoper11/comfyui_inteliweb_nodes.git
+cd ..\..
 .\python_embeded\python.exe -m pip install -r .\ComfyUI\custom_nodes\comfyui_inteliweb_nodes\requirements.txt
 ```
 
@@ -138,29 +178,6 @@ purge_models = true
 gc_collect = true
 trim_ram = false
 ```
-
-## Instalación
-
-### ComfyUI Manager
-
-Busca:
-
-```text
-ComfyUI_Inteliweb_nodes
-```
-
-### Git clone
-
-```bash
-cd /ruta/a/ComfyUI/custom_nodes
-git clone https://github.com/maoper11/comfyui_inteliweb_nodes.git
-cd comfyui_inteliweb_nodes
-python -m pip install -r requirements.txt
-```
-
-Usa el mismo intérprete de Python que ejecuta ComfyUI. En Windows Portable, usa `python_embeded/python.exe` en lugar de un Python externo.
-
-Reinicia ComfyUI.
 
 ## Compatibilidad
 
