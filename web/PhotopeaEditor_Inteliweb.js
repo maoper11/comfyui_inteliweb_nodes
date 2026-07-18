@@ -1,21 +1,17 @@
 // InteliwebAI adaptation of coolzilj/ComfyUI-Photopea
-// Renamed classes and extension namespace to avoid collisions.
 // License: MIT, attribution to original author (@coolzilj).
 
 import { app, ComfyApp } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { ComfyDialog, $el } from "../../scripts/ui.js";
 
 const MENU_LABEL = "Open in Photopea Editor";
+const PHOTOPEA_ORIGIN = "https://www.photopea.com";
 
 function nodeHasImageOutput(node) {
   if (!Array.isArray(node?.outputs)) return false;
-
   return node.outputs.some((output) => {
     const type = output?.type;
-    if (Array.isArray(type)) {
-      return type.includes("IMAGE") || type.includes("MASK");
-    }
+    if (Array.isArray(type)) return type.includes("IMAGE") || type.includes("MASK");
     return type === "IMAGE" || type === "MASK";
   });
 }
@@ -23,19 +19,13 @@ function nodeHasImageOutput(node) {
 function getSelectedClipspaceImage() {
   const clipspace = ComfyApp.clipspace;
   if (!clipspace?.imgs?.length) return null;
-
-  const index = Number.isInteger(clipspace.selectedIndex)
-    ? clipspace.selectedIndex
-    : 0;
+  const index = Number.isInteger(clipspace.selectedIndex) ? clipspace.selectedIndex : 0;
   return clipspace.imgs[index] ?? clipspace.imgs[0] ?? null;
 }
 
-async function imageToBase64(url) {
+async function fetchImageDataUrl(url) {
   const response = await fetch(url, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Unable to load image for Photopea: HTTP ${response.status}`);
-  }
-
+  if (!response.ok) throw new Error(`Unable to load image: HTTP ${response.status}`);
   const blob = await response.blob();
   return await new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -50,263 +40,254 @@ async function uploadFile(formData) {
     method: "POST",
     body: formData,
   });
-
-  if (!response.ok) {
-    throw new Error(`${response.status} - ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  const clipspace = ComfyApp.clipspace;
-  if (clipspace?.imgs?.length) {
-    const index = Number.isInteger(clipspace.selectedIndex)
-      ? clipspace.selectedIndex
-      : 0;
-    clipspace.imgs[index] = new Image();
-    clipspace.imgs[index].src = api.apiURL(
-      `/view?filename=${encodeURIComponent(data.name)}&subfolder=${encodeURIComponent(data.subfolder ?? "")}&type=${encodeURIComponent(data.type ?? "input")}`,
-    );
-  }
-
-  return data;
+  if (!response.ok) throw new Error(`${response.status} - ${response.statusText}`);
+  return await response.json();
 }
 
-class InteliwebPhotopeaEditorDialog extends ComfyDialog {
+class InteliwebPhotopeaEditor {
   static instance = null;
 
   static getInstance() {
-    if (!InteliwebPhotopeaEditorDialog.instance) {
-      InteliwebPhotopeaEditorDialog.instance =
-        new InteliwebPhotopeaEditorDialog();
+    if (!InteliwebPhotopeaEditor.instance) {
+      InteliwebPhotopeaEditor.instance = new InteliwebPhotopeaEditor();
     }
-    return InteliwebPhotopeaEditorDialog.instance;
+    return InteliwebPhotopeaEditor.instance;
   }
 
   constructor() {
-    super();
-    this.element = $el("div.comfy-modal", { parent: document.body }, [
-      $el("div.comfy-modal-content", [...this.createButtons()]),
-    ]);
     this.iframe = null;
-    this.iframe_container = null;
-    this.is_layout_created = false;
-    this.is_fullscreen = false;
-    this.default_vw = "90vw";
-    this.default_vh = "90vh";
+    this.ready = false;
+    this.messageQueue = [];
+    this.currentNode = null;
+    this.isFullscreen = false;
+
+    this.overlay = document.createElement("div");
+    Object.assign(this.overlay.style, {
+      position: "fixed",
+      inset: "0",
+      zIndex: "100000",
+      display: "none",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "rgba(0,0,0,.72)",
+    });
+
+    this.panel = document.createElement("div");
+    Object.assign(this.panel.style, {
+      position: "relative",
+      width: "90vw",
+      height: "90vh",
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+      background: "#171717",
+      border: "1px solid rgba(255,255,255,.16)",
+      borderRadius: "10px",
+      boxShadow: "0 20px 60px rgba(0,0,0,.55)",
+    });
+
+    this.frameHost = document.createElement("div");
+    Object.assign(this.frameHost.style, {
+      flex: "1",
+      minHeight: "0",
+      background: "#171717",
+    });
+
+    this.footer = document.createElement("div");
+    Object.assign(this.footer.style, {
+      height: "44px",
+      flex: "0 0 44px",
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: "0 12px",
+      background: "#202020",
+      borderTop: "1px solid rgba(255,255,255,.12)",
+    });
+
+    this.fullscreenButton = this.makeButton("Fullscreen", () => this.toggleFullscreen());
+    this.brand = document.createElement("a");
+    this.brand.href = "https://www.youtube.com/@InteliwebAI";
+    this.brand.target = "_blank";
+    this.brand.rel = "noopener noreferrer";
+    this.brand.textContent = "Inteliweb AI";
+    Object.assign(this.brand.style, {
+      color: "#b8a7ff",
+      textDecoration: "none",
+      marginRight: "auto",
+    });
+    this.cancelButton = this.makeButton("Cancel", () => this.close());
+    this.saveButton = this.makeButton("Save to node", () => this.save());
+
+    this.footer.append(
+      this.fullscreenButton,
+      this.brand,
+      this.cancelButton,
+      this.saveButton,
+    );
+    this.panel.append(this.frameHost, this.footer);
+    this.overlay.appendChild(this.panel);
+    document.body.appendChild(this.overlay);
+
+    this.onMessage = this.onMessage.bind(this);
+    window.addEventListener("message", this.onMessage);
   }
 
-  createButtons() {
-    return [];
-  }
-
-  createButton(name, callback) {
+  makeButton(label, callback) {
     const button = document.createElement("button");
-    button.innerText = name;
+    button.type = "button";
+    button.textContent = label;
     button.addEventListener("click", callback);
     return button;
   }
 
-  createLeftButton(name, callback) {
-    const button = this.createButton(name, callback);
-    button.style.cssFloat = "left";
-    button.style.marginRight = "4px";
-    return button;
-  }
+  onMessage(event) {
+    if (!this.iframe?.contentWindow || event.source !== this.iframe.contentWindow) return;
+    if (event.origin && event.origin !== PHOTOPEA_ORIGIN) return;
 
-  createRightButton(name, callback) {
-    const button = this.createButton(name, callback);
-    button.style.cssFloat = "right";
-    button.style.marginLeft = "4px";
-    return button;
-  }
-
-  setWindowedLayout() {
-    this.element.style.width = this.default_vw;
-    this.element.style.height = this.default_vh;
-    this.is_fullscreen = false;
-    if (this.fullscreenButton) this.fullscreenButton.innerText = "Fullscreen";
-  }
-
-  setFullscreenLayout() {
-    this.element.style.width = "100vw";
-    this.element.style.height = "100vh";
-    this.is_fullscreen = true;
-    if (this.fullscreenButton) {
-      this.fullscreenButton.innerText = "Exit Fullscreen";
-    }
-  }
-
-  setlayout() {
-    const bottomPanel = document.createElement("div");
-    bottomPanel.style.position = "absolute";
-    bottomPanel.style.bottom = "0px";
-    bottomPanel.style.left = "20px";
-    bottomPanel.style.right = "20px";
-    bottomPanel.style.height = "36px";
-    this.element.appendChild(bottomPanel);
-
-    this.fullscreenButton = this.createLeftButton("Fullscreen", () => {
-      this.toggleFullscreen();
-    });
-
-    const brand = document.createElement("a");
-    brand.href = "https://www.youtube.com/@InteliwebAI";
-    brand.target = "_blank";
-    brand.rel = "noopener noreferrer";
-    brand.textContent = "Inteliweb AI";
-    brand.style.cssFloat = "left";
-    brand.style.marginLeft = "8px";
-    brand.style.marginTop = "6px";
-    brand.style.fontSize = "20px";
-    brand.style.opacity = "0.6";
-    brand.style.textDecoration = "none";
-    brand.addEventListener("mouseenter", () => (brand.style.opacity = "0.85"));
-    brand.addEventListener("mouseleave", () => (brand.style.opacity = "0.6"));
-
-    const cancelButton = this.createRightButton("Cancel", () => this.close());
-    this.saveButton = this.createRightButton("Save", () => this.save());
-
-    bottomPanel.appendChild(this.fullscreenButton);
-    bottomPanel.appendChild(brand);
-    bottomPanel.appendChild(this.saveButton);
-    bottomPanel.appendChild(cancelButton);
-  }
-
-  async show() {
-    const selectedImage = getSelectedClipspaceImage();
-    if (!selectedImage?.src) {
-      console.warn("[Inteliweb] Photopea: no image is available in Clipspace.");
-      alert("No image is available to open in Photopea.");
+    if (event.data === "done") {
+      if (!this.ready) {
+        this.ready = true;
+        const queued = this.messageQueue.splice(0);
+        for (const item of queued) this.iframe.contentWindow.postMessage(item, PHOTOPEA_ORIGIN);
+      }
       return;
     }
 
-    if (!this.is_layout_created) {
-      this.setlayout();
-      this.is_layout_created = true;
+    if (this.pendingExport && event.data instanceof ArrayBuffer) {
+      this.pendingExport.payload = event.data;
     }
-
-    this.setWindowedLayout();
-    this.saveButton.innerText = ComfyApp.clipspace_return_node
-      ? "Save to node"
-      : "Save";
-
-    this.iframe = $el("iframe", {
-      src: "https://www.photopea.com/",
-      title: "Photopea Editor",
-      style: {
-        width: "100%",
-        height: "100%",
-        border: "none",
-        position: "relative",
-      },
-    });
-
-    this.iframe_container = document.createElement("div");
-    this.iframe_container.style.flex = "1";
-    this.iframe_container.style.paddingBottom = "40px";
-    this.element.appendChild(this.iframe_container);
-    this.element.style.display = "flex";
-    this.element.style.flexDirection = "column";
-    this.element.style.width = this.default_vw;
-    this.element.style.height = this.default_vh;
-    this.element.style.maxWidth = "100vw";
-    this.element.style.maxHeight = "100vh";
-    this.element.style.padding = "0";
-    this.element.style.zIndex = "8888";
-    this.iframe_container.appendChild(this.iframe);
-
-    this.iframe.onload = async () => {
-      try {
-        const currentImage = getSelectedClipspaceImage();
-        if (!currentImage?.src) throw new Error("Clipspace image is unavailable");
-        const dataURL = await imageToBase64(currentImage.src);
-        this.postMessageToPhotopea(`app.open(${JSON.stringify(dataURL)}, null, false);`);
-      } catch (error) {
-        console.error("[Inteliweb] Unable to open image in Photopea:", error);
-        alert(`Unable to open the image in Photopea: ${error.message}`);
-      }
-    };
   }
 
-  close() {
-    this.setWindowedLayout();
-    if (
-      this.iframe_container &&
-      this.iframe_container.parentNode === this.element
-    ) {
-      this.element.removeChild(this.iframe_container);
+  async open(node) {
+    const selectedImage = getSelectedClipspaceImage();
+    if (!selectedImage?.src) throw new Error("The selected node has no image to edit");
+
+    this.currentNode = node;
+    this.ready = false;
+    this.messageQueue = [];
+    this.pendingExport = null;
+    this.overlay.style.display = "flex";
+
+    const dataUrl = await fetchImageDataUrl(selectedImage.src);
+    const config = {
+      files: [dataUrl],
+      environment: {
+        intro: false,
+        localsave: false,
+      },
+    };
+
+    this.iframe?.remove();
+    this.iframe = document.createElement("iframe");
+    this.iframe.title = "Photopea Editor";
+    this.iframe.src = `${PHOTOPEA_ORIGIN}#${encodeURIComponent(JSON.stringify(config))}`;
+    this.iframe.allow = "clipboard-read; clipboard-write";
+    this.iframe.referrerPolicy = "no-referrer-when-downgrade";
+    Object.assign(this.iframe.style, {
+      width: "100%",
+      height: "100%",
+      border: "0",
+      display: "block",
+      background: "#171717",
+    });
+    this.frameHost.replaceChildren(this.iframe);
+  }
+
+  sendToPhotopea(message) {
+    if (!this.iframe?.contentWindow) throw new Error("Photopea is not ready");
+    if (!this.ready) {
+      this.messageQueue.push(message);
+      return;
     }
-    this.iframe_container = null;
-    this.iframe = null;
-    super.close();
+    this.iframe.contentWindow.postMessage(message, PHOTOPEA_ORIGIN);
   }
 
   async save() {
-    try {
-      const responses = await this.postMessageToPhotopea(
-        'app.activeDocument.saveToOE("png");',
-      );
-      const payload = responses.find((item) => item instanceof ArrayBuffer);
-      if (!payload) throw new Error("Photopea did not return PNG data");
+    if (!this.iframe?.contentWindow) return;
 
-      const file = new Blob([payload], { type: "image/png" });
+    try {
+      this.saveButton.disabled = true;
+      this.saveButton.textContent = "Saving...";
+
+      const payload = await new Promise((resolve, reject) => {
+        const timeout = window.setTimeout(() => {
+          this.pendingExport = null;
+          reject(new Error("Photopea did not return the edited image"));
+        }, 30000);
+
+        this.pendingExport = {
+          payload: null,
+          finish: () => {
+            window.clearTimeout(timeout);
+            const value = this.pendingExport?.payload;
+            this.pendingExport = null;
+            if (value) resolve(value);
+            else reject(new Error("Photopea returned no PNG data"));
+          },
+        };
+
+        const doneHandler = (event) => {
+          if (event.source !== this.iframe.contentWindow) return;
+          if (event.origin && event.origin !== PHOTOPEA_ORIGIN) return;
+          if (event.data !== "done") return;
+          window.removeEventListener("message", doneHandler);
+          this.pendingExport?.finish();
+        };
+        window.addEventListener("message", doneHandler);
+
+        this.sendToPhotopea('app.activeDocument.saveToOE("png");');
+      });
+
+      const filename = `clipspace-photopea-${Date.now()}.png`;
       const body = new FormData();
-      const filename = `clipspace-photopea-${performance.now()}.png`;
+      body.append("image", new Blob([payload], { type: "image/png" }), filename);
+      body.append("subfolder", "photopea");
+      const uploaded = await uploadFile(body);
 
       const clipspace = ComfyApp.clipspace;
       if (clipspace?.widgets) {
-        const index = clipspace.widgets.findIndex((obj) => obj.name === "image");
-        if (index >= 0) {
-          clipspace.widgets[index].value = `photopea/${filename} [input]`;
-        }
+        const imageWidget = clipspace.widgets.find((item) => item.name === "image");
+        if (imageWidget) imageWidget.value = `photopea/${filename} [input]`;
       }
-
-      body.append("image", file, filename);
-      body.append("subfolder", "photopea");
-      await uploadFile(body);
+      if (clipspace?.imgs?.length) {
+        const index = Number.isInteger(clipspace.selectedIndex) ? clipspace.selectedIndex : 0;
+        const image = new Image();
+        image.src = api.apiURL(
+          `/view?filename=${encodeURIComponent(uploaded.name)}&subfolder=${encodeURIComponent(uploaded.subfolder ?? "")}&type=${encodeURIComponent(uploaded.type ?? "input")}`,
+        );
+        clipspace.imgs[index] = image;
+      }
 
       if (typeof ComfyApp.onClipspaceEditorSave === "function") {
         ComfyApp.onClipspaceEditorSave();
       }
       this.close();
     } catch (error) {
-      console.error("[Inteliweb] Unable to save Photopea image:", error);
+      console.error("[Inteliweb] Photopea save failed:", error);
       alert(`Unable to save the Photopea image: ${error.message}`);
+    } finally {
+      this.saveButton.disabled = false;
+      this.saveButton.textContent = "Save to node";
     }
+  }
+
+  close() {
+    this.overlay.style.display = "none";
+    this.frameHost.replaceChildren();
+    this.iframe = null;
+    this.ready = false;
+    this.messageQueue = [];
+    this.pendingExport = null;
+    this.currentNode = null;
   }
 
   toggleFullscreen() {
-    if (this.is_fullscreen) this.setWindowedLayout();
-    else this.setFullscreenLayout();
-  }
-
-  async postMessageToPhotopea(message) {
-    if (!this.iframe?.contentWindow) {
-      throw new Error("Photopea iframe is not ready");
-    }
-
-    const targetWindow = this.iframe.contentWindow;
-    const request = new Promise((resolve, reject) => {
-      const responses = [];
-      const timeout = window.setTimeout(() => {
-        window.removeEventListener("message", handleMessage);
-        reject(new Error("Photopea did not respond in time"));
-      }, 30000);
-
-      const handleMessage = (event) => {
-        if (event.source !== targetWindow) return;
-        responses.push(event.data);
-        if (event.data === "done") {
-          window.clearTimeout(timeout);
-          window.removeEventListener("message", handleMessage);
-          resolve(responses);
-        }
-      };
-
-      window.addEventListener("message", handleMessage);
-    });
-
-    targetWindow.postMessage(message, "*");
-    return await request;
+    this.isFullscreen = !this.isFullscreen;
+    Object.assign(this.panel.style, this.isFullscreen
+      ? { width: "100vw", height: "100vh", borderRadius: "0" }
+      : { width: "90vw", height: "90vh", borderRadius: "10px" });
+    this.fullscreenButton.textContent = this.isFullscreen ? "Exit Fullscreen" : "Fullscreen";
   }
 }
 
@@ -315,15 +296,13 @@ function openNodeInPhotopea(node) {
     if (typeof ComfyApp.copyToClipspace !== "function") {
       throw new Error("The current ComfyUI frontend does not expose Clipspace");
     }
-
     ComfyApp.copyToClipspace(node);
     ComfyApp.clipspace_return_node = node;
-
-    if (!getSelectedClipspaceImage()) {
-      throw new Error("The selected node does not currently contain an image");
-    }
-
-    InteliwebPhotopeaEditorDialog.getInstance().show();
+    InteliwebPhotopeaEditor.getInstance().open(node).catch((error) => {
+      console.error("[Inteliweb] Photopea open failed:", error);
+      alert(`Unable to open Photopea Editor: ${error.message}`);
+      InteliwebPhotopeaEditor.getInstance().close();
+    });
   } catch (error) {
     console.error("[Inteliweb] Unable to start Photopea Editor:", error);
     alert(`Unable to open Photopea Editor: ${error.message}`);
@@ -332,10 +311,8 @@ function openNodeInPhotopea(node) {
 
 app.registerExtension({
   name: "Inteliweb.PhotopeaEditor",
-
   getNodeMenuItems(node) {
     if (!nodeHasImageOutput(node)) return [];
-
     return [
       null,
       {
