@@ -28,11 +28,19 @@ La implementación completa de v0.18.0, con fallbacks por comandos externos y te
 legacy/v0.18.0-full-gpu-monitor
 ```
 
-Instalación manual de esa variante:
+Instalación manual de esa variante desde `ComfyUI/custom_nodes`:
 
 ```bash
 git clone --branch legacy/v0.18.0-full-gpu-monitor --single-branch \
   https://github.com/maoper11/comfyui_inteliweb_nodes.git
+cd comfyui_inteliweb_nodes
+python -m pip install -r requirements.txt
+```
+
+Usa siempre el mismo Python con el que se ejecuta ComfyUI. En Windows Portable, desde la carpeta raíz de `ComfyUI_windows_portable`, instala las dependencias con:
+
+```powershell
+.\python_embeded\python.exe -m pip install -r .\ComfyUI\custom_nodes\comfyui_inteliweb_nodes\requirements.txt
 ```
 
 ## System Check (Inteliweb)
@@ -146,13 +154,11 @@ ComfyUI_Inteliweb_nodes
 ```bash
 cd /ruta/a/ComfyUI/custom_nodes
 git clone https://github.com/maoper11/comfyui_inteliweb_nodes.git
+cd comfyui_inteliweb_nodes
+python -m pip install -r requirements.txt
 ```
 
-Después instala las dependencias si tu instalador no lo hace automáticamente:
-
-```bash
-pip install -r comfyui_inteliweb_nodes/requirements.txt
-```
+Usa el mismo intérprete de Python que ejecuta ComfyUI. En Windows Portable, usa `python_embeded/python.exe` en lugar de un Python externo.
 
 Reinicia ComfyUI.
 
