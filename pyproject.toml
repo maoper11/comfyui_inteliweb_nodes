@@ -1,10 +1,10 @@
 [project]
 name = "comfyui_inteliweb_nodes"
-version = "0.18.0"
+version = "0.18.1"
 description = "Inteliweb utilities for ComfyUI: top-bar resource monitor, System Check, Free Memory, and Photopea integration."
 readme = "README.md"
 license = { text = "Apache-2.0" }
-dependencies = []
+dependencies = ["psutil", "nvidia-ml-py"]
 
 [project.urls]
 Repository = "https://github.com/maoper11/comfyui_inteliweb_nodes"
