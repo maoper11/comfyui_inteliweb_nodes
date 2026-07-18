@@ -12,6 +12,8 @@
 
 > **System Check (Inteliweb)** — Nodo utilitario para ComfyUI que muestra información del sistema, detecta librerías clave de IA, verifica Flash Attention y añade botones para liberar VRAM y RAM.
 
+> Esta rama conserva la implementación completa de v0.18.0 con fallbacks mediante `nvidia-smi`, `amd-smi` y `rocm-smi`. Está pensada para instalación manual y puede ser marcada por escáneres automáticos debido al uso legítimo de procesos externos para consultar telemetría.
+
 <div align="center">
 
 **Colapsado (inicio)**  
@@ -45,12 +47,12 @@ Características:
 - Cada indicador puede ocultarse individualmente.
 - Tooltip con valores detallados y nombre de GPU.
 - Soporte para múltiples fuentes de telemetría GPU:
-  1. `pynvml`, cuando ya está instalado.
-  2. `nvidia-smi`, sin instalar paquetes Python adicionales.
-  3. PyTorch como fallback para medir VRAM.
+  1. `pynvml`, cuando está instalado.
+  2. `nvidia-smi` como fallback NVIDIA.
+  3. `amd-smi` o `rocm-smi` como fallback AMD.
+  4. PyTorch como fallback para medir VRAM.
 - No inicia hilos de fondo: el navegador solicita snapshots mediante `/inteliweb/resource_monitor`.
 - Implementación independiente de System Check.
-- No añade requirements obligatorios.
 
 Pulsa el botón `⋮` del monitor para cambiar su configuración.
 
@@ -88,7 +90,6 @@ Funciones:
 - Puede ejecutar garbage collection de Python.
 - Limpia la caché del acelerador mediante `comfy.model_management.soft_empty_cache()`.
 - Puede intentar devolver RAM sin uso al sistema operativo mediante `malloc_trim` en Linux o `EmptyWorkingSet` en Windows.
-- No añade requirements externos.
 
 ### Opciones
 
@@ -142,34 +143,38 @@ trim_ram = true
 - Vista estilizada de System Check con categorías colapsables.
 - Botones rápidos: Free VRAM, Free RAM y Copy.
 - Barras de RAM/VRAM con actualización automática.
-- Detección de Flash Attention.
+- Detección de Flash Attention y SageAttention.
 - Photopea Editor integrado.
 - Free Memory como nodo de paso y diagnóstico dentro del workflow.
 
-## Instalación
+## Instalación manual de esta rama
 
-> Requiere una instalación previa de [ComfyUI](https://github.com/comfyanonymous/ComfyUI).
+### Linux, macOS o entorno virtual
 
-**Opción A — ZIP**
-
-1. En GitHub: **Code → Download ZIP**.
-2. Descomprime el contenido en:
-   `ComfyUI/custom_nodes/comfyui_inteliweb_nodes/`
-3. Reinicia ComfyUI.
-
-**Opción B — Git clone**
+Ejecuta desde `ComfyUI/custom_nodes`:
 
 ```bash
-cd /ruta/a/ComfyUI/custom_nodes
-git clone https://github.com/maoper11/comfyui_inteliweb_nodes.git
+git clone --branch legacy/v0.18.0-full-gpu-monitor --single-branch \
+  https://github.com/maoper11/comfyui_inteliweb_nodes.git
+cd comfyui_inteliweb_nodes
+python -m pip install -r requirements.txt
 ```
 
-Reinicia ComfyUI.
+### Windows Portable
+
+Clona el repositorio dentro de `ComfyUI\custom_nodes` y luego, desde la carpeta raíz de `ComfyUI_windows_portable`, ejecuta:
+
+```powershell
+.\python_embeded\python.exe -m pip install -r .\ComfyUI\custom_nodes\comfyui_inteliweb_nodes\requirements.txt
+```
+
+Usa siempre el mismo Python con el que se ejecuta ComfyUI. Reinicia ComfyUI después de instalar.
 
 ## Compatibilidad
 
 - Windows y Linux.
 - NVIDIA: métricas completas mediante `pynvml` o `nvidia-smi`.
+- AMD: métricas mediante `amd-smi` o `rocm-smi` cuando esas utilidades están disponibles.
 - Otros aceleradores: CPU, RAM, disco y VRAM cuando PyTorch puede reportarla.
 - Diseñado alrededor de funciones oficiales de ComfyUI.
 
