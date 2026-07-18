@@ -2,7 +2,7 @@
 """Lightweight hardware telemetry endpoint for the Inteliweb top-bar monitor.
 
 This scanner-friendly implementation uses Python APIs only. It never starts a
-shell or external process. NVIDIA telemetry is read with pynvml when available;
+shell or external process. NVIDIA telemetry is read with NVML through pynvml;
 PyTorch is used as a portable fallback for VRAM information.
 """
 
@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from typing import Any
 
 LOGGER = logging.getLogger(__name__)
 MIB = 1024 * 1024
+NVML_SAMPLE_WINDOW_US = 2_000_000
+_NVML_LAST_SAMPLE_US: dict[int, int] = {}
 
 
 def _cpu_ram_disk() -> dict[str, Any]:
@@ -54,6 +57,61 @@ def _cpu_ram_disk() -> dict[str, Any]:
         }
 
 
+def _nvml_sample_value(pynvml: Any, sample: Any, value_type: int) -> float:
+    """Convert an NVML sample union to a Python number."""
+    value = sample.sampleValue
+    mapping = {
+        pynvml.NVML_VALUE_TYPE_DOUBLE: "dVal",
+        pynvml.NVML_VALUE_TYPE_UNSIGNED_INT: "uiVal",
+        pynvml.NVML_VALUE_TYPE_UNSIGNED_LONG: "ulVal",
+        pynvml.NVML_VALUE_TYPE_UNSIGNED_LONG_LONG: "ullVal",
+        pynvml.NVML_VALUE_TYPE_SIGNED_LONG_LONG: "sllVal",
+        pynvml.NVML_VALUE_TYPE_SIGNED_INT: "siVal",
+        pynvml.NVML_VALUE_TYPE_UNSIGNED_SHORT: "usVal",
+    }
+    attribute = mapping.get(value_type)
+    if attribute is None:
+        raise ValueError(f"Unsupported NVML value type: {value_type}")
+    return float(getattr(value, attribute))
+
+
+def _nvml_gpu_percent(pynvml: Any, handle: Any, index: int) -> tuple[float, str]:
+    """Read GPU utilization using recent NVML samples when supported."""
+    instant = -1.0
+    try:
+        instant = float(pynvml.nvmlDeviceGetUtilizationRates(handle).gpu)
+    except Exception as exc:
+        LOGGER.debug("NVML instant utilization unavailable for GPU %s: %s", index, exc)
+
+    try:
+        now_us = time.time_ns() // 1_000
+        last_seen_us = _NVML_LAST_SAMPLE_US.get(index, now_us - NVML_SAMPLE_WINDOW_US)
+        value_type, samples = pynvml.nvmlDeviceGetSamples(
+            handle,
+            pynvml.NVML_GPU_UTILIZATION_SAMPLES,
+            last_seen_us,
+        )
+
+        values = []
+        newest_us = last_seen_us
+        for sample in samples:
+            newest_us = max(newest_us, int(sample.timeStamp))
+            value = _nvml_sample_value(pynvml, sample, value_type)
+            if 0 <= value <= 100:
+                values.append(value)
+
+        if newest_us > last_seen_us:
+            _NVML_LAST_SAMPLE_US[index] = newest_us
+
+        if values:
+            average = sum(values) / len(values)
+            return max(instant, average), "pynvml-samples"
+    except Exception as exc:
+        LOGGER.debug("NVML sampled utilization unavailable for GPU %s: %s", index, exc)
+
+    return instant, "pynvml"
+
+
 def _gpu_from_pynvml() -> list[dict[str, Any]]:
     try:
         import pynvml
@@ -67,7 +125,7 @@ def _gpu_from_pynvml() -> list[dict[str, Any]]:
                 name = name.decode("utf-8", errors="replace")
 
             memory = pynvml.nvmlDeviceGetMemoryInfo(handle)
-            utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+            gpu_percent, source = _nvml_gpu_percent(pynvml, handle, index)
             try:
                 temperature = pynvml.nvmlDeviceGetTemperature(
                     handle, pynvml.NVML_TEMPERATURE_GPU
@@ -79,7 +137,7 @@ def _gpu_from_pynvml() -> list[dict[str, Any]]:
                 {
                     "index": index,
                     "name": str(name),
-                    "gpu_percent": float(utilization.gpu),
+                    "gpu_percent": gpu_percent,
                     "vram_percent": (
                         float(memory.used / memory.total * 100)
                         if memory.total
@@ -88,7 +146,7 @@ def _gpu_from_pynvml() -> list[dict[str, Any]]:
                     "vram_used_mb": int(memory.used // MIB),
                     "vram_total_mb": int(memory.total // MIB),
                     "temperature_c": float(temperature),
-                    "source": "pynvml",
+                    "source": source,
                 }
             )
         return gpus
