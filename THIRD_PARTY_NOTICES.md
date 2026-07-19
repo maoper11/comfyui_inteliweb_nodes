@@ -1,5 +1,22 @@
 # Third-Party Notices
 
+## ComfyUI-Impact-Pack — Switch (Any) concept
+
+`Input Switch (Inteliweb)` is an independent implementation inspired by the
+user-facing behavior of the `Switch (Any)` node from:
+
+- Project: ComfyUI-Impact-Pack
+- Author: ltdrdata and contributors
+- Source: https://github.com/ltdrdata/ComfyUI-Impact-Pack
+- License of the referenced project: GNU General Public License v3.0
+
+The Inteliweb node uses its own class ID, Python implementation, frontend
+extension, prompt handler and naming. It does not import ComfyUI-Impact-Pack,
+does not bundle Impact Pack files, and does not require Impact Pack at runtime.
+This notice is included for transparent attribution of the feature inspiration.
+
+---
+
 ## ComfyUI_LayerStyle — PurgeVRAM concept
 
 The `purge_vram.py` implementation is adapted from the PurgeVRAM node concept in:
