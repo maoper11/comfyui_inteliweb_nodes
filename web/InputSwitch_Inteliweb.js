@@ -2,7 +2,7 @@ import { app } from "../../scripts/app.js";
 
 const NODE_CLASS = "InteliwebInputSwitch";
 const PREFIX = "input";
-const RESERVED = new Set(["select", "sel_mode"]);
+const RESERVED = new Set(["select"]);
 
 function isDataInput(input) {
   return Boolean(input?.name?.startsWith(PREFIX)) && !RESERVED.has(input.name);
