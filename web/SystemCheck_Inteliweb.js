@@ -15,44 +15,63 @@ const ICONS = {
   RAM: "🧠",
   VRAM: "🎮",
   GPU: "🎮",
-  "CUDA version": "🚀",
+  "Accelerator runtime": "🚀",
   PyTorch: "🔥",
   torchvision: "👁️",
   xformers: "⚡",
+  triton: "🔱",
+  SageAttention: "🌿",
+  FlashAttention: "⚡",
+  bitsandbytes: "🧮",
   numpy: "🔢",
   Pillow: "🖼️",
   OpenCV: "📷",
-  transformers: "🧩",
-  diffusers: "💧",
-  huggingface_hub: "🤗",
-  tokenizers: "🔤",
-  onnx: "🧱",
-  onnxruntime: "🏃",
   timm: "🖼️",
-  accelerate: "🏎️",
-  bitsandbytes: "🧮",
-  ultralytics: "🕵️",
-  mediapipe: "🧠",
-  sentencepiece: "✂️",
   kornia: "🧪",
-  insightface: "🙂",
   scipy: "📐",
   "scikit-image": "🧷",
-  pandas: "🐼",
-  triton: "🔱",
-  SageAttention: "🌿",
-  "Flash Attention": "⚡",
   AV: "🎞️",
+  transformers: "🧩",
+  diffusers: "💧",
+  accelerate: "🏎️",
+  huggingface_hub: "🤗",
+  tokenizers: "🔤",
+  sentencepiece: "✂️",
+  onnx: "🧱",
+  onnxruntime: "🏃",
 };
 
 const CATEGORIES = {
-  "== System ==": ["Python version", "Operating System", "CPU", "RAM"],
-  "== GPU / CUDA ==": ["VRAM", "GPU", "CUDA version", "Flash Attention"],
-  "== Core libs ==": ["PyTorch", "torchvision", "xformers", "numpy"],
-  "== Vision / Audio ==": ["OpenCV", "Pillow", "timm", "ultralytics", "mediapipe"],
-  "== ONNX / Runtime ==": ["onnx", "onnxruntime", "accelerate", "bitsandbytes"],
-  "== Text ==": ["transformers", "diffusers", "huggingface_hub", "tokenizers", "sentencepiece"],
-  "== Others ==": ["kornia", "insightface", "scipy", "scikit-image", "pandas", "triton", "SageAttention", "AV"],
+  System: ["Python version", "Operating System", "CPU", "RAM"],
+  "GPU & Runtime": ["VRAM", "GPU", "Accelerator runtime"],
+  "Acceleration & Attention": [
+    "PyTorch",
+    "torchvision",
+    "xformers",
+    "triton",
+    "SageAttention",
+    "FlashAttention",
+    "bitsandbytes",
+  ],
+  "Vision & Media": [
+    "numpy",
+    "Pillow",
+    "OpenCV",
+    "timm",
+    "kornia",
+    "scipy",
+    "scikit-image",
+    "AV",
+  ],
+  "Model Ecosystem": [
+    "transformers",
+    "diffusers",
+    "accelerate",
+    "huggingface_hub",
+    "tokenizers",
+    "sentencepiece",
+  ],
+  "ONNX Runtime": ["onnx", "onnxruntime"],
 };
 const CATEGORY_ORDER = Object.keys(CATEGORIES);
 
@@ -85,7 +104,7 @@ function lighten(hex, amount = 20) {
 function statusColor(value) {
   const text = String(value ?? "");
   if (!text || /not installed/i.test(text)) return COLORS.bad;
-  if (/unknown|present/i.test(text)) return COLORS.warn;
+  if (/unknown|unavailable/i.test(text)) return COLORS.warn;
   return COLORS.stripe;
 }
 
@@ -130,7 +149,9 @@ function drawBadge(ctx, x, y, w, h, label, value, icon, color) {
   let text = String(value ?? "");
   ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
   const maxWidth = Math.max(80, w * 0.48);
-  while (text.length && ctx.measureText(text + "…").width > maxWidth) text = text.slice(0, -1);
+  while (text.length && ctx.measureText(text + "…").width > maxWidth) {
+    text = text.slice(0, -1);
+  }
   if (text !== String(value ?? "")) text += "…";
   ctx.textAlign = "right";
   ctx.fillText(text, x + w - 10, y + h - 8);
@@ -253,10 +274,24 @@ app.registerExtension({
       );
 
       drawButton(ctx, PAD, toolbarY, buttonW, buttonH, "Free Memory");
-      node.__inteliweb_hits.push({ type: "btn", key: "free_memory", x: PAD, y: toolbarY, w: buttonW, h: buttonH });
+      node.__inteliweb_hits.push({
+        type: "btn",
+        key: "free_memory",
+        x: PAD,
+        y: toolbarY,
+        w: buttonW,
+        h: buttonH,
+      });
 
       drawButton(ctx, PAD + buttonW + gap, toolbarY, buttonW, buttonH, "Copy");
-      node.__inteliweb_hits.push({ type: "btn", key: "copy", x: PAD + buttonW + gap, y: toolbarY, w: buttonW, h: buttonH });
+      node.__inteliweb_hits.push({
+        type: "btn",
+        key: "copy",
+        x: PAD + buttonW + gap,
+        y: toolbarY,
+        w: buttonW,
+        h: buttonH,
+      });
 
       let y = toolbarY + buttonH + 8;
       const data = node._inteliweb_info;
@@ -278,7 +313,14 @@ app.registerExtension({
         ctx.font = "12px ui-sans-serif, system-ui, Segoe UI, Roboto";
         ctx.textAlign = "left";
         ctx.fillText(`${collapsed ? "▶" : "▼"} ${category}`, PAD + 8, y + 16);
-        node.__inteliweb_hits.push({ type: "cat", key: category, x: PAD, y, w: innerW, h: 24 });
+        node.__inteliweb_hits.push({
+          type: "cat",
+          key: category,
+          x: PAD,
+          y,
+          w: innerW,
+          h: 24,
+        });
         y += 30;
         if (collapsed) continue;
 
@@ -288,11 +330,15 @@ app.registerExtension({
             const free = node._inteliweb_vram?.free_mb || 0;
             const total = node._inteliweb_vram?.total_mb || 0;
             const used = Math.max(total - free, 0);
-            value = total ? `${used} / ${total} MB (${Math.round((used / total) * 100)}%)` : "0 / 0 MB";
+            value = total
+              ? `${used} / ${total} MB (${Math.round((used / total) * 100)}%)`
+              : "0 / 0 MB";
           } else if (key === "RAM") {
             const used = node._inteliweb_ram?.used_mb || 0;
             const total = node._inteliweb_ram?.total_mb || 0;
-            value = total ? `${(used / 1024).toFixed(2)} / ${(total / 1024).toFixed(2)} GB (${Math.round((used / total) * 100)}%)` : data.RAM;
+            value = total
+              ? `${(used / 1024).toFixed(2)} / ${(total / 1024).toFixed(2)} GB (${Math.round((used / total) * 100)}%)`
+              : data.RAM;
           }
           if (value === undefined) continue;
           drawBadge(ctx, PAD, y, innerW, 30, key, value, ICONS[key], statusColor(value));
@@ -307,7 +353,11 @@ app.registerExtension({
     const originalMouseDown = node.onMouseDown;
     node.onMouseDown = function (event, pos, graphcanvas) {
       for (const hit of node.__inteliweb_hits || []) {
-        const inside = pos[0] >= hit.x && pos[0] <= hit.x + hit.w && pos[1] >= hit.y && pos[1] <= hit.y + hit.h;
+        const inside =
+          pos[0] >= hit.x &&
+          pos[0] <= hit.x + hit.w &&
+          pos[1] >= hit.y &&
+          pos[1] <= hit.y + hit.h;
         if (!inside) continue;
         if (hit.type === "cat") {
           node.__inteliweb_collapsed[hit.key] = !node.__inteliweb_collapsed[hit.key];
@@ -326,7 +376,11 @@ app.registerExtension({
       const canvas = graphcanvas?.canvas || app?.graph?.canvas?.canvas || app?.canvas?.canvas;
       if (!canvas) return false;
       const over = (node.__inteliweb_hits || []).some(
-        (hit) => pos[0] >= hit.x && pos[0] <= hit.x + hit.w && pos[1] >= hit.y && pos[1] <= hit.y + hit.h,
+        (hit) =>
+          pos[0] >= hit.x &&
+          pos[0] <= hit.x + hit.w &&
+          pos[1] >= hit.y &&
+          pos[1] <= hit.y + hit.h,
       );
       if (over) canvas.setAttribute("data-inteliweb-cursor", "hand");
       else canvas.removeAttribute("data-inteliweb-cursor");
