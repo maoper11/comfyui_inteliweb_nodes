@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.18.2-blue" alt="version 0.18.2" />
+  <img src="https://img.shields.io/badge/version-0.18.3-blue" alt="version 0.18.3" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -12,11 +12,17 @@
 
 > Utilidades de Inteliweb AI para revisar el sistema, monitorear recursos, liberar memoria y enrutar entradas dentro de ComfyUI.
 
+## Cambios en v0.18.3
+
+- Eliminado el selector `sel_mode` de **Input Switch (Inteliweb)**.
+- El nodo funciona permanentemente mediante lazy evaluation durante la ejecución.
+- Solo se solicita y ejecuta la entrada seleccionada.
+- Eliminado el handler legacy que modificaba el prompt antes de ejecutar.
+
 ## Cambios en v0.18.2
 
 - Añadido **Input Switch (Inteliweb)** como alternativa independiente y ligera al nodo Switch (Any).
 - Acepta entradas dinámicas de cualquier tipo y agrega automáticamente un nuevo socket al conectar el último.
-- Evalúa de forma lazy solamente la entrada seleccionada en el modo predeterminado.
 - Devuelve el valor seleccionado, la etiqueta del socket y su índice.
 - Utiliza un ID propio y puede coexistir con ComfyUI-Impact-Pack sin conflictos.
 - No añade dependencias Python ni ejecuta comandos externos.
@@ -32,7 +38,7 @@ Esta versión reemplazó las llamadas a ejecutables externos por APIs Python par
 - System Check utiliza un único botón **Free Memory**, con la misma limpieza compartida por el nodo conectable **Free Memory (Inteliweb)**.
 - Se añadieron `requirements.txt` y dependencias declaradas en `pyproject.toml`.
 
-## Instalación de v0.18.2 — rama principal `main`
+## Instalación de v0.18.3 — rama principal `main`
 
 ### ComfyUI Manager
 
@@ -106,8 +112,8 @@ Características:
 - `selected_value` devuelve la entrada elegida.
 - `selected_label` devuelve la etiqueta personalizada del socket o su nombre, por ejemplo `input3`.
 - `selected_index` devuelve el índice seleccionado.
-- El modo predeterminado `select_on_execution` usa lazy evaluation para ejecutar solamente la rama elegida.
-- `select_on_prompt` conserva una modalidad compatible para selectores literales o estáticos.
+- Funciona permanentemente mediante `select_on_execution` con lazy evaluation.
+- Solo la entrada seleccionada se evalúa durante la ejecución.
 - ID interno exclusivo: `InteliwebInputSwitch`.
 - Nombre visible: **Input Switch (Inteliweb)**.
 
