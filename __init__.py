@@ -1,9 +1,8 @@
 from .system_check import InteliwebSystemCheck
 from .purge_vram import InteliwebPurgeVRAM
 
-# Registers scanner-friendly HTTP endpoints.
+# Registers the scanner-friendly /inteliweb/resource_monitor endpoint.
 from . import resource_monitor as _resource_monitor  # noqa: F401
-from . import photopea_bridge as _photopea_bridge  # noqa: F401
 
 NODE_CLASS_MAPPINGS = {
     "InteliwebSystemCheck": InteliwebSystemCheck,
