@@ -90,8 +90,7 @@ Muestra información como:
 
 - Python, sistema operativo y CPU.
 - RAM disponible y utilizada.
-- PyTorch, CUDA y GPU detectada.
-- Flash Attention y capacidad CUDA.
+- PyTorch, runtime CUDA/ROCm y GPU detectada.
 - Versiones instaladas de librerías habituales de IA.
 - SageAttention, detectado solamente mediante metadata del paquete.
 
@@ -144,7 +143,7 @@ Pulsa el botón `⋮` del monitor para cambiar su configuración.
 
 ## Free Memory (Inteliweb)
 
-Nodo pass-through para liberar recursos entre etapas pesadas de un workflow. El ID interno continúa siendo `InteliwebPurgeVRAM` para conservar compatibilidad.
+Nodo pass-through para liberar recursos entre etapas pesadas de un workflow. El ID interno continúa siendo `InteliwebPurgeVRAM`.
 
 Funciones:
 
@@ -161,7 +160,7 @@ Configuración recomendada entre etapas:
 purge_cache = true
 purge_models = false
 gc_collect = true
-trim_ram = false
+show_report = true
 ```
 
 Para liberar la mayor cantidad de VRAM antes de cargar otro modelo:
@@ -170,10 +169,10 @@ Para liberar la mayor cantidad de VRAM antes de cargar otro modelo:
 purge_cache = true
 purge_models = true
 gc_collect = true
-trim_ram = false
+show_report = true
 ```
 
-El parámetro `trim_ram` se conserva para compatibilidad con workflows anteriores, pero en la rama principal no ejecuta APIs nativas. La liberación de RAM se realiza mediante garbage collection y la administración oficial de memoria de ComfyUI.
+El nodo ya no incluye `trim_ram`, porque la rama principal no realiza llamadas nativas para forzar la devolución de RAM al sistema operativo. La liberación de memoria se basa en garbage collection, descarga de modelos y administración oficial de caché de ComfyUI.
 
 ## Compatibilidad
 
