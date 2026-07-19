@@ -3,10 +3,11 @@
 
 from __future__ import annotations
 
-import json
 import platform
 import sys
 from importlib import metadata
+
+from .purge_vram import run_memory_cleanup
 
 
 def _distribution_version(*names: str) -> str:
@@ -118,19 +119,6 @@ def _collect():
     return info
 
 
-try:
-    from aiohttp import web
-    from server import PromptServer
-
-    routes = PromptServer.instance.routes
-
-    @routes.get("/inteliweb_sysinfo")
-    async def inteliweb_sysinfo(request):
-        return web.json_response(_collect())
-except Exception:
-    routes = None
-
-
 def _vram_info():
     try:
         import torch
@@ -160,7 +148,15 @@ def _ram_info():
         return {"used_mb": 0, "free_mb": 0, "total_mb": 0}
 
 
-if routes is not None:
+try:
+    from aiohttp import web
+    from server import PromptServer
+
+    routes = PromptServer.instance.routes
+
+    @routes.get("/inteliweb_sysinfo")
+    async def inteliweb_sysinfo(request):
+        return web.json_response(_collect())
 
     @routes.get("/inteliweb/telemetry")
     async def inteliweb_telemetry(request):
@@ -178,45 +174,34 @@ if routes is not None:
             }
         )
 
-    @routes.get("/inteliweb/free_vram")
-    async def inteliweb_free_vram(request):
-        mode = request.query.get("mode", "")
+    @routes.post("/inteliweb/free_memory")
+    async def inteliweb_free_memory(request):
+        """Run the same cleanup used by the canvas Free Memory node."""
         try:
-            import gc
-            import torch
-
-            if "aggressive" in mode:
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                    torch.cuda.ipc_collect()
-                    torch.cuda.synchronize()
-            elif torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-            vram = _vram_info()
+            report, metrics = run_memory_cleanup(
+                stage_name="System Check Free Memory",
+                purge_cache=True,
+                purge_models=True,
+                gc_collect=True,
+                trim_ram=False,
+                show_report=True,
+            )
             return web.json_response(
                 {
                     "ok": True,
-                    "vram": vram,
-                    "text": (
-                        f"VRAM freed. Free {vram['free_mb']} / "
-                        f"{vram['total_mb']} MB"
-                    ),
+                    "text": report,
+                    "metrics": metrics,
+                    "vram": _vram_info(),
+                    "ram": _ram_info(),
                 }
             )
         except Exception as exc:
-            return web.json_response({"ok": False, "text": f"Error freeing VRAM: {exc}"})
-
-    @routes.get("/inteliweb/free_ram")
-    async def inteliweb_free_ram(request):
-        try:
-            import gc
-
-            gc.collect()
-            return web.json_response({"ok": True, "ram": _ram_info(), "trimmed": False})
-        except Exception as exc:
-            return web.json_response({"ok": False, "text": f"Error freeing RAM: {exc}"})
+            return web.json_response(
+                {"ok": False, "text": f"Error freeing memory: {exc}"},
+                status=500,
+            )
+except Exception:
+    routes = None
 
 
 class InteliwebSystemCheck:
