@@ -20,6 +20,7 @@ Esta versión reemplaza las llamadas a ejecutables externos por APIs Python para
 - NVIDIA se monitorea mediante `pynvml`, provisto por `nvidia-ml-py`.
 - PyTorch actúa como fallback para nombre del acelerador y memoria VRAM. En instalaciones ROCm puede mostrar la GPU AMD y su memoria, aunque no siempre utilización o temperatura.
 - SageAttention se detecta mediante metadatos del paquete instalado, sin importar dinámicamente su código.
+- System Check utiliza un único botón **Free Memory**, con la misma limpieza compartida por el nodo conectable **Free Memory (Inteliweb)**.
 - Se añadieron `requirements.txt` y dependencias declaradas en `pyproject.toml`.
 
 ## Instalación de v0.18.1 — rama principal `main`
@@ -94,6 +95,11 @@ Muestra información como:
 - Versiones instaladas de librerías habituales de IA.
 - SageAttention, detectado solamente mediante metadata del paquete.
 
+La barra de acciones incluye:
+
+- **Free Memory:** descarga los modelos administrados por ComfyUI, ejecuta garbage collection y limpia la caché del acelerador usando la misma función compartida por el nodo Free Memory.
+- **Copy:** copia el diagnóstico generado.
+
 <div align="center">
 
 **Colapsado**  
@@ -147,7 +153,7 @@ Funciones:
 - Puede descargar modelos administrados por ComfyUI.
 - Ejecuta garbage collection de Python.
 - Limpia la caché mediante `comfy.model_management.soft_empty_cache()`.
-- Puede intentar devolver RAM libre al sistema operativo.
+- No ejecuta comandos externos ni llamadas nativas del sistema operativo.
 
 Configuración recomendada entre etapas:
 
@@ -166,6 +172,8 @@ purge_models = true
 gc_collect = true
 trim_ram = false
 ```
+
+El parámetro `trim_ram` se conserva para compatibilidad con workflows anteriores, pero en la rama principal no ejecuta APIs nativas. La liberación de RAM se realiza mediante garbage collection y la administración oficial de memoria de ComfyUI.
 
 ## Compatibilidad
 
