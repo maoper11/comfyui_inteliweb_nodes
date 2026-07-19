@@ -75,15 +75,8 @@ def purge_memory(
     purge_cache=True,
     purge_models=False,
     gc_collect=True,
-    trim_ram=False,
 ):
-    """Release ComfyUI-managed models, accelerator caches and Python garbage.
-
-    ``trim_ram`` is retained for workflow compatibility but intentionally does
-    not call native operating-system APIs. Native process trimming previously
-    required ctypes and can trigger Registry security scanners. Python garbage
-    collection and ComfyUI's official cache management remain enabled.
-    """
+    """Release ComfyUI-managed models, accelerator caches and Python garbage."""
     import comfy.model_management as model_management
 
     status = {
@@ -92,8 +85,6 @@ def purge_memory(
         "models_unloaded": None,
         "python_gc_collected": 0,
         "cache_emptied": False,
-        "ram_trimmed": False,
-        "ram_trim_method": "scanner-safe-disabled" if trim_ram else "disabled",
     }
 
     if purge_models:
@@ -156,8 +147,7 @@ def _build_report(stage_name, before, after, status):
         f"{_format_gb(after['ram_free_bytes'])} ({_signed_gb(ram_delta)}) | "
         f"models unloaded: {models_text} | "
         f"gc objects: {status['python_gc_collected']} | "
-        f"cache emptied: {status['cache_emptied']} | "
-        f"RAM trim: {status['ram_trim_method']}={status['ram_trimmed']}"
+        f"cache emptied: {status['cache_emptied']}"
     )
     metrics["report"] = report
     return report, metrics
@@ -169,7 +159,6 @@ def run_memory_cleanup(
     purge_cache=True,
     purge_models=False,
     gc_collect=True,
-    trim_ram=False,
     show_report=True,
 ):
     """Run the shared cleanup implementation and return metrics."""
@@ -183,19 +172,17 @@ def run_memory_cleanup(
     if show_report:
         LOGGER.info(
             "[Inteliweb][%s] Starting memory cleanup "
-            "(purge_cache=%s, purge_models=%s, gc_collect=%s, trim_ram=%s)",
+            "(purge_cache=%s, purge_models=%s, gc_collect=%s)",
             stage_name,
             purge_cache,
             purge_models,
             gc_collect,
-            trim_ram,
         )
 
     status = purge_memory(
         purge_cache=purge_cache,
         purge_models=purge_models,
         gc_collect=gc_collect,
-        trim_ram=trim_ram,
     )
 
     _safe_sync(model_management)
@@ -219,7 +206,6 @@ class InteliwebPurgeVRAM:
                 "purge_cache": ("BOOLEAN", {"default": True}),
                 "purge_models": ("BOOLEAN", {"default": False}),
                 "gc_collect": ("BOOLEAN", {"default": True}),
-                "trim_ram": ("BOOLEAN", {"default": False}),
                 "show_report": ("BOOLEAN", {"default": True}),
                 "stage_name": (
                     "STRING",
@@ -254,7 +240,6 @@ class InteliwebPurgeVRAM:
         purge_cache=True,
         purge_models=False,
         gc_collect=True,
-        trim_ram=False,
         show_report=True,
         stage_name="Memory Cleanup",
     ):
@@ -263,7 +248,6 @@ class InteliwebPurgeVRAM:
             purge_cache=purge_cache,
             purge_models=purge_models,
             gc_collect=gc_collect,
-            trim_ram=trim_ram,
             show_report=show_report,
         )
 
