@@ -8,6 +8,7 @@ import sys
 from importlib import metadata
 
 from .purge_vram import run_memory_cleanup
+from .resource_monitor import collect_resource_status
 
 
 def _distribution_version(*names: str) -> str:
@@ -105,18 +106,23 @@ def _collect():
 
 
 def _vram_info():
+    """Return the same primary-GPU VRAM values used by Resource Monitor."""
     try:
-        import torch
-
-        if torch.cuda.is_available():
-            free, total = torch.cuda.mem_get_info()
+        status = collect_resource_status()
+        gpus = status.get("gpus") or []
+        if gpus:
+            gpu = gpus[0]
+            used_mb = max(int(gpu.get("vram_used_mb", 0)), 0)
+            total_mb = max(int(gpu.get("vram_total_mb", 0)), 0)
             return {
-                "free_mb": free // (1024 * 1024),
-                "total_mb": total // (1024 * 1024),
+                "used_mb": used_mb,
+                "free_mb": max(total_mb - used_mb, 0),
+                "total_mb": total_mb,
+                "source": gpu.get("source", "unknown"),
             }
     except Exception:
         pass
-    return {"free_mb": 0, "total_mb": 0}
+    return {"used_mb": 0, "free_mb": 0, "total_mb": 0, "source": "unavailable"}
 
 
 def _ram_info():
