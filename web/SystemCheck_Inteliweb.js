@@ -1,11 +1,36 @@
 import { app } from "../../scripts/app.js";
 
-const COLORS = {
-  headerBg: "#1f2430",
-  panelBg: "#0f172a",
-  stripe: "#4a90e2",
-  bad: "#ef4444",
-  warn: "#f59e0b",
+const CATEGORIES = {
+  System: ["Python version", "Operating System", "CPU", "RAM"],
+  "GPU & Runtime": ["VRAM", "GPU", "Accelerator runtime"],
+  "Acceleration & Attention": [
+    "PyTorch",
+    "torchvision",
+    "xformers",
+    "triton",
+    "SageAttention",
+    "FlashAttention",
+    "bitsandbytes",
+  ],
+  "Vision & Media": [
+    "numpy",
+    "Pillow",
+    "OpenCV",
+    "timm",
+    "kornia",
+    "scipy",
+    "scikit-image",
+    "AV",
+  ],
+  "Model Ecosystem": [
+    "transformers",
+    "diffusers",
+    "accelerate",
+    "huggingface_hub",
+    "tokenizers",
+    "sentencepiece",
+  ],
+  "ONNX Runtime": ["onnx", "onnxruntime"],
 };
 
 const ICONS = {
@@ -41,362 +66,252 @@ const ICONS = {
   onnxruntime: "🏃",
 };
 
-const CATEGORIES = {
-  System: ["Python version", "Operating System", "CPU", "RAM"],
-  "GPU & Runtime": ["VRAM", "GPU", "Accelerator runtime"],
-  "Acceleration & Attention": [
-    "PyTorch",
-    "torchvision",
-    "xformers",
-    "triton",
-    "SageAttention",
-    "FlashAttention",
-    "bitsandbytes",
-  ],
-  "Vision & Media": [
-    "numpy",
-    "Pillow",
-    "OpenCV",
-    "timm",
-    "kornia",
-    "scipy",
-    "scikit-image",
-    "AV",
-  ],
-  "Model Ecosystem": [
-    "transformers",
-    "diffusers",
-    "accelerate",
-    "huggingface_hub",
-    "tokenizers",
-    "sentencepiece",
-  ],
-  "ONNX Runtime": ["onnx", "onnxruntime"],
-};
-const CATEGORY_ORDER = Object.keys(CATEGORIES);
-
-function ensureCursorStyles() {
-  if (document.getElementById("inteliweb-cursor-style")) return;
-  const style = document.createElement("style");
-  style.id = "inteliweb-cursor-style";
-  style.textContent = `canvas[data-inteliweb-cursor="hand"] { cursor: pointer !important; }`;
-  document.head.appendChild(style);
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function lighten(hex, amount = 20) {
-  const value = parseInt(hex.replace("#", ""), 16);
-  const r = Math.min(255, Math.max(0, (value >> 16) + Math.round(2.55 * amount)));
-  const g = Math.min(255, Math.max(0, ((value >> 8) & 255) + Math.round(2.55 * amount)));
-  const b = Math.min(255, Math.max(0, (value & 255) + Math.round(2.55 * amount)));
-  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
-}
-
-function statusColor(value) {
-  const text = String(value ?? "");
-  if (!text || /not installed/i.test(text)) return COLORS.bad;
-  if (/unknown|unavailable/i.test(text)) return COLORS.warn;
-  return COLORS.stripe;
-}
-
-function drawButton(ctx, x, y, w, h, label) {
-  ctx.save();
-  ctx.fillStyle = lighten(COLORS.headerBg, -15);
-  roundRect(ctx, x, y, w, h, 6);
-  ctx.fill();
-  ctx.fillStyle = "#fff";
-  ctx.font = "12px ui-sans-serif, system-ui, Segoe UI, Roboto";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(label, x + w / 2, y + h / 2 + 1);
-  ctx.restore();
-}
-
-function drawBadge(ctx, x, y, w, h, label, value, icon, color) {
-  ctx.save();
-  const gradient = ctx.createLinearGradient(x, y, x + w, y);
-  gradient.addColorStop(0, lighten(color, 10));
-  gradient.addColorStop(0.35, color);
-  gradient.addColorStop(1, lighten(color, -10));
-  ctx.fillStyle = gradient;
-  roundRect(ctx, x, y, w, h, 8);
-  ctx.fill();
-
-  ctx.fillStyle = lighten(color, -15);
-  roundRect(ctx, x, y, 36, h, 8);
-  ctx.fill();
-
-  ctx.fillStyle = "#fff";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = "16px sans-serif";
-  ctx.fillText(icon || "ℹ️", x + 18, y + h / 2 + 1);
-
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  ctx.font = "bold 12px ui-sans-serif, system-ui, Segoe UI, Roboto";
-  ctx.fillText(String(label), x + 46, y + 18);
-
-  let text = String(value ?? "");
-  ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-  const maxWidth = Math.max(80, w * 0.48);
-  while (text.length && ctx.measureText(text + "…").width > maxWidth) {
-    text = text.slice(0, -1);
-  }
-  if (text !== String(value ?? "")) text += "…";
-  ctx.textAlign = "right";
-  ctx.fillText(text, x + w - 10, y + h - 8);
-  ctx.restore();
-}
-
-function getWidgetsBottomY(node) {
-  const start = node.widgets_start_y ?? node.widgetsStartY ?? 32;
-  if (Array.isArray(node.widgets) && node.widgets.length) {
-    const last = node.widgets[node.widgets.length - 1];
-    const y = last?.last_y ?? last?.y;
-    if (typeof y === "number") return y + (last?.height ?? 20) + 2;
-  }
-  let y = start;
-  for (const widget of node.widgets || []) y += (widget?.height ?? 20) + 4;
-  return y;
-}
-
 async function fetchJSON(url, init) {
   const response = await fetch(url, init);
   if (!response.ok) throw new Error(`${url} -> ${response.status}`);
-  const type = response.headers.get("content-type") || "";
-  return type.includes("application/json") ? await response.json() : {};
+  return await response.json();
 }
 
-function telemetryTick(node) {
-  return fetchJSON("/inteliweb/telemetry")
-    .then((data) => {
-      if (data?.vram) node._inteliweb_vram = data.vram;
-      if (data?.ram) node._inteliweb_ram = data.ram;
-      node.setDirtyCanvas(true);
-    })
-    .catch(() => {});
+function isMissing(value) {
+  return /not installed/i.test(String(value ?? ""));
 }
 
-function startTelemetry(node) {
-  if (node.__inteliweb_timer) return;
-  telemetryTick(node);
-  node.__inteliweb_timer = setInterval(() => telemetryTick(node), 1000);
+function formatMemory(data, key) {
+  if (key === "VRAM") {
+    const free = data?.vram?.free_mb || 0;
+    const total = data?.vram?.total_mb || 0;
+    const used = Math.max(total - free, 0);
+    return total
+      ? `${used} / ${total} MB (${Math.round((used / total) * 100)}%)`
+      : "0 / 0 MB";
+  }
+  if (key === "RAM") {
+    const used = data?.ram?.used_mb || 0;
+    const total = data?.ram?.total_mb || 0;
+    return total
+      ? `${(used / 1024).toFixed(2)} / ${(total / 1024).toFixed(2)} GB (${Math.round((used / total) * 100)}%)`
+      : data?.info?.RAM || "Unknown";
+  }
+  return data?.info?.[key];
 }
 
-function stopTelemetry(node) {
-  if (!node.__inteliweb_timer) return;
-  clearInterval(node.__inteliweb_timer);
-  node.__inteliweb_timer = null;
+function createPanel(node) {
+  const root = document.createElement("div");
+  root.className = "inteliweb-system-check";
+  root.style.cssText = [
+    "box-sizing:border-box",
+    "width:100%",
+    "height:100%",
+    "padding:8px",
+    "overflow:auto",
+    "background:#0f172a",
+    "color:#fff",
+    "font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif",
+  ].join(";");
+
+  const toolbar = document.createElement("div");
+  toolbar.style.cssText = "display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px";
+  root.appendChild(toolbar);
+
+  const results = document.createElement("div");
+  results.textContent = "Press Run to collect system information.";
+  results.style.cssText = "font-size:12px;color:#cbd5e1";
+  root.appendChild(results);
+
+  const makeButton = (label, action) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.style.cssText = [
+      "border:1px solid #334155",
+      "border-radius:6px",
+      "padding:7px 8px",
+      "background:#020617",
+      "color:#fff",
+      "cursor:pointer",
+      "font-size:12px",
+    ].join(";");
+    button.addEventListener("click", action);
+    toolbar.appendChild(button);
+    return button;
+  };
+
+  const state = {
+    info: null,
+    vram: { free_mb: 0, total_mb: 0 },
+    ram: { used_mb: 0, free_mb: 0, total_mb: 0 },
+  };
+
+  const render = () => {
+    if (!state.info) return;
+    results.replaceChildren();
+
+    for (const [category, keys] of Object.entries(CATEGORIES)) {
+      const details = document.createElement("details");
+      details.open = category === "System" || category === "GPU & Runtime" || category === "Acceleration & Attention";
+      details.style.cssText = "margin-bottom:7px";
+
+      const summary = document.createElement("summary");
+      summary.textContent = category;
+      summary.style.cssText = [
+        "cursor:pointer",
+        "padding:6px 8px",
+        "border-radius:6px",
+        "background:#020617",
+        "font-weight:600",
+        "font-size:12px",
+      ].join(";");
+      details.appendChild(summary);
+
+      const cards = document.createElement("div");
+      cards.style.cssText = "display:grid;gap:7px;margin-top:7px";
+
+      for (const key of keys) {
+        const value = formatMemory({ info: state.info, vram: state.vram, ram: state.ram }, key);
+        if (value === undefined) continue;
+
+        const missing = isMissing(value);
+        const card = document.createElement("div");
+        card.style.cssText = [
+          "display:grid",
+          "grid-template-columns:34px minmax(120px,1fr) minmax(120px,2fr)",
+          "align-items:center",
+          "min-height:30px",
+          "border-radius:7px",
+          `background:${missing ? "#ef4444" : "#4a90e2"}`,
+          "overflow:hidden",
+          "font-size:12px",
+        ].join(";");
+
+        const icon = document.createElement("div");
+        icon.textContent = ICONS[key] || "ℹ️";
+        icon.style.cssText = [
+          "display:grid",
+          "place-items:center",
+          "height:100%",
+          `background:${missing ? "#c81e1e" : "#2b73bf"}`,
+        ].join(";");
+
+        const label = document.createElement("strong");
+        label.textContent = key;
+        label.style.cssText = "padding:0 10px;white-space:nowrap";
+
+        const valueElement = document.createElement("span");
+        valueElement.textContent = String(value);
+        valueElement.title = String(value);
+        valueElement.style.cssText = [
+          "padding:0 10px",
+          "text-align:right",
+          "font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",
+          "white-space:nowrap",
+          "overflow:hidden",
+          "text-overflow:ellipsis",
+        ].join(";");
+
+        card.append(icon, label, valueElement);
+        cards.appendChild(card);
+      }
+
+      details.appendChild(cards);
+      results.appendChild(details);
+    }
+  };
+
+  const refreshTelemetry = async () => {
+    try {
+      const telemetry = await fetchJSON("/inteliweb/telemetry");
+      if (telemetry?.vram) state.vram = telemetry.vram;
+      if (telemetry?.ram) state.ram = telemetry.ram;
+      render();
+    } catch (_) {
+      // Server restarts should not flood the browser console.
+    }
+  };
+
+  const run = async () => {
+    const button = runButton;
+    button.disabled = true;
+    button.textContent = "Running...";
+    try {
+      state.info = await fetchJSON("/inteliweb_sysinfo");
+      node._inteliweb_text = Object.entries(state.info)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join("\n");
+      await refreshTelemetry();
+    } catch (error) {
+      console.error("[Inteliweb] System Check failed:", error);
+      results.textContent = `System Check failed: ${error.message}`;
+    } finally {
+      button.disabled = false;
+      button.textContent = "Run";
+    }
+  };
+
+  const freeMemory = async () => {
+    freeButton.disabled = true;
+    freeButton.textContent = "Freeing...";
+    try {
+      const response = await fetchJSON("/inteliweb/free_memory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!response?.ok) throw new Error(response?.text || "Memory cleanup failed");
+      if (response.vram) state.vram = response.vram;
+      if (response.ram) state.ram = response.ram;
+      render();
+    } catch (error) {
+      console.error("[Inteliweb] Free Memory failed:", error);
+    } finally {
+      freeButton.disabled = false;
+      freeButton.textContent = "Free Memory";
+    }
+  };
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(node._inteliweb_text || "");
+      copyButton.textContent = "Copied";
+      setTimeout(() => (copyButton.textContent = "Copy"), 900);
+    } catch (error) {
+      console.warn("[Inteliweb] Clipboard unavailable:", error);
+    }
+  };
+
+  const runButton = makeButton("Run", run);
+  const freeButton = makeButton("Free Memory", freeMemory);
+  const copyButton = makeButton("Copy", copy);
+
+  const timer = setInterval(refreshTelemetry, 1000);
+  node.__inteliweb_stop = () => clearInterval(timer);
+
+  return root;
 }
 
 app.registerExtension({
   name: "inteliweb.system.check",
-  async nodeCreated(node) {
+
+  nodeCreated(node) {
     if (node.comfyClass !== "InteliwebSystemCheck") return;
-    ensureCursorStyles();
 
-    node.color = COLORS.headerBg;
-    node.bgcolor = COLORS.panelBg;
-    node.size = [560, 360];
-    node._inteliweb_info = null;
+    node.color = "#1f2430";
+    node.bgcolor = "#0f172a";
+    node.size = [560, 520];
     node._inteliweb_text = "";
-    node._inteliweb_vram = { free_mb: 0, total_mb: 0 };
-    node._inteliweb_ram = { used_mb: 0, free_mb: 0, total_mb: 0 };
-    node.__inteliweb_collapsed = {};
-    node.__inteliweb_hits = [];
-    startTelemetry(node);
 
-    const runButton = node.addWidget("button", "Run", null, async () => {
-      try {
-        const info = await fetchJSON("/inteliweb_sysinfo");
-        node._inteliweb_info = info;
-        node._inteliweb_text = Object.entries(info)
-          .map(([key, value]) => `${key}: ${value}`)
-          .join("\n");
-        if (!node.__inteliweb_firstRunDone) {
-          CATEGORY_ORDER.forEach((category, index) => {
-            node.__inteliweb_collapsed[category] = index >= 3;
-          });
-          node.__inteliweb_firstRunDone = true;
-        }
-        await telemetryTick(node);
-        node.setDirtyCanvas(true, true);
-      } catch (error) {
-        console.error("[Inteliweb] System Check failed:", error);
-      }
+    const panel = createPanel(node);
+    const widget = node.addDOMWidget("inteliweb_system_check", "INTELIWEB_SYSTEM_CHECK", panel, {
+      serialize: false,
+      hideOnZoom: false,
+      getMinHeight: () => 360,
+      getHeight: () => Math.max(360, node.size?.[1] - 40),
     });
-    runButton.serialize = false;
-
-    node.__inteliweb_actions = {
-      async free_memory() {
-        try {
-          const result = await fetchJSON("/inteliweb/free_memory", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: "{}",
-          });
-          if (!result?.ok) throw new Error(result?.text || "Memory cleanup failed");
-          if (result.vram) node._inteliweb_vram = result.vram;
-          if (result.ram) node._inteliweb_ram = result.ram;
-          node.setDirtyCanvas(true, true);
-        } catch (error) {
-          console.error("[Inteliweb] Free Memory failed:", error);
-        }
-      },
-      copy() {
-        navigator.clipboard?.writeText(node._inteliweb_text || "").catch((error) => {
-          console.warn("[Inteliweb] Clipboard unavailable:", error);
-        });
-      },
-    };
-
-    node.onDrawForeground = function (ctx) {
-      ctx.save();
-      const PAD = 14;
-      const innerW = node.size[0] - PAD * 2;
-      const toolbarY = getWidgetsBottomY(node) + 6;
-      const buttonH = 28;
-      const gap = 8;
-      const buttonW = Math.floor((innerW - gap) / 2);
-
-      node.__inteliweb_hits = (node.__inteliweb_hits || []).filter(
-        (hit) => hit.type !== "btn" && hit.type !== "cat",
-      );
-
-      drawButton(ctx, PAD, toolbarY, buttonW, buttonH, "Free Memory");
-      node.__inteliweb_hits.push({
-        type: "btn",
-        key: "free_memory",
-        x: PAD,
-        y: toolbarY,
-        w: buttonW,
-        h: buttonH,
-      });
-
-      drawButton(ctx, PAD + buttonW + gap, toolbarY, buttonW, buttonH, "Copy");
-      node.__inteliweb_hits.push({
-        type: "btn",
-        key: "copy",
-        x: PAD + buttonW + gap,
-        y: toolbarY,
-        w: buttonW,
-        h: buttonH,
-      });
-
-      let y = toolbarY + buttonH + 8;
-      const data = node._inteliweb_info;
-      if (!data) {
-        ctx.fillStyle = "#ddd";
-        ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-        ctx.fillText("Press Run to collect system information.", PAD, y + 16);
-        node.size[1] = Math.max(180, y + 40);
-        ctx.restore();
-        return;
-      }
-
-      for (const category of CATEGORY_ORDER) {
-        const collapsed = !!node.__inteliweb_collapsed[category];
-        ctx.fillStyle = lighten(COLORS.headerBg, -10);
-        roundRect(ctx, PAD, y, innerW, 24, 6);
-        ctx.fill();
-        ctx.fillStyle = "#fff";
-        ctx.font = "12px ui-sans-serif, system-ui, Segoe UI, Roboto";
-        ctx.textAlign = "left";
-        ctx.fillText(`${collapsed ? "▶" : "▼"} ${category}`, PAD + 8, y + 16);
-        node.__inteliweb_hits.push({
-          type: "cat",
-          key: category,
-          x: PAD,
-          y,
-          w: innerW,
-          h: 24,
-        });
-        y += 30;
-        if (collapsed) continue;
-
-        for (const key of CATEGORIES[category]) {
-          let value = data[key];
-          if (key === "VRAM") {
-            const free = node._inteliweb_vram?.free_mb || 0;
-            const total = node._inteliweb_vram?.total_mb || 0;
-            const used = Math.max(total - free, 0);
-            value = total
-              ? `${used} / ${total} MB (${Math.round((used / total) * 100)}%)`
-              : "0 / 0 MB";
-          } else if (key === "RAM") {
-            const used = node._inteliweb_ram?.used_mb || 0;
-            const total = node._inteliweb_ram?.total_mb || 0;
-            value = total
-              ? `${(used / 1024).toFixed(2)} / ${(total / 1024).toFixed(2)} GB (${Math.round((used / total) * 100)}%)`
-              : data.RAM;
-          }
-          if (value === undefined) continue;
-          drawBadge(ctx, PAD, y, innerW, 30, key, value, ICONS[key], statusColor(value));
-          y += 38;
-        }
-      }
-
-      node.size[1] = Math.max(220, y + PAD);
-      ctx.restore();
-    };
-
-    const originalMouseDown = node.onMouseDown;
-    node.onMouseDown = function (event, pos, graphcanvas) {
-      for (const hit of node.__inteliweb_hits || []) {
-        const inside =
-          pos[0] >= hit.x &&
-          pos[0] <= hit.x + hit.w &&
-          pos[1] >= hit.y &&
-          pos[1] <= hit.y + hit.h;
-        if (!inside) continue;
-        if (hit.type === "cat") {
-          node.__inteliweb_collapsed[hit.key] = !node.__inteliweb_collapsed[hit.key];
-          node.setDirtyCanvas(true, true);
-          return true;
-        }
-        if (hit.type === "btn" && node.__inteliweb_actions?.[hit.key]) {
-          node.__inteliweb_actions[hit.key]();
-          return true;
-        }
-      }
-      return originalMouseDown ? originalMouseDown.apply(this, arguments) : false;
-    };
-
-    node.onMouseMove = function (event, pos, graphcanvas) {
-      const canvas = graphcanvas?.canvas || app?.graph?.canvas?.canvas || app?.canvas?.canvas;
-      if (!canvas) return false;
-      const over = (node.__inteliweb_hits || []).some(
-        (hit) =>
-          pos[0] >= hit.x &&
-          pos[0] <= hit.x + hit.w &&
-          pos[1] >= hit.y &&
-          pos[1] <= hit.y + hit.h,
-      );
-      if (over) canvas.setAttribute("data-inteliweb-cursor", "hand");
-      else canvas.removeAttribute("data-inteliweb-cursor");
-      return false;
-    };
-
-    node.onMouseLeave = function () {
-      const canvas = app?.graph?.canvas?.canvas || app?.canvas?.canvas;
-      canvas?.removeAttribute("data-inteliweb-cursor");
-    };
+    widget.serialize = false;
+    widget.serializeValue = () => undefined;
 
     const originalRemoved = node.onRemoved;
     node.onRemoved = function () {
-      stopTelemetry(this);
-      const canvas = app?.graph?.canvas?.canvas || app?.canvas?.canvas;
-      canvas?.removeAttribute("data-inteliweb-cursor");
+      node.__inteliweb_stop?.();
       if (originalRemoved) originalRemoved.apply(this, arguments);
     };
   },
