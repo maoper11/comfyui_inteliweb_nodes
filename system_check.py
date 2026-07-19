@@ -22,27 +22,17 @@ def _distribution_version(*names: str) -> str:
     return "Not installed"
 
 
-def _flash_attention_info():
-    version = _distribution_version("flash-attn", "flash_attn", "FlashAttention")
-    supported = False
-    sm = None
-    try:
-        import torch
+def _accelerator_runtime(torch) -> str:
+    """Describe the runtime reported by PyTorch without invoking external tools."""
+    cuda_version = getattr(torch.version, "cuda", None)
+    if cuda_version:
+        return f"CUDA {cuda_version}"
 
-        if torch.cuda.is_available():
-            try:
-                major, minor = torch.cuda.get_device_capability(0)
-                sm = major * 10 + minor
-            except Exception:
-                sm = None
-        try:
-            checker = getattr(torch.backends.cuda, "flash_sdp_supported", None)
-            supported = bool(checker()) if callable(checker) else False
-        except Exception:
-            supported = False
-    except Exception:
-        pass
-    return version, supported, sm
+    hip_version = getattr(torch.version, "hip", None)
+    if hip_version:
+        return f"ROCm / HIP {hip_version}"
+
+    return "CPU / unavailable"
 
 
 def _collect():
@@ -72,46 +62,41 @@ def _collect():
             try:
                 gpu_name = torch.cuda.get_device_name(0)
             except Exception:
-                gpu_name = "cuda:0"
+                gpu_name = "accelerator:0"
             info["GPU"] = f"Accelerator available: {gpu_name}"
         else:
             info["GPU"] = "CPU only"
-        info["CUDA version"] = getattr(torch.version, "cuda", None) or "unknown"
-
-        version, supported, sm = _flash_attention_info()
-        sm_text = f", sm={sm}" if sm is not None else ""
-        info["Flash Attention"] = f"{version} (supported={supported}{sm_text})"
+        info["Accelerator runtime"] = _accelerator_runtime(torch)
     except Exception:
         info["PyTorch"] = "Not installed"
         info["torchvision"] = _distribution_version("torchvision")
         info["GPU"] = "Unknown"
-        info["CUDA version"] = "unknown"
+        info["Accelerator runtime"] = "Unknown"
 
+    # Version checks use importlib.metadata only. They do not import or execute
+    # the optional packages, which keeps diagnostics lightweight and scanner-safe.
     packages = {
         "xformers": ("xformers",),
+        "triton": ("triton",),
+        "SageAttention": ("sageattention", "sage-attention"),
+        "FlashAttention": ("flash-attn", "flash_attn", "FlashAttention"),
         "numpy": ("numpy",),
         "Pillow": ("Pillow",),
         "OpenCV": ("opencv-python", "opencv-python-headless"),
-        "transformers": ("transformers",),
-        "diffusers": ("diffusers",),
-        "huggingface_hub": ("huggingface-hub",),
-        "tokenizers": ("tokenizers",),
-        "onnx": ("onnx",),
-        "onnxruntime": ("onnxruntime", "onnxruntime-gpu"),
         "timm": ("timm",),
-        "accelerate": ("accelerate",),
-        "bitsandbytes": ("bitsandbytes",),
-        "sentencepiece": ("sentencepiece",),
         "kornia": ("kornia",),
-        "insightface": ("insightface",),
-        "ultralytics": ("ultralytics",),
-        "mediapipe": ("mediapipe",),
         "scipy": ("scipy",),
         "scikit-image": ("scikit-image",),
-        "pandas": ("pandas",),
-        "triton": ("triton",),
-        "SageAttention": ("sageattention", "sage-attention"),
         "AV": ("av",),
+        "transformers": ("transformers",),
+        "diffusers": ("diffusers",),
+        "accelerate": ("accelerate",),
+        "bitsandbytes": ("bitsandbytes",),
+        "huggingface_hub": ("huggingface-hub",),
+        "tokenizers": ("tokenizers",),
+        "sentencepiece": ("sentencepiece",),
+        "onnx": ("onnx",),
+        "onnxruntime": ("onnxruntime", "onnxruntime-gpu"),
     }
     for label, distribution_names in packages.items():
         info[label] = _distribution_version(*distribution_names)
