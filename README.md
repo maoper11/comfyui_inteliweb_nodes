@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.18.1-blue" alt="version 0.18.1" />
+  <img src="https://img.shields.io/badge/version-0.18.2-blue" alt="version 0.18.2" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -10,11 +10,20 @@
   </a>
 </p>
 
-> **System Check (Inteliweb)** — Utilidades para revisar el sistema, monitorear recursos y liberar memoria dentro de ComfyUI.
+> Utilidades de Inteliweb AI para revisar el sistema, monitorear recursos, liberar memoria y enrutar entradas dentro de ComfyUI.
+
+## Cambios en v0.18.2
+
+- Añadido **Input Switch (Inteliweb)** como alternativa independiente y ligera al nodo Switch (Any).
+- Acepta entradas dinámicas de cualquier tipo y agrega automáticamente un nuevo socket al conectar el último.
+- Evalúa de forma lazy solamente la entrada seleccionada en el modo predeterminado.
+- Devuelve el valor seleccionado, la etiqueta del socket y su índice.
+- Utiliza un ID propio y puede coexistir con ComfyUI-Impact-Pack sin conflictos.
+- No añade dependencias Python ni ejecuta comandos externos.
 
 ## Cambios en v0.18.1
 
-Esta versión reemplaza las llamadas a ejecutables externos por APIs Python para facilitar la revisión de seguridad del Comfy Registry.
+Esta versión reemplazó las llamadas a ejecutables externos por APIs Python para facilitar la revisión de seguridad del Comfy Registry.
 
 - Eliminado el uso de `subprocess`, `nvidia-smi`, `amd-smi` y `rocm-smi` en la rama principal.
 - NVIDIA se monitorea mediante `pynvml`, provisto por `nvidia-ml-py`.
@@ -23,7 +32,7 @@ Esta versión reemplaza las llamadas a ejecutables externos por APIs Python para
 - System Check utiliza un único botón **Free Memory**, con la misma limpieza compartida por el nodo conectable **Free Memory (Inteliweb)**.
 - Se añadieron `requirements.txt` y dependencias declaradas en `pyproject.toml`.
 
-## Instalación de v0.18.1 — rama principal `main`
+## Instalación de v0.18.2 — rama principal `main`
 
 ### ComfyUI Manager
 
@@ -84,6 +93,26 @@ cd ..\..
 .\python_embeded\python.exe -m pip install -r .\ComfyUI\custom_nodes\comfyui_inteliweb_nodes\requirements.txt
 ```
 
+## Input Switch (Inteliweb)
+
+Selector dinámico que permite escoger una entrada entre varias sin instalar el paquete completo de Impact Pack.
+
+Características:
+
+- Acepta `IMAGE`, `STRING`, `MODEL`, `CLIP`, `VAE`, `LATENT` y otros tipos compatibles.
+- Los sockets comienzan como tipo `*` y adoptan el tipo de la primera conexión concreta.
+- Al conectar el último socket aparece automáticamente uno nuevo.
+- `select` utiliza numeración desde 1.
+- `selected_value` devuelve la entrada elegida.
+- `selected_label` devuelve la etiqueta personalizada del socket o su nombre, por ejemplo `input3`.
+- `selected_index` devuelve el índice seleccionado.
+- El modo predeterminado `select_on_execution` usa lazy evaluation para ejecutar solamente la rama elegida.
+- `select_on_prompt` conserva una modalidad compatible para selectores literales o estáticos.
+- ID interno exclusivo: `InteliwebInputSwitch`.
+- Nombre visible: **Input Switch (Inteliweb)**.
+
+Nota sobre subgrafos: ComfyUI todavía tiene limitaciones generales con entradas autogrow y tipos dinámicos en los límites de los subgrafos. Dentro de un subgrafo el nodo puede funcionar, pero es más fiable exponer entradas con tipos estables o mantener el switch fuera del límite del subgrafo.
+
 ## System Check (Inteliweb)
 
 Muestra información como:
@@ -143,7 +172,7 @@ Pulsa el botón `⋮` del monitor para cambiar su configuración.
 
 ## Free Memory (Inteliweb)
 
-Nodo pass-through para liberar recursos entre etapas pesadas de un workflow. El ID interno continúa siendo `InteliwebPurgeVRAM`.
+Nodo pass-through para liberar recursos entre etapas pesadas de un workflow. El ID interno es `InteliwebPurgeVRAM`.
 
 Funciones:
 
@@ -172,11 +201,12 @@ gc_collect = true
 show_report = true
 ```
 
-El nodo ya no incluye `trim_ram`, porque la rama principal no realiza llamadas nativas para forzar la devolución de RAM al sistema operativo. La liberación de memoria se basa en garbage collection, descarga de modelos y administración oficial de caché de ComfyUI.
+El nodo no incluye `trim_ram`, porque la rama principal no realiza llamadas nativas para forzar la devolución de RAM al sistema operativo. La liberación de memoria se basa en garbage collection, descarga de modelos y administración oficial de caché de ComfyUI.
 
 ## Compatibilidad
 
 - Windows y Linux.
+- Nodes 1.0 y Nodes 2.0.
 - NVIDIA: métricas completas mediante `pynvml`.
 - AMD/ROCm: nombre y VRAM mediante PyTorch cuando el entorno lo permite.
 - Otros aceleradores: CPU, RAM y disco; la disponibilidad de VRAM depende de PyTorch.
@@ -184,6 +214,7 @@ El nodo ya no incluye `trim_ram`, porque la rama principal no realiza llamadas n
 
 ## Créditos
 
+- **Input Switch (Inteliweb):** implementación independiente inspirada conceptualmente por `Switch (Any)` de [`ltdrdata/ComfyUI-Impact-Pack`](https://github.com/ltdrdata/ComfyUI-Impact-Pack). No importa ni incorpora el paquete Impact Pack.
 - **Resource Monitor (Inteliweb):** inspirado en [`crystian/ComfyUI-Crystools`](https://github.com/crystian/ComfyUI-Crystools), licencia MIT.
 - **Free Memory (Inteliweb):** adaptación del concepto `PurgeVRAM` de [`chflame163/ComfyUI_LayerStyle`](https://github.com/chflame163/ComfyUI_LayerStyle), licencia MIT.
 - Ideas de diagnóstico estudiadas en `VRAM Debug` de [`kijai/ComfyUI-KJNodes`](https://github.com/kijai/ComfyUI-KJNodes) y nodos de limpieza de [`yolain/ComfyUI-Easy-Use`](https://github.com/yolain/ComfyUI-Easy-Use).
