@@ -1,7 +1,7 @@
 [project]
 name = "comfyui_inteliweb_nodes"
 version = "0.18.1"
-description = "Inteliweb utilities for ComfyUI: top-bar resource monitor, System Check, Free Memory, and Photopea integration."
+description = "Inteliweb utilities for ComfyUI: top-bar resource monitor, System Check, and Free Memory."
 readme = "README.md"
 license = { text = "Apache-2.0" }
 dependencies = ["psutil", "nvidia-ml-py"]
@@ -14,5 +14,5 @@ Homepage = "https://github.com/maoper11/comfyui_inteliweb_nodes"
 PublisherId = "maoper11"
 DisplayName = "ComfyUI_Inteliweb_nodes"
 Icon = "https://github.com/maoper11/comfyui_inteliweb_nodes/blob/main/assets/icon.png?raw=1"
-Categories = ["Utility", "Editor"]
-Tags = ["system", "check", "monitor", "resource-monitor", "cpu", "gpu", "ram", "vram", "temperature", "flash-attn", "inteliweb", "photopea", "clipspace", "editor", "right-click-menu"]
+Categories = ["Utility"]
+Tags = ["system", "check", "monitor", "resource-monitor", "cpu", "gpu", "ram", "vram", "temperature", "flash-attn", "inteliweb"]
