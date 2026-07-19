@@ -74,8 +74,6 @@ def _collect():
         info["GPU"] = "Unknown"
         info["Accelerator runtime"] = "Unknown"
 
-    # Version checks use importlib.metadata only. They do not import or execute
-    # the optional packages, which keeps diagnostics lightweight and scanner-safe.
     packages = {
         "xformers": ("xformers",),
         "triton": ("triton",),
@@ -174,7 +172,6 @@ try:
                 purge_cache=True,
                 purge_models=True,
                 gc_collect=True,
-                trim_ram=False,
                 show_report=True,
             )
             return web.json_response(
