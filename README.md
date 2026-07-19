@@ -10,7 +10,7 @@
   </a>
 </p>
 
-> **System Check (Inteliweb)** — Utilidades para revisar el sistema, monitorear recursos, liberar memoria e integrar Photopea dentro de ComfyUI.
+> **System Check (Inteliweb)** — Utilidades para revisar el sistema, monitorear recursos y liberar memoria dentro de ComfyUI.
 
 ## Cambios en v0.18.1
 
@@ -136,18 +136,6 @@ Características:
 
 Pulsa el botón `⋮` del monitor para cambiar su configuración.
 
-## Photopea Editor (Inteliweb)
-
-Integra Photopea dentro de ComfyUI:
-
-- Menú contextual en nodos con salida `IMAGE` o `MASK`: **Open in Photopea Editor**.
-- Edición en modal con **Fullscreen** y opción **Save / Save to node**.
-- Requiere conexión a internet porque Photopea corre en el navegador.
-
-<div align="center">
-<img src="assets/photopea_editor.png" alt="Photopea Editor" width="900"/>
-</div>
-
 ## Free Memory (Inteliweb)
 
 Nodo pass-through para liberar recursos entre etapas pesadas de un workflow. El ID interno continúa siendo `InteliwebPurgeVRAM` para conservar compatibilidad.
@@ -192,7 +180,6 @@ trim_ram = false
 - **Resource Monitor (Inteliweb):** inspirado en [`crystian/ComfyUI-Crystools`](https://github.com/crystian/ComfyUI-Crystools), licencia MIT.
 - **Free Memory (Inteliweb):** adaptación del concepto `PurgeVRAM` de [`chflame163/ComfyUI_LayerStyle`](https://github.com/chflame163/ComfyUI_LayerStyle), licencia MIT.
 - Ideas de diagnóstico estudiadas en `VRAM Debug` de [`kijai/ComfyUI-KJNodes`](https://github.com/kijai/ComfyUI-KJNodes) y nodos de limpieza de [`yolain/ComfyUI-Easy-Use`](https://github.com/yolain/ComfyUI-Easy-Use).
-- **Photopea Editor (Inteliweb):** adaptación namespaced de [`coolzilj/ComfyUI-Photopea`](https://github.com/coolzilj/ComfyUI-Photopea), licencia MIT.
 
 Consulta `THIRD_PARTY_NOTICES.md` para los avisos de terceros.
 
