@@ -1,5 +1,5 @@
 # custom_nodes/comfyui_inteliweb_nodes/purge_vram.py
-"""Memory cleanup node for ComfyUI.
+"""Memory cleanup utilities and pass-through node for ComfyUI.
 
 Adapted from the PurgeVRAM concept in ComfyUI_LayerStyle by chflame163.
 Original project: https://github.com/chflame163/ComfyUI_LayerStyle
@@ -9,11 +9,9 @@ See THIRD_PARTY_NOTICES.md.
 
 from __future__ import annotations
 
-import ctypes
 import gc
 import json
 import logging
-import sys
 
 LOGGER = logging.getLogger(__name__)
 MIB = 1024 * 1024
@@ -73,41 +71,19 @@ def _loaded_model_count(model_management):
     return None
 
 
-def _trim_process_ram():
-    """Best-effort allocator trim; cannot release objects still referenced."""
-    try:
-        if sys.platform.startswith("linux"):
-            libc = ctypes.CDLL("libc.so.6")
-            malloc_trim = getattr(libc, "malloc_trim", None)
-            if malloc_trim is None:
-                return False, "unsupported"
-            malloc_trim.argtypes = [ctypes.c_size_t]
-            malloc_trim.restype = ctypes.c_int
-            return bool(malloc_trim(0)), "malloc_trim"
-
-        if sys.platform.startswith("win"):
-            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-            psapi = ctypes.WinDLL("psapi", use_last_error=True)
-            kernel32.GetCurrentProcess.argtypes = []
-            kernel32.GetCurrentProcess.restype = ctypes.c_void_p
-            psapi.EmptyWorkingSet.argtypes = [ctypes.c_void_p]
-            psapi.EmptyWorkingSet.restype = ctypes.c_bool
-            process = kernel32.GetCurrentProcess()
-            return bool(psapi.EmptyWorkingSet(process)), "EmptyWorkingSet"
-
-        return False, "unsupported"
-    except Exception as exc:
-        LOGGER.debug("Process RAM trim skipped: %s", exc)
-        return False, "failed"
-
-
 def purge_memory(
     purge_cache=True,
     purge_models=False,
     gc_collect=True,
     trim_ram=False,
 ):
-    """Release ComfyUI-managed models, caches, and unused process RAM."""
+    """Release ComfyUI-managed models, accelerator caches and Python garbage.
+
+    ``trim_ram`` is retained for workflow compatibility but intentionally does
+    not call native operating-system APIs. Native process trimming previously
+    required ctypes and can trigger Registry security scanners. Python garbage
+    collection and ComfyUI's official cache management remain enabled.
+    """
     import comfy.model_management as model_management
 
     status = {
@@ -117,7 +93,7 @@ def purge_memory(
         "python_gc_collected": 0,
         "cache_emptied": False,
         "ram_trimmed": False,
-        "ram_trim_method": "disabled",
+        "ram_trim_method": "scanner-safe-disabled" if trim_ram else "disabled",
     }
 
     if purge_models:
@@ -127,13 +103,9 @@ def purge_memory(
         status["python_gc_collected"] = int(gc.collect())
 
     if purge_cache:
-        # ComfyUI handles CUDA/ROCm/XPU/MPS/NPU here. Avoid duplicate
-        # torch.cuda.empty_cache() and torch.cuda.ipc_collect() calls.
+        # Official ComfyUI path supports CUDA, ROCm, XPU, MPS and NPU.
         model_management.soft_empty_cache()
         status["cache_emptied"] = True
-
-    if trim_ram:
-        status["ram_trimmed"], status["ram_trim_method"] = _trim_process_ram()
 
     status["models_after"] = _loaded_model_count(model_management)
     if status["models_before"] is not None and status["models_after"] is not None:
@@ -191,6 +163,51 @@ def _build_report(stage_name, before, after, status):
     return report, metrics
 
 
+def run_memory_cleanup(
+    *,
+    stage_name="Memory Cleanup",
+    purge_cache=True,
+    purge_models=False,
+    gc_collect=True,
+    trim_ram=False,
+    show_report=True,
+):
+    """Run the shared cleanup implementation and return metrics."""
+    import comfy.model_management as model_management
+    import torch
+
+    stage_name = str(stage_name).strip() or "Memory Cleanup"
+    _safe_sync(model_management)
+    before = _memory_snapshot(model_management, torch)
+
+    if show_report:
+        LOGGER.info(
+            "[Inteliweb][%s] Starting memory cleanup "
+            "(purge_cache=%s, purge_models=%s, gc_collect=%s, trim_ram=%s)",
+            stage_name,
+            purge_cache,
+            purge_models,
+            gc_collect,
+            trim_ram,
+        )
+
+    status = purge_memory(
+        purge_cache=purge_cache,
+        purge_models=purge_models,
+        gc_collect=gc_collect,
+        trim_ram=trim_ram,
+    )
+
+    _safe_sync(model_management)
+    after = _memory_snapshot(model_management, torch)
+    report, metrics = _build_report(stage_name, before, after, status)
+
+    if show_report:
+        LOGGER.info(report)
+
+    return report, metrics
+
+
 class InteliwebPurgeVRAM:
     """Pass-through node that frees memory without breaking the workflow chain."""
 
@@ -227,8 +244,8 @@ class InteliwebPurgeVRAM:
     SEARCH_ALIASES = ["Purge VRAM", "Free VRAM", "Clean Memory", "Free RAM"]
     DESCRIPTION = (
         "Passes the input through unchanged while optionally unloading ComfyUI "
-        "models, running garbage collection, clearing accelerator caches, and "
-        "trimming unused process RAM. Reports free VRAM and RAM before/after."
+        "models, running garbage collection and clearing accelerator caches. "
+        "Reports free VRAM and RAM before/after."
     )
 
     def purge_vram(
@@ -241,37 +258,14 @@ class InteliwebPurgeVRAM:
         show_report=True,
         stage_name="Memory Cleanup",
     ):
-        import comfy.model_management as model_management
-        import torch
-
-        stage_name = str(stage_name).strip() or "Memory Cleanup"
-        _safe_sync(model_management)
-        before = _memory_snapshot(model_management, torch)
-
-        if show_report:
-            LOGGER.info(
-                "[Inteliweb][%s] Starting memory cleanup "
-                "(purge_cache=%s, purge_models=%s, gc_collect=%s, trim_ram=%s)",
-                stage_name,
-                purge_cache,
-                purge_models,
-                gc_collect,
-                trim_ram,
-            )
-
-        status = purge_memory(
+        report, metrics = run_memory_cleanup(
+            stage_name=stage_name,
             purge_cache=purge_cache,
             purge_models=purge_models,
             gc_collect=gc_collect,
             trim_ram=trim_ram,
+            show_report=show_report,
         )
-
-        _safe_sync(model_management)
-        after = _memory_snapshot(model_management, torch)
-        report, metrics = _build_report(stage_name, before, after, status)
-
-        if show_report:
-            LOGGER.info(report)
 
         result = (
             anything,
