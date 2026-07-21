@@ -6,9 +6,12 @@ from __future__ import annotations
 import platform
 import sys
 from importlib import metadata
+from typing import Any
 
 from .purge_vram import run_memory_cleanup
 from .resource_monitor import collect_resource_status
+
+MIB = 1024 * 1024
 
 
 def _distribution_version(*names: str) -> str:
@@ -36,23 +39,93 @@ def _accelerator_runtime(torch) -> str:
     return "CPU / unavailable"
 
 
-def _collect():
+def _resource_status() -> dict[str, Any]:
+    """Return one shared Resource Monitor snapshot for RAM and VRAM."""
+    try:
+        return collect_resource_status()
+    except Exception:
+        return {}
+
+
+def _ram_info(status: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Return the same RAM values and source used by Resource Monitor."""
+    status = status if status is not None else _resource_status()
+    try:
+        used_mb = max(int(status.get("ram_used_mb", 0)), 0)
+        total_mb = max(int(status.get("ram_total_mb", 0)), 0)
+        raw_used_mb = max(int(status.get("ram_raw_used_mb", used_mb)), 0)
+        inactive_file_mb = max(
+            int(status.get("ram_inactive_file_mb", max(raw_used_mb - used_mb, 0))),
+            0,
+        )
+        percent = float(status.get("ram_percent", 0.0))
+        source = str(status.get("ram_source", "unavailable"))
+        return {
+            "used_mb": used_mb,
+            "free_mb": max(total_mb - used_mb, 0),
+            "total_mb": total_mb,
+            "percent": max(0.0, min(100.0, percent)),
+            "raw_used_mb": raw_used_mb,
+            "inactive_file_mb": inactive_file_mb,
+            "source": source,
+        }
+    except Exception:
+        return {
+            "used_mb": 0,
+            "free_mb": 0,
+            "total_mb": 0,
+            "percent": 0.0,
+            "raw_used_mb": 0,
+            "inactive_file_mb": 0,
+            "source": "unavailable",
+        }
+
+
+def _vram_info(status: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Return the same primary-GPU VRAM values used by Resource Monitor."""
+    status = status if status is not None else _resource_status()
+    try:
+        gpus = status.get("gpus") or []
+        if gpus:
+            gpu = gpus[0]
+            used_mb = max(int(gpu.get("vram_used_mb", 0)), 0)
+            total_mb = max(int(gpu.get("vram_total_mb", 0)), 0)
+            percent = float(gpu.get("vram_percent", 0.0))
+            return {
+                "used_mb": used_mb,
+                "free_mb": max(total_mb - used_mb, 0),
+                "total_mb": total_mb,
+                "percent": max(0.0, min(100.0, percent)),
+                "source": str(gpu.get("source", "unknown")),
+                "name": str(gpu.get("name", "Unknown GPU")),
+            }
+    except Exception:
+        pass
+    return {
+        "used_mb": 0,
+        "free_mb": 0,
+        "total_mb": 0,
+        "percent": 0.0,
+        "source": "unavailable",
+        "name": "Unknown GPU",
+    }
+
+
+def _collect(status: dict[str, Any] | None = None):
+    status = status if status is not None else _resource_status()
+    ram = _ram_info(status)
+
     info = {
         "Python version": sys.version.split()[0],
         "Operating System": f"{platform.system()} {platform.release()}",
         "CPU": platform.processor() or platform.machine(),
+        "RAM": (
+            f"{ram['used_mb'] / 1024:.2f} / {ram['total_mb'] / 1024:.2f} GB "
+            f"({ram['percent']:.0f}%)"
+            if ram["total_mb"]
+            else "Unknown"
+        ),
     }
-
-    try:
-        import psutil
-
-        memory = psutil.virtual_memory()
-        info["RAM"] = (
-            f"{memory.used / 1024**3:.2f} / {memory.total / 1024**3:.2f} GB "
-            f"({memory.percent:.0f}%)"
-        )
-    except Exception:
-        info["RAM"] = "Unknown"
 
     try:
         import torch
@@ -103,38 +176,10 @@ def _collect():
     return info
 
 
-def _vram_info():
-    """Return the same primary-GPU VRAM values used by Resource Monitor."""
-    try:
-        status = collect_resource_status()
-        gpus = status.get("gpus") or []
-        if gpus:
-            gpu = gpus[0]
-            used_mb = max(int(gpu.get("vram_used_mb", 0)), 0)
-            total_mb = max(int(gpu.get("vram_total_mb", 0)), 0)
-            return {
-                "used_mb": used_mb,
-                "free_mb": max(total_mb - used_mb, 0),
-                "total_mb": total_mb,
-                "source": gpu.get("source", "unknown"),
-            }
-    except Exception:
-        pass
-    return {"used_mb": 0, "free_mb": 0, "total_mb": 0, "source": "unavailable"}
-
-
-def _ram_info():
-    try:
-        import psutil
-
-        memory = psutil.virtual_memory()
-        return {
-            "used_mb": memory.used // (1024 * 1024),
-            "free_mb": memory.available // (1024 * 1024),
-            "total_mb": memory.total // (1024 * 1024),
-        }
-    except Exception:
-        return {"used_mb": 0, "free_mb": 0, "total_mb": 0}
+def _telemetry_payload(status: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build RAM and VRAM telemetry from one shared backend snapshot."""
+    status = status if status is not None else _resource_status()
+    return {"vram": _vram_info(status), "ram": _ram_info(status)}
 
 
 try:
@@ -145,20 +190,21 @@ try:
 
     @routes.get("/inteliweb_sysinfo")
     async def inteliweb_sysinfo(request):
-        return web.json_response(_collect())
+        status = _resource_status()
+        return web.json_response(_collect(status))
 
     @routes.get("/inteliweb/telemetry")
     async def inteliweb_telemetry(request):
-        return web.json_response({"vram": _vram_info(), "ram": _ram_info()})
+        return web.json_response(_telemetry_payload())
 
     @routes.get("/inteliweb/system_info")
     async def inteliweb_system_info_alias(request):
-        data = _collect()
+        status = _resource_status()
+        data = _collect(status)
         return web.json_response(
             {
                 "text": "\n".join(f"{key}: {value}" for key, value in data.items()),
-                "vram": _vram_info(),
-                "ram": _ram_info(),
+                **_telemetry_payload(status),
                 **data,
             }
         )
@@ -174,13 +220,13 @@ try:
                 gc_collect=True,
                 show_report=True,
             )
+            status = _resource_status()
             return web.json_response(
                 {
                     "ok": True,
                     "text": report,
                     "metrics": metrics,
-                    "vram": _vram_info(),
-                    "ram": _ram_info(),
+                    **_telemetry_payload(status),
                 }
             )
         except Exception as exc:
@@ -203,5 +249,6 @@ class InteliwebSystemCheck:
     FUNCTION = "noop"
 
     def noop(self):
-        text = "\n".join(f"{key}: {value}" for key, value in _collect().items())
+        status = _resource_status()
+        text = "\n".join(f"{key}: {value}" for key, value in _collect(status).items())
         return {"ui": {"inteliweb_text": text}, "result": ()}
