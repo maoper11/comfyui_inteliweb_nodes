@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.18.3-blue" alt="version 0.18.3" />
+  <img src="https://img.shields.io/badge/version-0.18.4-blue" alt="version 0.18.4" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -11,6 +11,15 @@
 </p>
 
 > Utilidades de Inteliweb AI para revisar el sistema, monitorear recursos, liberar memoria y enrutar entradas dentro de ComfyUI.
+
+## Cambios en v0.18.4
+
+- Resource Monitor ahora mide CPU y RAM del contenedor en Linux mediante cgroup v1 o cgroup v2.
+- En Windows y máquinas Linux locales se mantiene `psutil` como fuente de CPU y RAM del sistema.
+- La RAM de contenedores se muestra como working set, descontando caché inactiva.
+- System Check comparte la misma fuente de RAM y VRAM que Resource Monitor.
+- System Check muestra dinámicamente `RAM (Container)` o `RAM (System)`.
+- Validado en RunPod, Vast AI y Windows Pinokio.
 
 ## Cambios en v0.18.3
 
@@ -38,7 +47,7 @@ Esta versión reemplazó las llamadas a ejecutables externos por APIs Python par
 - System Check utiliza un único botón **Free Memory**, con la misma limpieza compartida por el nodo conectable **Free Memory (Inteliweb)**.
 - Se añadieron `requirements.txt` y dependencias declaradas en `pyproject.toml`.
 
-## Instalación de v0.18.3 — rama principal `main`
+## Instalación de v0.18.4 — rama principal `main`
 
 ### ComfyUI Manager
 
