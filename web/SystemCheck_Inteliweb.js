@@ -32,19 +32,56 @@ function isMissing(value) {
 
 function formatValue(state, key) {
   if (key === "VRAM") {
-    const free = state.vram?.free_mb || 0;
+    const used = state.vram?.used_mb || 0;
     const total = state.vram?.total_mb || 0;
-    const used = Math.max(total - free, 0);
-    return total ? `${used} / ${total} MB (${Math.round((used / total) * 100)}%)` : "0 / 0 MB";
+    const percent = Number.isFinite(Number(state.vram?.percent))
+      ? Number(state.vram.percent)
+      : total
+        ? (used / total) * 100
+        : 0;
+    return total ? `${used} / ${total} MB (${Math.round(percent)}%)` : "0 / 0 MB";
   }
   if (key === "RAM") {
     const used = state.ram?.used_mb || 0;
     const total = state.ram?.total_mb || 0;
+    const percent = Number.isFinite(Number(state.ram?.percent))
+      ? Number(state.ram.percent)
+      : total
+        ? (used / total) * 100
+        : 0;
     return total
-      ? `${(used / 1024).toFixed(2)} / ${(total / 1024).toFixed(2)} GB (${Math.round((used / total) * 100)}%)`
+      ? `${(used / 1024).toFixed(2)} / ${(total / 1024).toFixed(2)} GB (${Math.round(percent)}%)`
       : state.info?.RAM || "Unknown";
   }
   return state.info?.[key];
+}
+
+function displayLabel(state, key) {
+  if (key !== "RAM") return key;
+  const source = String(state.ram?.source || "");
+  if (source.startsWith("cgroup-")) return "RAM (Container)";
+  if (source === "psutil-system") return "RAM (System)";
+  return "RAM";
+}
+
+function metricTitle(state, key, value) {
+  if (key === "RAM") {
+    const source = state.ram?.source || "unknown";
+    const raw = Number(state.ram?.raw_used_mb || 0) / 1024;
+    const inactive = Number(state.ram?.inactive_file_mb || 0) / 1024;
+    const details = [`${value}`, `Source: ${source}`];
+    if (source.startsWith("cgroup-")) {
+      details.push(`Raw usage: ${raw.toFixed(2)} GB`);
+      details.push(`Inactive file cache: ${inactive.toFixed(2)} GB`);
+    }
+    return details.join("\n");
+  }
+  if (key === "VRAM") {
+    const source = state.vram?.source || "unknown";
+    const name = state.vram?.name || "Unknown GPU";
+    return `${value}\n${name}\nSource: ${source}`;
+  }
+  return String(value);
 }
 
 function createButton(label, action) {
@@ -70,8 +107,8 @@ function createPanel(node) {
 
   const state = {
     info: null,
-    vram: { free_mb: 0, total_mb: 0 },
-    ram: { used_mb: 0, free_mb: 0, total_mb: 0 },
+    vram: { used_mb: 0, free_mb: 0, total_mb: 0, percent: 0, source: "unavailable", name: "Unknown GPU" },
+    ram: { used_mb: 0, free_mb: 0, total_mb: 0, percent: 0, raw_used_mb: 0, inactive_file_mb: 0, source: "unavailable" },
     openCategories: Object.fromEntries(
       Object.keys(CATEGORIES).map((category) => [
         category,
@@ -113,12 +150,12 @@ function createPanel(node) {
         icon.style.cssText = `display:grid;place-items:center;height:100%;background:${missing ? "#c81e1e" : "#2b73bf"}`;
 
         const label = document.createElement("strong");
-        label.textContent = key;
+        label.textContent = displayLabel(state, key);
         label.style.cssText = "padding:0 10px;white-space:nowrap";
 
         const valueElement = document.createElement("span");
         valueElement.textContent = String(value);
-        valueElement.title = String(value);
+        valueElement.title = metricTitle(state, key, value);
         valueElement.style.cssText = "padding:0 10px;text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
 
         card.append(icon, label, valueElement);
