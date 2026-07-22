@@ -1,4 +1,3 @@
-# custom_nodes/comfyui_inteliweb_nodes/system_check.py
 """System diagnostics for ComfyUI using scanner-friendly Python APIs."""
 
 from __future__ import annotations
@@ -9,7 +8,7 @@ from importlib import metadata
 from typing import Any
 
 from .purge_vram import run_memory_cleanup
-from .resource_monitor import collect_resource_status
+from ..resource_monitor import collect_resource_status
 
 MIB = 1024 * 1024
 

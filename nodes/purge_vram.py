@@ -1,4 +1,3 @@
-# custom_nodes/comfyui_inteliweb_nodes/purge_vram.py
 """Memory cleanup utilities and pass-through node for ComfyUI.
 
 Adapted from the PurgeVRAM concept in ComfyUI_LayerStyle by chflame163.
@@ -94,7 +93,6 @@ def purge_memory(
         status["python_gc_collected"] = int(gc.collect())
 
     if purge_cache:
-        # Official ComfyUI path supports CUDA, ROCm, XPU, MPS and NPU.
         model_management.soft_empty_cache()
         status["cache_emptied"] = True
 
