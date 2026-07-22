@@ -1,7 +1,7 @@
 [project]
 name = "comfyui_inteliweb_nodes"
-version = "0.18.4"
-description = "Inteliweb utilities for ComfyUI: resource monitor, System Check, Free Memory, and Input Switch."
+version = "0.19.0"
+description = "Inteliweb utilities for ComfyUI: resource monitoring, memory tools, input routing, prompt lists, text replacement, and string selection."
 readme = "README.md"
 license = { text = "Apache-2.0" }
 dependencies = ["psutil", "nvidia-ml-py"]
@@ -15,4 +15,4 @@ PublisherId = "maoper11"
 DisplayName = "ComfyUI_Inteliweb_nodes"
 Icon = "https://github.com/maoper11/comfyui_inteliweb_nodes/blob/main/assets/icon.png?raw=1"
 Categories = ["Utility"]
-Tags = ["system", "check", "monitor", "resource-monitor", "switch", "input-switch", "router", "lazy", "cpu", "gpu", "ram", "vram", "temperature", "flash-attn", "inteliweb"]
+Tags = ["system", "check", "monitor", "resource-monitor", "switch", "input-switch", "router", "lazy", "prompt", "prompt-list", "text", "string", "replace", "string-selector", "cpu", "gpu", "ram", "vram", "temperature", "flash-attn", "inteliweb"]
