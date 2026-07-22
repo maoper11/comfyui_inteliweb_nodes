@@ -2,6 +2,7 @@ from .system_check import InteliwebSystemCheck
 from .purge_vram import InteliwebPurgeVRAM
 from .input_switch import InteliwebInputSwitch
 from .replace_text_multi import InteliwebReplaceTextMulti
+from .prompt_list import InteliwebPromptList
 
 # Registers the scanner-friendly /inteliweb/resource_monitor endpoint.
 from . import resource_monitor as _resource_monitor  # noqa: F401
@@ -11,6 +12,7 @@ NODE_CLASS_MAPPINGS = {
     "InteliwebPurgeVRAM": InteliwebPurgeVRAM,
     "InteliwebInputSwitch": InteliwebInputSwitch,
     "InteliwebReplaceTextMulti": InteliwebReplaceTextMulti,
+    "InteliwebPromptList": InteliwebPromptList,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -18,6 +20,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "InteliwebPurgeVRAM": "Free Memory (Inteliweb)",
     "InteliwebInputSwitch": "Input Switch (Inteliweb)",
     "InteliwebReplaceTextMulti": "Replace Text Multi - Inteliweb",
+    "InteliwebPromptList": "Prompt List Inteliweb",
 }
 
 import os as _os
