@@ -1,159 +1,225 @@
 import { app } from "../../scripts/app.js";
 
 const NODE_CLASS = "InteliwebLabel";
-const CONFIG_WIDGETS = [
-  "text",
-  "font_size",
-  "font_family",
-  "font_weight",
-  "text_color",
-  "background_color",
-  "text_align",
-  "padding",
-  "border_radius",
-  "opacity",
-  "line_height",
-];
+const DEFAULTS = Object.freeze({
+  text: "Label Inteliweb",
+  fontSize: 36,
+  fontFamily: "Arial",
+  fontWeight: "bold",
+  textColor: "#000000",
+  backgroundColor: "#a3e635",
+  textAlign: "center",
+  padding: 16,
+  borderRadius: 22,
+  opacity: 1,
+  lineHeight: 1.1,
+});
 
-function widgetByName(node, name) {
-  return node.widgets?.find((widget) => widget.name === name);
-}
-
-function valueOf(node, name, fallback) {
-  return widgetByName(node, name)?.value ?? fallback;
-}
-
-function setValue(node, name, value) {
-  const widget = widgetByName(node, name);
-  if (!widget) return;
-  widget.value = value;
-  widget.callback?.(value, node, widget);
+function isVueNodes() {
+  return Boolean(window.LiteGraph?.vueNodesMode);
 }
 
 function clamp(value, minimum, maximum) {
-  return Math.min(maximum, Math.max(minimum, Number(value)));
+  const number = Number(value);
+  return Math.min(maximum, Math.max(minimum, Number.isFinite(number) ? number : minimum));
+}
+
+function ensureProperties(node) {
+  node.properties = node.properties || {};
+  for (const [key, value] of Object.entries(DEFAULTS)) {
+    if (node.properties[key] === undefined) node.properties[key] = value;
+  }
+  return node.properties;
 }
 
 function readConfig(node) {
+  const p = ensureProperties(node);
   return {
-    text: String(valueOf(node, "text", "Label Inteliweb")),
-    fontSize: clamp(valueOf(node, "font_size", 36), 8, 160),
-    fontFamily: String(valueOf(node, "font_family", "Arial")),
-    fontWeight: String(valueOf(node, "font_weight", "bold")),
-    textColor: String(valueOf(node, "text_color", "#000000")),
-    backgroundColor: String(valueOf(node, "background_color", "#a3e635")),
-    textAlign: String(valueOf(node, "text_align", "center")),
-    padding: clamp(valueOf(node, "padding", 16), 0, 96),
-    borderRadius: clamp(valueOf(node, "border_radius", 22), 0, 96),
-    opacity: clamp(valueOf(node, "opacity", 1), 0.1, 1),
-    lineHeight: clamp(valueOf(node, "line_height", 1.1), 0.8, 2),
+    text: String(p.text ?? DEFAULTS.text),
+    fontSize: clamp(p.fontSize ?? DEFAULTS.fontSize, 8, 160),
+    fontFamily: String(p.fontFamily ?? DEFAULTS.fontFamily),
+    fontWeight: p.fontWeight === "normal" ? "normal" : "bold",
+    textColor: String(p.textColor ?? DEFAULTS.textColor),
+    backgroundColor: String(p.backgroundColor ?? DEFAULTS.backgroundColor),
+    textAlign: ["left", "center", "right"].includes(p.textAlign) ? p.textAlign : "center",
+    padding: clamp(p.padding ?? DEFAULTS.padding, 0, 96),
+    borderRadius: clamp(p.borderRadius ?? DEFAULTS.borderRadius, 0, 96),
+    opacity: clamp(p.opacity ?? DEFAULTS.opacity, 0.1, 1),
+    lineHeight: clamp(p.lineHeight ?? DEFAULTS.lineHeight, 0.8, 2),
   };
 }
 
-function hideConfigWidgets(node) {
-  for (const name of CONFIG_WIDGETS) {
-    const widget = widgetByName(node, name);
-    if (!widget || widget.__inteliwebHidden) continue;
-    widget.__inteliwebHidden = true;
-    widget.type = "hidden";
-    widget.computeSize = () => [0, -4];
-  }
+function fontString(config) {
+  return `${config.fontWeight} ${config.fontSize}px '${config.fontFamily}', system-ui, sans-serif`;
 }
 
 function measureLabel(config) {
-  const probe = document.createElement("div");
-  probe.textContent = config.text || " ";
-  Object.assign(probe.style, {
-    position: "fixed",
-    left: "-10000px",
-    top: "-10000px",
-    visibility: "hidden",
-    pointerEvents: "none",
-    whiteSpace: "pre",
-    width: "max-content",
-    boxSizing: "border-box",
-    fontFamily: config.fontFamily,
-    fontSize: `${config.fontSize}px`,
-    fontWeight: config.fontWeight,
-    lineHeight: String(config.lineHeight),
-    padding: `${config.padding}px`,
-  });
-  document.body.appendChild(probe);
-  const rect = probe.getBoundingClientRect();
-  probe.remove();
-
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  context.font = fontString(config);
+  const lines = (config.text || " ").split("\n");
+  const lineHeightPx = config.fontSize * config.lineHeight;
+  let maxWidth = 0;
+  for (const line of lines) maxWidth = Math.max(maxWidth, context.measureText(line || " ").width);
   return {
-    width: Math.max(80, Math.min(920, Math.ceil(rect.width) + 2)),
-    height: Math.max(36, Math.ceil(rect.height) + 2),
+    width: Math.max(60, Math.ceil(maxWidth + config.padding * 2)),
+    height: Math.max(30, Math.ceil(lines.length * lineHeightPx + config.padding * 2)),
+    lines,
+    lineHeightPx,
   };
 }
 
-function renderLabel(node, resizeNode = false) {
+function resizeToContent(node) {
+  const measured = measureLabel(readConfig(node));
+  node.__inteliwebLabelMeasure = measured;
+  if (node.size) {
+    node.size[0] = measured.width;
+    node.size[1] = measured.height;
+  } else {
+    node.size = [measured.width, measured.height];
+  }
+  node.graph?.setDirtyCanvas?.(true, true);
+  return measured;
+}
+
+function renderCanvasLabel(context, config, measured) {
+  context.save();
+  context.globalAlpha = config.opacity;
+  if (config.backgroundColor !== "transparent") {
+    context.fillStyle = config.backgroundColor;
+    context.beginPath();
+    if (context.roundRect) {
+      context.roundRect(0, 0, measured.width, measured.height, config.borderRadius);
+    } else {
+      context.rect(0, 0, measured.width, measured.height);
+    }
+    context.fill();
+  }
+
+  context.font = fontString(config);
+  context.fillStyle = config.textColor;
+  context.textBaseline = "top";
+  context.textAlign = config.textAlign;
+  let x = config.padding;
+  if (config.textAlign === "center") x = measured.width / 2;
+  if (config.textAlign === "right") x = measured.width - config.padding;
+  measured.lines.forEach((line, index) => {
+    context.fillText(line || " ", x, config.padding + index * measured.lineHeightPx);
+  });
+  context.restore();
+}
+
+function injectCss() {
+  if (document.getElementById("inteliweb-label-css")) return;
+  const style = document.createElement("style");
+  style.id = "inteliweb-label-css";
+  style.textContent = `
+.inteliweb-label-dom {
+  display: inline-block !important;
+  box-sizing: border-box !important;
+  white-space: pre !important;
+  align-self: flex-start !important;
+  flex: 0 0 auto !important;
+  user-select: none !important;
+  pointer-events: none !important;
+  overflow: visible !important;
+}
+.lg-node:has(.inteliweb-label-dom) {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+.lg-node:has(.inteliweb-label-dom) > div,
+.lg-node:has(.inteliweb-label-dom) > div > div {
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+.lg-node:has(.inteliweb-label-dom) .lg-node-content,
+.lg-node:has(.inteliweb-label-dom) [class*="component-node-background"] {
+  padding: 0 !important;
+  gap: 0 !important;
+  background: transparent !important;
+}
+.lg-node:has(.inteliweb-label-dom) .lg-node-widgets {
+  grid-template-columns: max-content !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  row-gap: 0 !important;
+}
+.lg-node:has(.inteliweb-label-dom) .lg-node-widget {
+  gap: 0 !important;
+  padding: 0 !important;
+}
+.lg-node:has(.inteliweb-label-dom) .lg-node-widget > *:first-child {
+  display: none !important;
+}
+.lg-node:has(.inteliweb-label-dom) .lg-node-widgets,
+.lg-node:has(.inteliweb-label-dom) .lg-node-widgets * {
+  pointer-events: none !important;
+  overflow: visible !important;
+}
+.lg-node:has(.inteliweb-label-dom) [class*="component-node-background"] > div:has(.bg-node-component-surface),
+.lg-node:has(.inteliweb-label-dom) .bg-node-component-surface,
+.lg-node:has(.inteliweb-label-dom) > div.absolute.border:not([data-testid]),
+.lg-node:has(.inteliweb-label-dom) > div:has(> svg),
+.lg-node:has(.inteliweb-label-dom) > div.h-5.w-5 {
+  display: none !important;
+}
+.lg-node:has(.inteliweb-label-dom) [data-testid="node-state-outline-overlay"],
+.lg-node:has(.inteliweb-label-dom) > div.absolute.outline-none {
+  inset: -2px !important;
+}
+.inteliweb-label-color {
+  width: 100% !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 2px !important;
+  border: 1px solid #484848 !important;
+  border-radius: 6px !important;
+  background: #1d1d1d !important;
+  cursor: pointer !important;
+}
+`;
+  document.head.appendChild(style);
+}
+
+function applyDomStyle(node) {
   const element = node.__inteliwebLabelElement;
   if (!element) return;
-
   const config = readConfig(node);
-  const measured = measureLabel(config);
-  node.__inteliwebLabelHeight = measured.height;
-
+  const measured = resizeToContent(node);
   element.textContent = config.text || " ";
   Object.assign(element.style, {
-    display: "flex",
-    alignItems: "center",
-    justifyContent:
-      config.textAlign === "left"
-        ? "flex-start"
-        : config.textAlign === "right"
-          ? "flex-end"
-          : "center",
     width: `${measured.width}px`,
     height: `${measured.height}px`,
-    minWidth: `${measured.width}px`,
-    minHeight: `${measured.height}px`,
-    maxWidth: `${measured.width}px`,
-    maxHeight: `${measured.height}px`,
-    margin: "0",
-    boxSizing: "border-box",
-    whiteSpace: "pre",
-    overflow: "hidden",
-    pointerEvents: "none",
-    userSelect: "none",
-    fontFamily: config.fontFamily,
+    fontFamily: `'${config.fontFamily}', system-ui, sans-serif`,
     fontSize: `${config.fontSize}px`,
     fontWeight: config.fontWeight,
     lineHeight: String(config.lineHeight),
     color: config.textColor,
-    background: config.backgroundColor,
     textAlign: config.textAlign,
     padding: `${config.padding}px`,
-    borderRadius: `${config.borderRadius}px`,
     opacity: String(config.opacity),
+    background: config.backgroundColor,
+    borderRadius: `${config.borderRadius}px`,
   });
-
-  if (resizeNode) {
-    // Keep the widget minimum independent from node.size. Tying getMinHeight
-    // to node.size creates a positive feedback loop and makes the node grow.
-    node.size = [measured.width, measured.height + 8];
-  }
-
-  node.setDirtyCanvas?.(true, true);
 }
 
-function createLabelWidget(node) {
+function createDomLabel(node) {
   if (node.__inteliwebLabelElement) return;
-
+  injectCss();
   const element = document.createElement("div");
-  element.className = "inteliweb-label-preview";
+  element.className = "inteliweb-label-dom";
   node.__inteliwebLabelElement = element;
-
-  const widget = node.addDOMWidget?.("label_preview", "INTELIWEB_LABEL", element, {
+  const widget = node.addDOMWidget?.("label_dom", "INTELIWEB_LABEL", element, {
     serialize: false,
     hideOnZoom: false,
-    getMinHeight: () => node.__inteliwebLabelHeight || 48,
+    getMinHeight: () => node.__inteliwebLabelMeasure?.height || 30,
   });
-
   if (widget?.options) widget.options.canvasOnly = false;
-  renderLabel(node, true);
+  applyDomStyle(node);
 }
 
 function styleInput(input) {
@@ -187,7 +253,7 @@ function field(labelText, input) {
 
 function selectInput(values, current) {
   const select = styleInput(document.createElement("select"));
-  for (const [value, label = value] of values) {
+  for (const [value, label] of values) {
     const option = document.createElement("option");
     option.value = value;
     option.textContent = label;
@@ -197,20 +263,28 @@ function selectInput(values, current) {
   return select;
 }
 
-function numberInput(value, minimum, maximum, step = 1) {
+function numberInput(value, min, max, step = 1) {
   const input = styleInput(document.createElement("input"));
   input.type = "number";
-  input.min = String(minimum);
-  input.max = String(maximum);
+  input.min = String(min);
+  input.max = String(max);
   input.step = String(step);
   input.value = String(value);
   return input;
 }
 
+function colorInput(value, fallback) {
+  const input = document.createElement("input");
+  input.type = "color";
+  input.className = "inteliweb-label-color";
+  input.value = /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
+  return input;
+}
+
 function openEditor(node) {
   if (node.__inteliwebCloseEditor) return;
+  injectCss();
   const config = readConfig(node);
-
   const overlay = document.createElement("div");
   Object.assign(overlay.style, {
     position: "fixed",
@@ -247,25 +321,15 @@ function openEditor(node) {
   text.value = config.text;
   text.rows = 4;
   text.style.resize = "vertical";
-
   const fontSize = numberInput(config.fontSize, 8, 160);
   const fontFamily = selectInput(
     ["Arial", "Inter", "Roboto", "Verdana", "Tahoma", "Georgia", "Times New Roman", "Courier New", "Impact"].map((name) => [name, name]),
     config.fontFamily,
   );
   const fontWeight = selectInput([["normal", "Normal"], ["bold", "Bold"]], config.fontWeight);
+  const textColor = colorInput(config.textColor, "#000000");
+  const backgroundColor = colorInput(config.backgroundColor, "#a3e635");
   const textAlign = selectInput([["left", "Left"], ["center", "Center"], ["right", "Right"]], config.textAlign);
-
-  const textColor = styleInput(document.createElement("input"));
-  textColor.type = "color";
-  textColor.value = /^#[0-9a-f]{6}$/i.test(config.textColor) ? config.textColor : "#000000";
-
-  const backgroundColor = styleInput(document.createElement("input"));
-  backgroundColor.type = "color";
-  backgroundColor.value = /^#[0-9a-f]{6}$/i.test(config.backgroundColor)
-    ? config.backgroundColor
-    : "#a3e635";
-
   const padding = numberInput(config.padding, 0, 96);
   const radius = numberInput(config.borderRadius, 0, 96);
   const opacity = numberInput(config.opacity, 0.1, 1, 0.05);
@@ -286,18 +350,11 @@ function openEditor(node) {
   );
 
   const actions = document.createElement("div");
-  Object.assign(actions.style, {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: "10px",
-    marginTop: "18px",
-  });
-
+  Object.assign(actions.style, { display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "18px" });
   const cancel = document.createElement("button");
   cancel.textContent = "Cancel";
   const save = document.createElement("button");
   save.textContent = "Save";
-
   for (const button of [cancel, save]) {
     Object.assign(button.style, {
       border: "0",
@@ -315,14 +372,12 @@ function openEditor(node) {
   const onKeyDown = (event) => {
     if (event.key === "Escape") close();
   };
-
   const close = () => {
     document.removeEventListener("keydown", onKeyDown);
     overlay.remove();
     node.__inteliwebCloseEditor = null;
   };
   node.__inteliwebCloseEditor = close;
-
   cancel.addEventListener("click", close);
   overlay.addEventListener("mousedown", (event) => {
     if (event.target === overlay) close();
@@ -330,18 +385,22 @@ function openEditor(node) {
   document.addEventListener("keydown", onKeyDown);
 
   save.addEventListener("click", () => {
-    setValue(node, "text", text.value);
-    setValue(node, "font_size", Number(fontSize.value) || 36);
-    setValue(node, "font_family", fontFamily.value);
-    setValue(node, "font_weight", fontWeight.value);
-    setValue(node, "text_color", textColor.value);
-    setValue(node, "background_color", backgroundColor.value);
-    setValue(node, "text_align", textAlign.value);
-    setValue(node, "padding", Number(padding.value) || 0);
-    setValue(node, "border_radius", Number(radius.value) || 0);
-    setValue(node, "opacity", Number(opacity.value) || 1);
-    setValue(node, "line_height", Number(lineHeight.value) || 1.1);
-    renderLabel(node, true);
+    node.properties = {
+      ...ensureProperties(node),
+      text: text.value,
+      fontSize: Number(fontSize.value) || DEFAULTS.fontSize,
+      fontFamily: fontFamily.value,
+      fontWeight: fontWeight.value,
+      textColor: textColor.value,
+      backgroundColor: backgroundColor.value,
+      textAlign: textAlign.value,
+      padding: Number(padding.value) || 0,
+      borderRadius: Number(radius.value) || 0,
+      opacity: Number(opacity.value) || 1,
+      lineHeight: Number(lineHeight.value) || 1,
+    };
+    resizeToContent(node);
+    if (isVueNodes()) applyDomStyle(node);
     node.graph?.setDirtyCanvas?.(true, true);
     close();
   });
@@ -353,19 +412,45 @@ function openEditor(node) {
   text.focus();
 }
 
-function prepareNode(node, resizeNode = false) {
-  hideConfigWidgets(node);
+function prepareNode(node, resize = false) {
+  ensureProperties(node);
   node.flags = node.flags || {};
   node.flags.no_title = true;
   node.resizable = false;
   node.color = "rgba(0,0,0,0)";
   node.bgcolor = "rgba(0,0,0,0)";
-  createLabelWidget(node);
-  renderLabel(node, resizeNode);
+  if (resize) resizeToContent(node);
+  if (isVueNodes()) createDomLabel(node);
+}
+
+function installLegacyFrameSuppression() {
+  if (window.__inteliwebLabelDrawWrapped) return;
+  const prototype = window.LGraphCanvas?.prototype;
+  if (typeof prototype?.drawNode !== "function") return;
+  window.__inteliwebLabelDrawWrapped = true;
+  const originalDrawNode = prototype.drawNode;
+  prototype.drawNode = function (node, context) {
+    if (node?.comfyClass === NODE_CLASS || node?.type === NODE_CLASS) {
+      const originalFill = context.fill;
+      context.fill = function () {};
+      try {
+        const result = originalDrawNode.apply(this, arguments);
+        renderCanvasLabel(context, readConfig(node), node.__inteliwebLabelMeasure || resizeToContent(node));
+        return result;
+      } finally {
+        context.fill = originalFill;
+      }
+    }
+    return originalDrawNode.apply(this, arguments);
+  };
 }
 
 app.registerExtension({
   name: "inteliweb.label",
+  setup() {
+    injectCss();
+    installLegacyFrameSuppression();
+  },
 
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData?.name !== NODE_CLASS) return;
@@ -385,6 +470,24 @@ app.registerExtension({
       return result;
     };
 
+    nodeType.prototype.computeSize = function (out) {
+      const measured = this.__inteliwebLabelMeasure || measureLabel(readConfig(this));
+      if (out) {
+        out[0] = measured.width;
+        out[1] = measured.height;
+        return out;
+      }
+      return [measured.width, measured.height];
+    };
+
+    const originalDrawForeground = nodeType.prototype.onDrawForeground;
+    nodeType.prototype.onDrawForeground = function (context) {
+      originalDrawForeground?.call(this, context);
+      if (isVueNodes()) return;
+      const measured = this.__inteliwebLabelMeasure || resizeToContent(this);
+      renderCanvasLabel(context, readConfig(this), measured);
+    };
+
     nodeType.prototype.onDblClick = function () {
       openEditor(this);
       return true;
@@ -393,10 +496,7 @@ app.registerExtension({
     const originalMenu = nodeType.prototype.getExtraMenuOptions;
     nodeType.prototype.getExtraMenuOptions = function (canvas, options) {
       originalMenu?.apply(this, arguments);
-      options.unshift({
-        content: "✏️ Edit Label (Inteliweb)",
-        callback: () => openEditor(this),
-      });
+      options.unshift({ content: "✏️ Edit Label (Inteliweb)", callback: () => openEditor(this) });
       return options;
     };
 
@@ -412,3 +512,20 @@ app.registerExtension({
     queueMicrotask(() => prepareNode(node, true));
   },
 });
+
+if (!window.__inteliwebLabelDblClickInstalled) {
+  window.__inteliwebLabelDblClickInstalled = true;
+  document.addEventListener("dblclick", (event) => {
+    if (!isVueNodes()) return;
+    for (const node of app.graph?._nodes || []) {
+      if (node.comfyClass !== NODE_CLASS && node.type !== NODE_CLASS) continue;
+      const element = node.__inteliwebLabelElement;
+      if (!element?.isConnected) continue;
+      const rect = element.getBoundingClientRect();
+      if (event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom) {
+        openEditor(node);
+        break;
+      }
+    }
+  }, true);
+}
