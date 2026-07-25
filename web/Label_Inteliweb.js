@@ -12,7 +12,33 @@ const DEFAULTS = Object.freeze({
   padding: 16,
   borderRadius: 22,
   opacity: 1,
-  lineHeight: 1.1,
+  lineHeight: 1.0,
+});
+
+const FONT_OPTIONS = Object.freeze([
+  ["system-ui", "System UI (recommended)"],
+  ["Arial", "Arial / Helvetica"],
+  ["Verdana", "Verdana / Geneva"],
+  ["Tahoma", "Tahoma / Verdana"],
+  ["Georgia", "Georgia / Times"],
+  ["Times New Roman", "Times New Roman / Times"],
+  ["Courier New", "Courier New / Courier"],
+  ["Impact", "Impact / Arial Narrow"],
+  ["Inter", "Inter (if installed)"],
+  ["Roboto", "Roboto (if installed)"],
+]);
+
+const FONT_STACKS = Object.freeze({
+  "system-ui": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  Arial: "Arial, Helvetica, sans-serif",
+  Verdana: "Verdana, Geneva, sans-serif",
+  Tahoma: "Tahoma, Verdana, sans-serif",
+  Georgia: "Georgia, 'Times New Roman', serif",
+  "Times New Roman": "'Times New Roman', Times, serif",
+  "Courier New": "'Courier New', Courier, monospace",
+  Impact: "Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif",
+  Inter: "Inter, Arial, Helvetica, sans-serif",
+  Roboto: "Roboto, Arial, Helvetica, sans-serif",
 });
 
 function isLabel(node) {
@@ -28,6 +54,10 @@ function clamp(value, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, Number.isFinite(number) ? number : minimum));
 }
 
+function fontStack(fontFamily) {
+  return FONT_STACKS[fontFamily] || `'${fontFamily}', system-ui, sans-serif`;
+}
+
 function ensureProperties(node) {
   node.properties = node.properties || {};
   for (const [key, value] of Object.entries(DEFAULTS)) {
@@ -40,21 +70,21 @@ function readConfig(node) {
   const p = ensureProperties(node);
   return {
     text: String(p.text ?? DEFAULTS.text),
-    fontSize: clamp(p.fontSize ?? DEFAULTS.fontSize, 8, 160),
+    fontSize: clamp(p.fontSize ?? DEFAULTS.fontSize, 8, 300),
     fontFamily: String(p.fontFamily ?? DEFAULTS.fontFamily),
     fontWeight: p.fontWeight === "normal" ? "normal" : "bold",
     textColor: String(p.textColor ?? DEFAULTS.textColor),
     backgroundColor: String(p.backgroundColor ?? DEFAULTS.backgroundColor),
     textAlign: ["left", "center", "right"].includes(p.textAlign) ? p.textAlign : "center",
-    padding: clamp(p.padding ?? DEFAULTS.padding, 0, 96),
-    borderRadius: clamp(p.borderRadius ?? DEFAULTS.borderRadius, 0, 96),
+    padding: clamp(p.padding ?? DEFAULTS.padding, 0, 100),
+    borderRadius: clamp(p.borderRadius ?? DEFAULTS.borderRadius, 0, 200),
     opacity: clamp(p.opacity ?? DEFAULTS.opacity, 0, 1),
     lineHeight: clamp(p.lineHeight ?? DEFAULTS.lineHeight, 0.8, 2),
   };
 }
 
 function fontString(config) {
-  return `${config.fontWeight} ${config.fontSize}px '${config.fontFamily}', system-ui, sans-serif`;
+  return `${config.fontWeight} ${config.fontSize}px ${fontStack(config.fontFamily)}`;
 }
 
 function measureLabel(config) {
@@ -186,7 +216,7 @@ function injectCss() {
 }
 .inteliweb-label-range {
   display: grid;
-  grid-template-columns: 1fr 48px;
+  grid-template-columns: 1fr 78px;
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -195,8 +225,9 @@ function injectCss() {
   width: 100%;
   accent-color: #ff6647;
 }
-.inteliweb-label-range output {
-  color: #f1f1f1;
+.inteliweb-label-range input[type="number"] {
+  width: 78px !important;
+  padding: 6px 8px !important;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -214,7 +245,7 @@ function applyDomStyle(node) {
     display: isVueNodes() ? "inline-block" : "none",
     width: `${measured.width}px`,
     height: `${measured.height}px`,
-    fontFamily: `'${config.fontFamily}', system-ui, sans-serif`,
+    fontFamily: fontStack(config.fontFamily),
     fontSize: `${config.fontSize}px`,
     fontWeight: config.fontWeight,
     lineHeight: String(config.lineHeight),
@@ -288,41 +319,47 @@ function selectInput(values, current) {
   return select;
 }
 
-function numberInput(value, min, max, step = 1) {
-  const input = styleInput(document.createElement("input"));
-  input.type = "number";
-  input.min = String(min);
-  input.max = String(max);
-  input.step = String(step);
-  input.value = String(value);
-  return input;
-}
-
-function rangeInput(value, min, max, step = 0.05) {
+function rangeNumberInput(value, min, max, step = 1, decimals = 0) {
   const wrapper = document.createElement("div");
   wrapper.className = "inteliweb-label-range";
 
-  const input = document.createElement("input");
-  input.type = "range";
-  input.min = String(min);
-  input.max = String(max);
-  input.step = String(step);
-  input.value = String(value);
+  const range = document.createElement("input");
+  range.type = "range";
+  range.min = String(min);
+  range.max = String(max);
+  range.step = String(step);
 
-  const output = document.createElement("output");
-  const updateOutput = () => {
-    output.value = Number(input.value).toFixed(2);
-    output.textContent = output.value;
+  const number = styleInput(document.createElement("input"));
+  number.type = "number";
+  number.min = String(min);
+  number.max = String(max);
+  number.step = String(step);
+
+  const format = (raw) => {
+    const safe = clamp(raw, min, max);
+    return decimals > 0 ? safe.toFixed(decimals) : String(Math.round(safe));
   };
-  input.addEventListener("input", updateOutput);
-  updateOutput();
+
+  const setBoth = (raw) => {
+    const formatted = format(raw);
+    range.value = formatted;
+    number.value = formatted;
+  };
+
+  range.addEventListener("input", () => setBoth(range.value));
+  number.addEventListener("input", () => {
+    const parsed = Number(number.value);
+    if (Number.isFinite(parsed)) range.value = String(clamp(parsed, min, max));
+  });
+  number.addEventListener("change", () => setBoth(number.value));
+  setBoth(value);
 
   Object.defineProperty(wrapper, "value", {
     configurable: true,
-    get: () => input.value,
+    get: () => number.value,
   });
 
-  wrapper.append(input, output);
+  wrapper.append(range, number);
   return wrapper;
 }
 
@@ -375,19 +412,16 @@ function openEditor(node) {
   text.value = config.text;
   text.rows = 4;
   text.style.resize = "vertical";
-  const fontSize = numberInput(config.fontSize, 8, 160);
-  const fontFamily = selectInput(
-    ["Arial", "Inter", "Roboto", "Verdana", "Tahoma", "Georgia", "Times New Roman", "Courier New", "Impact"].map((name) => [name, name]),
-    config.fontFamily,
-  );
+  const fontSize = rangeNumberInput(config.fontSize, 8, 300, 1, 0);
+  const fontFamily = selectInput(FONT_OPTIONS, config.fontFamily);
   const fontWeight = selectInput([["normal", "Normal"], ["bold", "Bold"]], config.fontWeight);
   const textColor = colorInput(config.textColor, "#000000");
   const backgroundColor = colorInput(config.backgroundColor, "#a3e635");
   const textAlign = selectInput([["left", "Left"], ["center", "Center"], ["right", "Right"]], config.textAlign);
-  const padding = numberInput(config.padding, 0, 96);
-  const radius = numberInput(config.borderRadius, 0, 96);
-  const opacity = rangeInput(config.opacity, 0, 1, 0.05);
-  const lineHeight = numberInput(config.lineHeight, 0.8, 2, 0.05);
+  const padding = rangeNumberInput(config.padding, 0, 100, 1, 0);
+  const radius = rangeNumberInput(config.borderRadius, 0, 200, 1, 0);
+  const opacity = rangeNumberInput(config.opacity, 0, 1, 0.05, 2);
+  const lineHeight = rangeNumberInput(config.lineHeight, 0.8, 2, 0.05, 2);
 
   form.append(
     field("Text", text),
@@ -458,7 +492,7 @@ function openEditor(node) {
       padding: Number(padding.value) || 0,
       borderRadius: Number(radius.value) || 0,
       opacity: Number(opacity.value),
-      lineHeight: Number(lineHeight.value) || 1,
+      lineHeight: Number(lineHeight.value) || DEFAULTS.lineHeight,
     };
     resizeToContent(node);
     if (node.__inteliwebLabelElement) applyDomStyle(node);
@@ -507,9 +541,6 @@ function installClassicDrawHook() {
     const originalFill = context.fill;
     const originalFillText = context.fillText;
 
-    // Suppress ComfyUI's node body and internal label/category text. Restore the
-    // canvas methods before drawing the actual label so opacity applies equally
-    // to the background and text.
     context.fill = function () {};
     context.fillText = function () {};
 
