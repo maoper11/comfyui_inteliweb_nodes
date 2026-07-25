@@ -48,7 +48,7 @@ function readConfig(node) {
     textAlign: ["left", "center", "right"].includes(p.textAlign) ? p.textAlign : "center",
     padding: clamp(p.padding ?? DEFAULTS.padding, 0, 96),
     borderRadius: clamp(p.borderRadius ?? DEFAULTS.borderRadius, 0, 96),
-    opacity: clamp(p.opacity ?? DEFAULTS.opacity, 0.1, 1),
+    opacity: clamp(p.opacity ?? DEFAULTS.opacity, 0, 1),
     lineHeight: clamp(p.lineHeight ?? DEFAULTS.lineHeight, 0.8, 2),
   };
 }
@@ -184,6 +184,22 @@ function injectCss() {
   background: #1d1d1d !important;
   cursor: pointer !important;
 }
+.inteliweb-label-range {
+  display: grid;
+  grid-template-columns: 1fr 48px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.inteliweb-label-range input[type="range"] {
+  width: 100%;
+  accent-color: #ff6647;
+}
+.inteliweb-label-range output {
+  color: #f1f1f1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 `;
   document.head.appendChild(style);
 }
@@ -282,6 +298,34 @@ function numberInput(value, min, max, step = 1) {
   return input;
 }
 
+function rangeInput(value, min, max, step = 0.05) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "inteliweb-label-range";
+
+  const input = document.createElement("input");
+  input.type = "range";
+  input.min = String(min);
+  input.max = String(max);
+  input.step = String(step);
+  input.value = String(value);
+
+  const output = document.createElement("output");
+  const updateOutput = () => {
+    output.value = Number(input.value).toFixed(2);
+    output.textContent = output.value;
+  };
+  input.addEventListener("input", updateOutput);
+  updateOutput();
+
+  Object.defineProperty(wrapper, "value", {
+    configurable: true,
+    get: () => input.value,
+  });
+
+  wrapper.append(input, output);
+  return wrapper;
+}
+
 function colorInput(value, fallback) {
   const input = document.createElement("input");
   input.type = "color";
@@ -342,7 +386,7 @@ function openEditor(node) {
   const textAlign = selectInput([["left", "Left"], ["center", "Center"], ["right", "Right"]], config.textAlign);
   const padding = numberInput(config.padding, 0, 96);
   const radius = numberInput(config.borderRadius, 0, 96);
-  const opacity = numberInput(config.opacity, 0.1, 1, 0.05);
+  const opacity = rangeInput(config.opacity, 0, 1, 0.05);
   const lineHeight = numberInput(config.lineHeight, 0.8, 2, 0.05);
 
   form.append(
@@ -413,7 +457,7 @@ function openEditor(node) {
       textAlign: textAlign.value,
       padding: Number(padding.value) || 0,
       borderRadius: Number(radius.value) || 0,
-      opacity: Number(opacity.value) || 1,
+      opacity: Number(opacity.value),
       lineHeight: Number(lineHeight.value) || 1,
     };
     resizeToContent(node);
@@ -462,22 +506,11 @@ function installClassicDrawHook() {
 
     const originalFill = context.fill;
     const originalFillText = context.fillText;
-    const savedBackground = node.bgcolor;
-    const savedColor = node.color;
-    const savedRadius = window.LiteGraph?.ROUND_RADIUS;
-    const opaque = config.backgroundColor && config.backgroundColor !== "transparent";
 
-    if (opaque) {
-      node.bgcolor = config.backgroundColor;
-      node.color = config.backgroundColor;
-      if (window.LiteGraph) {
-        const maxRadius = Math.floor(Math.min(measured.width, measured.height) / 2);
-        window.LiteGraph.ROUND_RADIUS = Math.max(1, Math.min(Math.round(config.borderRadius), maxRadius || 1));
-      }
-    } else {
-      context.fill = function () {};
-    }
-
+    // Suppress ComfyUI's node body and internal label/category text. Restore the
+    // canvas methods before drawing the actual label so opacity applies equally
+    // to the background and text.
+    context.fill = function () {};
     context.fillText = function () {};
 
     let result;
@@ -486,9 +519,6 @@ function installClassicDrawHook() {
     } finally {
       context.fill = originalFill;
       context.fillText = originalFillText;
-      node.bgcolor = savedBackground;
-      node.color = savedColor;
-      if (window.LiteGraph) window.LiteGraph.ROUND_RADIUS = savedRadius;
     }
 
     renderCanvasLabel(context, config, measured);
@@ -569,13 +599,6 @@ app.registerExtension({
     nodeType.prototype.onDblClick = function () {
       openEditor(this);
       return true;
-    };
-
-    const originalMenu = nodeType.prototype.getExtraMenuOptions;
-    nodeType.prototype.getExtraMenuOptions = function (canvas, options) {
-      originalMenu?.apply(this, arguments);
-      options.unshift({ content: "✏️ Edit Label (Inteliweb)", callback: () => openEditor(this) });
-      return options;
     };
 
     const originalRemoved = nodeType.prototype.onRemoved;
