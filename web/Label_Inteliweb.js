@@ -15,6 +15,10 @@ const DEFAULTS = Object.freeze({
   lineHeight: 1.1,
 });
 
+function isLabel(node) {
+  return node?.comfyClass === NODE_CLASS || node?.type === NODE_CLASS;
+}
+
 function isVueNodes() {
   return Boolean(window.LiteGraph?.vueNodesMode);
 }
@@ -85,14 +89,12 @@ function resizeToContent(node) {
 function renderCanvasLabel(context, config, measured) {
   context.save();
   context.globalAlpha = config.opacity;
-  if (config.backgroundColor !== "transparent") {
+
+  if (config.backgroundColor && config.backgroundColor !== "transparent") {
     context.fillStyle = config.backgroundColor;
     context.beginPath();
-    if (context.roundRect) {
-      context.roundRect(0, 0, measured.width, measured.height, config.borderRadius);
-    } else {
-      context.rect(0, 0, measured.width, measured.height);
-    }
+    if (context.roundRect) context.roundRect(0, 0, measured.width, measured.height, config.borderRadius);
+    else context.rect(0, 0, measured.width, measured.height);
     context.fill();
   }
 
@@ -102,7 +104,8 @@ function renderCanvasLabel(context, config, measured) {
   context.textAlign = config.textAlign;
   let x = config.padding;
   if (config.textAlign === "center") x = measured.width / 2;
-  if (config.textAlign === "right") x = measured.width - config.padding;
+  else if (config.textAlign === "right") x = measured.width - config.padding;
+
   measured.lines.forEach((line, index) => {
     context.fillText(line || " ", x, config.padding + index * measured.lineHeightPx);
   });
@@ -192,6 +195,7 @@ function applyDomStyle(node) {
   const measured = resizeToContent(node);
   element.textContent = config.text || " ";
   Object.assign(element.style, {
+    display: isVueNodes() ? "inline-block" : "none",
     width: `${measured.width}px`,
     height: `${measured.height}px`,
     fontFamily: `'${config.fontFamily}', system-ui, sans-serif`,
@@ -208,11 +212,16 @@ function applyDomStyle(node) {
 }
 
 function createDomLabel(node) {
-  if (node.__inteliwebLabelElement) return;
   injectCss();
+  if (node.__inteliwebLabelElement) {
+    applyDomStyle(node);
+    return;
+  }
+
   const element = document.createElement("div");
   element.className = "inteliweb-label-dom";
   node.__inteliwebLabelElement = element;
+
   const widget = node.addDOMWidget?.("label_dom", "INTELIWEB_LABEL", element, {
     serialize: false,
     hideOnZoom: false,
@@ -285,6 +294,7 @@ function openEditor(node) {
   if (node.__inteliwebCloseEditor) return;
   injectCss();
   const config = readConfig(node);
+
   const overlay = document.createElement("div");
   Object.assign(overlay.style, {
     position: "fixed",
@@ -350,11 +360,18 @@ function openEditor(node) {
   );
 
   const actions = document.createElement("div");
-  Object.assign(actions.style, { display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "18px" });
+  Object.assign(actions.style, {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: "10px",
+    marginTop: "18px",
+  });
+
   const cancel = document.createElement("button");
   cancel.textContent = "Cancel";
   const save = document.createElement("button");
   save.textContent = "Save";
+
   for (const button of [cancel, save]) {
     Object.assign(button.style, {
       border: "0",
@@ -400,7 +417,7 @@ function openEditor(node) {
       lineHeight: Number(lineHeight.value) || 1,
     };
     resizeToContent(node);
-    if (isVueNodes()) applyDomStyle(node);
+    if (node.__inteliwebLabelElement) applyDomStyle(node);
     node.graph?.setDirtyCanvas?.(true, true);
     close();
   });
@@ -419,37 +436,104 @@ function prepareNode(node, resize = false) {
   node.resizable = false;
   node.color = "rgba(0,0,0,0)";
   node.bgcolor = "rgba(0,0,0,0)";
+  node.badges = [];
+  if (node.inputs?.length) node.inputs.length = 0;
+  if (node.outputs?.length) node.outputs.length = 0;
   if (resize) resizeToContent(node);
   if (isVueNodes()) createDomLabel(node);
+  else if (node.__inteliwebLabelElement) node.__inteliwebLabelElement.style.display = "none";
 }
 
-function installLegacyFrameSuppression() {
+function installClassicDrawHook() {
   if (window.__inteliwebLabelDrawWrapped) return;
   const prototype = window.LGraphCanvas?.prototype;
   if (typeof prototype?.drawNode !== "function") return;
+
   window.__inteliwebLabelDrawWrapped = true;
   const originalDrawNode = prototype.drawNode;
   prototype.drawNode = function (node, context) {
-    if (node?.comfyClass === NODE_CLASS || node?.type === NODE_CLASS) {
-      const originalFill = context.fill;
-      context.fill = function () {};
-      try {
-        const result = originalDrawNode.apply(this, arguments);
-        renderCanvasLabel(context, readConfig(node), node.__inteliwebLabelMeasure || resizeToContent(node));
-        return result;
-      } finally {
-        context.fill = originalFill;
-      }
+    if (!isLabel(node) || isVueNodes() || !context) {
+      return originalDrawNode.apply(this, arguments);
     }
-    return originalDrawNode.apply(this, arguments);
+
+    const config = readConfig(node);
+    const measured = node.__inteliwebLabelMeasure || resizeToContent(node);
+    node.badges = [];
+
+    const originalFill = context.fill;
+    const originalFillText = context.fillText;
+    const savedBackground = node.bgcolor;
+    const savedColor = node.color;
+    const savedRadius = window.LiteGraph?.ROUND_RADIUS;
+    const opaque = config.backgroundColor && config.backgroundColor !== "transparent";
+
+    if (opaque) {
+      node.bgcolor = config.backgroundColor;
+      node.color = config.backgroundColor;
+      if (window.LiteGraph) {
+        const maxRadius = Math.floor(Math.min(measured.width, measured.height) / 2);
+        window.LiteGraph.ROUND_RADIUS = Math.max(1, Math.min(Math.round(config.borderRadius), maxRadius || 1));
+      }
+    } else {
+      context.fill = function () {};
+    }
+
+    context.fillText = function () {};
+
+    let result;
+    try {
+      result = originalDrawNode.apply(this, arguments);
+    } finally {
+      context.fill = originalFill;
+      context.fillText = originalFillText;
+      node.bgcolor = savedBackground;
+      node.color = savedColor;
+      if (window.LiteGraph) window.LiteGraph.ROUND_RADIUS = savedRadius;
+    }
+
+    renderCanvasLabel(context, config, measured);
+    return result;
   };
+}
+
+function syncRendererMode() {
+  for (const node of app.graph?._nodes || []) {
+    if (!isLabel(node)) continue;
+    prepareNode(node, false);
+    if (isVueNodes()) {
+      createDomLabel(node);
+      applyDomStyle(node);
+    } else if (node.__inteliwebLabelElement) {
+      node.__inteliwebLabelElement.style.display = "none";
+    }
+    node.setDirtyCanvas?.(true, true);
+  }
+}
+
+function installModeWatcher() {
+  if (window.__inteliwebLabelModeWatcher) return;
+  window.__inteliwebLabelModeWatcher = true;
+  let lastMode = isVueNodes();
+  window.setInterval(() => {
+    const currentMode = isVueNodes();
+    if (currentMode === lastMode) return;
+    lastMode = currentMode;
+    requestAnimationFrame(() => requestAnimationFrame(syncRendererMode));
+  }, 250);
 }
 
 app.registerExtension({
   name: "inteliweb.label",
+
   setup() {
     injectCss();
-    installLegacyFrameSuppression();
+    installClassicDrawHook();
+    installModeWatcher();
+  },
+
+  getNodeMenuItems(node) {
+    if (!isLabel(node)) return [];
+    return [null, { content: "✏️ Edit Label (Inteliweb)", callback: () => openEditor(node) }];
   },
 
   async beforeRegisterNodeDef(nodeType, nodeData) {
@@ -480,13 +564,7 @@ app.registerExtension({
       return [measured.width, measured.height];
     };
 
-    const originalDrawForeground = nodeType.prototype.onDrawForeground;
-    nodeType.prototype.onDrawForeground = function (context) {
-      originalDrawForeground?.call(this, context);
-      if (isVueNodes()) return;
-      const measured = this.__inteliwebLabelMeasure || resizeToContent(this);
-      renderCanvasLabel(context, readConfig(this), measured);
-    };
+    nodeType.prototype.onDrawForeground = function () {};
 
     nodeType.prototype.onDblClick = function () {
       openEditor(this);
@@ -508,7 +586,7 @@ app.registerExtension({
   },
 
   nodeCreated(node) {
-    if (node.comfyClass !== NODE_CLASS) return;
+    if (!isLabel(node)) return;
     queueMicrotask(() => prepareNode(node, true));
   },
 });
@@ -518,11 +596,16 @@ if (!window.__inteliwebLabelDblClickInstalled) {
   document.addEventListener("dblclick", (event) => {
     if (!isVueNodes()) return;
     for (const node of app.graph?._nodes || []) {
-      if (node.comfyClass !== NODE_CLASS && node.type !== NODE_CLASS) continue;
+      if (!isLabel(node)) continue;
       const element = node.__inteliwebLabelElement;
       if (!element?.isConnected) continue;
       const rect = element.getBoundingClientRect();
-      if (event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom) {
+      if (
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom
+      ) {
         openEditor(node);
         break;
       }
