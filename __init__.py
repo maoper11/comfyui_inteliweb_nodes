@@ -1,5 +1,6 @@
 from .nodes import (
     InteliwebInputSwitch,
+    InteliwebLabel,
     InteliwebPromptList,
     InteliwebPurgeVRAM,
     InteliwebReplaceTextMulti,
@@ -17,6 +18,7 @@ NODE_CLASS_MAPPINGS = {
     "InteliwebReplaceTextMulti": InteliwebReplaceTextMulti,
     "InteliwebPromptList": InteliwebPromptList,
     "InteliwebStringIndexSelector": InteliwebStringIndexSelector,
+    "InteliwebLabel": InteliwebLabel,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -26,6 +28,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "InteliwebReplaceTextMulti": "Replace Text Multi (Inteliweb)",
     "InteliwebPromptList": "Prompt List (Inteliweb)",
     "InteliwebStringIndexSelector": "String Index Selector (Inteliweb)",
+    "InteliwebLabel": "Label (Inteliweb)",
 }
 
 import os as _os
