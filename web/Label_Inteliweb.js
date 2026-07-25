@@ -20,8 +20,7 @@ function widgetByName(node, name) {
 }
 
 function valueOf(node, name, fallback) {
-  const widget = widgetByName(node, name);
-  return widget?.value ?? fallback;
+  return widgetByName(node, name)?.value ?? fallback;
 }
 
 function setValue(node, name, value) {
@@ -31,31 +30,34 @@ function setValue(node, name, value) {
   widget.callback?.(value, node, widget);
 }
 
-function hideConfigWidgets(node) {
-  for (const name of CONFIG_WIDGETS) {
-    const widget = widgetByName(node, name);
-    if (!widget || widget.__inteliwebHidden) continue;
-    widget.__inteliwebHidden = true;
-    widget.__inteliwebOriginalType = widget.type;
-    widget.type = "hidden";
-    widget.computeSize = () => [0, -4];
-  }
+function clamp(value, minimum, maximum) {
+  return Math.min(maximum, Math.max(minimum, Number(value)));
 }
 
 function readConfig(node) {
   return {
     text: String(valueOf(node, "text", "Label Inteliweb")),
-    fontSize: Number(valueOf(node, "font_size", 36)) || 36,
+    fontSize: clamp(valueOf(node, "font_size", 36), 8, 160),
     fontFamily: String(valueOf(node, "font_family", "Arial")),
     fontWeight: String(valueOf(node, "font_weight", "bold")),
     textColor: String(valueOf(node, "text_color", "#000000")),
     backgroundColor: String(valueOf(node, "background_color", "#a3e635")),
     textAlign: String(valueOf(node, "text_align", "center")),
-    padding: Number(valueOf(node, "padding", 16)) || 0,
-    borderRadius: Number(valueOf(node, "border_radius", 22)) || 0,
-    opacity: Number(valueOf(node, "opacity", 1)) || 1,
-    lineHeight: Number(valueOf(node, "line_height", 1.1)) || 1.1,
+    padding: clamp(valueOf(node, "padding", 16), 0, 96),
+    borderRadius: clamp(valueOf(node, "border_radius", 22), 0, 96),
+    opacity: clamp(valueOf(node, "opacity", 1), 0.1, 1),
+    lineHeight: clamp(valueOf(node, "line_height", 1.1), 0.8, 2),
   };
+}
+
+function hideConfigWidgets(node) {
+  for (const name of CONFIG_WIDGETS) {
+    const widget = widgetByName(node, name);
+    if (!widget || widget.__inteliwebHidden) continue;
+    widget.__inteliwebHidden = true;
+    widget.type = "hidden";
+    widget.computeSize = () => [0, -4];
+  }
 }
 
 function measureLabel(config) {
@@ -69,7 +71,6 @@ function measureLabel(config) {
     pointerEvents: "none",
     whiteSpace: "pre",
     width: "max-content",
-    maxWidth: "900px",
     boxSizing: "border-box",
     fontFamily: config.fontFamily,
     fontSize: `${config.fontSize}px`,
@@ -80,17 +81,21 @@ function measureLabel(config) {
   document.body.appendChild(probe);
   const rect = probe.getBoundingClientRect();
   probe.remove();
+
   return {
     width: Math.max(80, Math.min(920, Math.ceil(rect.width) + 2)),
     height: Math.max(36, Math.ceil(rect.height) + 2),
   };
 }
 
-function applyStyle(node, fit = false) {
+function renderLabel(node, resizeNode = false) {
   const element = node.__inteliwebLabelElement;
   if (!element) return;
 
   const config = readConfig(node);
+  const measured = measureLabel(config);
+  node.__inteliwebLabelHeight = measured.height;
+
   element.textContent = config.text || " ";
   Object.assign(element.style, {
     display: "flex",
@@ -101,9 +106,13 @@ function applyStyle(node, fit = false) {
         : config.textAlign === "right"
           ? "flex-end"
           : "center",
-    width: "100%",
-    height: "100%",
-    minHeight: "32px",
+    width: `${measured.width}px`,
+    height: `${measured.height}px`,
+    minWidth: `${measured.width}px`,
+    minHeight: `${measured.height}px`,
+    maxWidth: `${measured.width}px`,
+    maxHeight: `${measured.height}px`,
+    margin: "0",
     boxSizing: "border-box",
     whiteSpace: "pre",
     overflow: "hidden",
@@ -118,12 +127,13 @@ function applyStyle(node, fit = false) {
     textAlign: config.textAlign,
     padding: `${config.padding}px`,
     borderRadius: `${config.borderRadius}px`,
-    opacity: String(Math.min(1, Math.max(0.1, config.opacity))),
+    opacity: String(config.opacity),
   });
 
-  if (fit) {
-    const measured = measureLabel(config);
-    node.size = [measured.width, measured.height];
+  if (resizeNode) {
+    // Keep the widget minimum independent from node.size. Tying getMinHeight
+    // to node.size creates a positive feedback loop and makes the node grow.
+    node.size = [measured.width, measured.height + 8];
   }
 
   node.setDirtyCanvas?.(true, true);
@@ -139,38 +149,18 @@ function createLabelWidget(node) {
   const widget = node.addDOMWidget?.("label_preview", "INTELIWEB_LABEL", element, {
     serialize: false,
     hideOnZoom: false,
-    getMinHeight: () => Math.max(32, node.size?.[1] || 32),
+    getMinHeight: () => node.__inteliwebLabelHeight || 48,
   });
 
-  if (widget?.options) {
-    widget.options.canvasOnly = false;
-  }
-
-  applyStyle(node, true);
-}
-
-function makeField(labelText, input) {
-  const row = document.createElement("label");
-  Object.assign(row.style, {
-    display: "grid",
-    gridTemplateColumns: "145px 1fr",
-    alignItems: "center",
-    gap: "12px",
-  });
-
-  const label = document.createElement("span");
-  label.textContent = labelText;
-  label.style.color = "#c8c8c8";
-  label.style.fontSize = "13px";
-  row.append(label, input);
-  return row;
+  if (widget?.options) widget.options.canvasOnly = false;
+  renderLabel(node, true);
 }
 
 function styleInput(input) {
   Object.assign(input.style, {
     width: "100%",
     boxSizing: "border-box",
-    border: "1px solid #454545",
+    border: "1px solid #484848",
     borderRadius: "6px",
     background: "#1d1d1d",
     color: "#f1f1f1",
@@ -179,11 +169,48 @@ function styleInput(input) {
   return input;
 }
 
-function openEditor(node) {
-  if (node.__inteliwebLabelEditorOpen) return;
-  node.__inteliwebLabelEditorOpen = true;
+function field(labelText, input) {
+  const row = document.createElement("label");
+  Object.assign(row.style, {
+    display: "grid",
+    gridTemplateColumns: "140px 1fr",
+    alignItems: "center",
+    gap: "12px",
+  });
+  const label = document.createElement("span");
+  label.textContent = labelText;
+  label.style.color = "#cccccc";
+  label.style.fontSize = "13px";
+  row.append(label, input);
+  return row;
+}
 
+function selectInput(values, current) {
+  const select = styleInput(document.createElement("select"));
+  for (const [value, label = value] of values) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    option.selected = value === current;
+    select.appendChild(option);
+  }
+  return select;
+}
+
+function numberInput(value, minimum, maximum, step = 1) {
+  const input = styleInput(document.createElement("input"));
+  input.type = "number";
+  input.min = String(minimum);
+  input.max = String(maximum);
+  input.step = String(step);
+  input.value = String(value);
+  return input;
+}
+
+function openEditor(node) {
+  if (node.__inteliwebCloseEditor) return;
   const config = readConfig(node);
+
   const overlay = document.createElement("div");
   Object.assign(overlay.style, {
     position: "fixed",
@@ -200,7 +227,7 @@ function openEditor(node) {
     width: "min(620px, calc(100vw - 40px))",
     maxHeight: "calc(100vh - 40px)",
     overflow: "auto",
-    border: "1px solid #444",
+    border: "1px solid #454545",
     borderRadius: "10px",
     background: "#252525",
     color: "#f4f4f4",
@@ -211,11 +238,7 @@ function openEditor(node) {
 
   const title = document.createElement("div");
   title.textContent = "Label Editor — Inteliweb";
-  Object.assign(title.style, {
-    fontSize: "17px",
-    fontWeight: "700",
-    marginBottom: "16px",
-  });
+  Object.assign(title.style, { fontSize: "17px", fontWeight: "700", marginBottom: "16px" });
 
   const form = document.createElement("div");
   Object.assign(form.style, { display: "grid", gap: "10px" });
@@ -225,39 +248,13 @@ function openEditor(node) {
   text.rows = 4;
   text.style.resize = "vertical";
 
-  const fontSize = styleInput(document.createElement("input"));
-  fontSize.type = "number";
-  fontSize.min = "8";
-  fontSize.max = "160";
-  fontSize.value = String(config.fontSize);
-
-  const fontFamily = styleInput(document.createElement("select"));
-  for (const name of [
-    "Arial",
-    "Inter",
-    "Roboto",
-    "Verdana",
-    "Tahoma",
-    "Georgia",
-    "Times New Roman",
-    "Courier New",
-    "Impact",
-  ]) {
-    const option = document.createElement("option");
-    option.value = name;
-    option.textContent = name;
-    option.selected = name === config.fontFamily;
-    fontFamily.appendChild(option);
-  }
-
-  const fontWeight = styleInput(document.createElement("select"));
-  for (const name of ["normal", "bold"]) {
-    const option = document.createElement("option");
-    option.value = name;
-    option.textContent = name === "bold" ? "Bold" : "Normal";
-    option.selected = name === config.fontWeight;
-    fontWeight.appendChild(option);
-  }
+  const fontSize = numberInput(config.fontSize, 8, 160);
+  const fontFamily = selectInput(
+    ["Arial", "Inter", "Roboto", "Verdana", "Tahoma", "Georgia", "Times New Roman", "Courier New", "Impact"].map((name) => [name, name]),
+    config.fontFamily,
+  );
+  const fontWeight = selectInput([["normal", "Normal"], ["bold", "Bold"]], config.fontWeight);
+  const textAlign = selectInput([["left", "Left"], ["center", "Center"], ["right", "Right"]], config.textAlign);
 
   const textColor = styleInput(document.createElement("input"));
   textColor.type = "color";
@@ -269,53 +266,23 @@ function openEditor(node) {
     ? config.backgroundColor
     : "#a3e635";
 
-  const textAlign = styleInput(document.createElement("select"));
-  for (const name of ["left", "center", "right"]) {
-    const option = document.createElement("option");
-    option.value = name;
-    option.textContent = name[0].toUpperCase() + name.slice(1);
-    option.selected = name === config.textAlign;
-    textAlign.appendChild(option);
-  }
-
-  const padding = styleInput(document.createElement("input"));
-  padding.type = "number";
-  padding.min = "0";
-  padding.max = "96";
-  padding.value = String(config.padding);
-
-  const radius = styleInput(document.createElement("input"));
-  radius.type = "number";
-  radius.min = "0";
-  radius.max = "96";
-  radius.value = String(config.borderRadius);
-
-  const opacity = styleInput(document.createElement("input"));
-  opacity.type = "number";
-  opacity.min = "0.1";
-  opacity.max = "1";
-  opacity.step = "0.05";
-  opacity.value = String(config.opacity);
-
-  const lineHeight = styleInput(document.createElement("input"));
-  lineHeight.type = "number";
-  lineHeight.min = "0.8";
-  lineHeight.max = "2";
-  lineHeight.step = "0.05";
-  lineHeight.value = String(config.lineHeight);
+  const padding = numberInput(config.padding, 0, 96);
+  const radius = numberInput(config.borderRadius, 0, 96);
+  const opacity = numberInput(config.opacity, 0.1, 1, 0.05);
+  const lineHeight = numberInput(config.lineHeight, 0.8, 2, 0.05);
 
   form.append(
-    makeField("Text", text),
-    makeField("Font size", fontSize),
-    makeField("Font family", fontFamily),
-    makeField("Font weight", fontWeight),
-    makeField("Text color", textColor),
-    makeField("Background", backgroundColor),
-    makeField("Alignment", textAlign),
-    makeField("Padding", padding),
-    makeField("Border radius", radius),
-    makeField("Opacity", opacity),
-    makeField("Line height", lineHeight),
+    field("Text", text),
+    field("Font size", fontSize),
+    field("Font family", fontFamily),
+    field("Font weight", fontWeight),
+    field("Text color", textColor),
+    field("Background", backgroundColor),
+    field("Alignment", textAlign),
+    field("Padding", padding),
+    field("Border radius", radius),
+    field("Opacity", opacity),
+    field("Line height", lineHeight),
   );
 
   const actions = document.createElement("div");
@@ -341,19 +308,26 @@ function openEditor(node) {
     });
   }
   cancel.style.background = "#3a3a3a";
-  cancel.style.color = "#eee";
+  cancel.style.color = "#eeeeee";
   save.style.background = "#ff6647";
   save.style.color = "white";
 
-  const close = () => {
-    node.__inteliwebLabelEditorOpen = false;
-    overlay.remove();
+  const onKeyDown = (event) => {
+    if (event.key === "Escape") close();
   };
+
+  const close = () => {
+    document.removeEventListener("keydown", onKeyDown);
+    overlay.remove();
+    node.__inteliwebCloseEditor = null;
+  };
+  node.__inteliwebCloseEditor = close;
 
   cancel.addEventListener("click", close);
   overlay.addEventListener("mousedown", (event) => {
     if (event.target === overlay) close();
   });
+  document.addEventListener("keydown", onKeyDown);
 
   save.addEventListener("click", () => {
     setValue(node, "text", text.value);
@@ -367,7 +341,7 @@ function openEditor(node) {
     setValue(node, "border_radius", Number(radius.value) || 0);
     setValue(node, "opacity", Number(opacity.value) || 1);
     setValue(node, "line_height", Number(lineHeight.value) || 1.1);
-    applyStyle(node, true);
+    renderLabel(node, true);
     node.graph?.setDirtyCanvas?.(true, true);
     close();
   });
@@ -379,7 +353,7 @@ function openEditor(node) {
   text.focus();
 }
 
-function prepareNode(node, fit = false) {
+function prepareNode(node, resizeNode = false) {
   hideConfigWidgets(node);
   node.flags = node.flags || {};
   node.flags.no_title = true;
@@ -387,7 +361,7 @@ function prepareNode(node, fit = false) {
   node.color = "rgba(0,0,0,0)";
   node.bgcolor = "rgba(0,0,0,0)";
   createLabelWidget(node);
-  applyStyle(node, fit);
+  renderLabel(node, resizeNode);
 }
 
 app.registerExtension({
@@ -395,7 +369,6 @@ app.registerExtension({
 
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData?.name !== NODE_CLASS) return;
-
     nodeType.title_mode = LiteGraph.NO_TITLE;
 
     const originalCreated = nodeType.prototype.onNodeCreated;
@@ -412,10 +385,8 @@ app.registerExtension({
       return result;
     };
 
-    const originalDblClick = nodeType.prototype.onDblClick;
-    nodeType.prototype.onDblClick = function (...args) {
+    nodeType.prototype.onDblClick = function () {
       openEditor(this);
-      originalDblClick?.apply(this, args);
       return true;
     };
 
@@ -431,7 +402,7 @@ app.registerExtension({
 
     const originalRemoved = nodeType.prototype.onRemoved;
     nodeType.prototype.onRemoved = function (...args) {
-      this.__inteliwebLabelEditorOpen = false;
+      this.__inteliwebCloseEditor?.();
       return originalRemoved?.apply(this, args);
     };
   },
