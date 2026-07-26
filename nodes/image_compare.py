@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import random
 
@@ -9,6 +10,12 @@ import numpy as np
 from PIL import Image
 
 import folder_paths
+
+
+_DEFAULT_PREVIEW_STATE = json.dumps(
+    {"version": 1, "a": None, "b": None},
+    separators=(",", ":"),
+)
 
 
 class InteliwebImageCompare:
@@ -28,7 +35,17 @@ class InteliwebImageCompare:
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            "required": {},
+            "required": {
+                "preview_state": (
+                    "STRING",
+                    {
+                        "default": _DEFAULT_PREVIEW_STATE,
+                        "multiline": True,
+                        "dynamicPrompts": False,
+                        "tooltip": "Serialized preview state managed by the Inteliweb frontend.",
+                    },
+                ),
+            },
             "optional": {
                 "image_a": ("IMAGE", {"tooltip": "First image to compare."}),
                 "image_b": ("IMAGE", {"tooltip": "Second image to compare."}),
@@ -65,7 +82,8 @@ class InteliwebImageCompare:
             "slot": slot,
         }
 
-    def compare_images(self, image_a=None, image_b=None):
+    def compare_images(self, preview_state=_DEFAULT_PREVIEW_STATE, image_a=None, image_b=None):
+        del preview_state
         images = []
         preview_a = self._save_preview(image_a, "a")
         preview_b = self._save_preview(image_b, "b")
@@ -74,7 +92,6 @@ class InteliwebImageCompare:
         if preview_b is not None:
             images.append(preview_b)
 
-        # Deliberately avoid the conventional "images" UI key. ComfyUI's built-in
-        # Preview Image renderer consumes that key and would draw a second permanent
-        # preview underneath the custom comparison canvas.
+        # Avoid the conventional "images" UI key so ComfyUI does not render its
+        # own permanent Preview Image widget below the custom comparison canvas.
         return {"ui": {"inteliweb_compare": images}}
