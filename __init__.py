@@ -31,7 +31,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "InteliwebPromptList": "Prompt List (Inteliweb)",
     "InteliwebStringIndexSelector": "String Index Selector (Inteliweb)",
     "InteliwebLabel": "Label (Inteliweb)",
-    "InteliwebLoraStack": "LoRA Stack (Inteliweb)",
+    "InteliwebLoraStack": "Load LoRA Stack (Inteliweb)",
 }
 
 import os as _os
