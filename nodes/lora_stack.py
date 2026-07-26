@@ -127,7 +127,7 @@ def _resolve_lora_name(requested_name: object) -> str:
         return match
 
     raise FileNotFoundError(
-        f"LoRA {requested!r} was not found. Refresh the LoRA list and select an available file."
+        f"LoRA {requested!r} was not found. Select an available LoRA file."
     )
 
 
@@ -142,10 +142,6 @@ class InteliwebLoraStack:
                     "MODEL",
                     {"tooltip": "Diffusion model that receives the enabled LoRAs in row order."},
                 ),
-                "clip": (
-                    "CLIP",
-                    {"tooltip": "CLIP model that receives the enabled LoRAs in row order."},
-                ),
                 "lora_stack": (
                     "STRING",
                     {
@@ -155,20 +151,32 @@ class InteliwebLoraStack:
                         "tooltip": "Serialized LoRA Stack state managed by the Inteliweb frontend.",
                     },
                 ),
-            }
+            },
+            "optional": {
+                "clip": (
+                    "CLIP",
+                    {
+                        "tooltip": (
+                            "Optional CLIP model. When disconnected, LoRAs are applied only "
+                            "to the diffusion model."
+                        )
+                    },
+                ),
+            },
         }
 
     RETURN_TYPES = ("MODEL", "CLIP")
     RETURN_NAMES = ("model", "clip")
     OUTPUT_TOOLTIPS = (
         "Model after applying all enabled LoRAs in order.",
-        "CLIP after applying all enabled LoRAs in order.",
+        "Modified CLIP when connected; otherwise None.",
     )
     FUNCTION = "apply_loras"
     CATEGORY = "inteliweb/loaders"
     DESCRIPTION = (
-        "Applies multiple LoRAs sequentially. Saved LoRA paths use forward slashes and are "
-        "resolved portably between Windows and Linux."
+        "Applies multiple LoRAs sequentially. CLIP is optional for model-only loading. "
+        "Saved LoRA paths use forward slashes and are resolved portably between Windows "
+        "and Linux."
     )
     SEARCH_ALIASES = [
         "LoRA Stack",
@@ -181,7 +189,7 @@ class InteliwebLoraStack:
     def __init__(self):
         self._loader = comfy_nodes.LoraLoader()
 
-    def apply_loras(self, model, clip, lora_stack):
+    def apply_loras(self, model, lora_stack, clip=None):
         state = _parse_state(lora_stack)
         separate_strengths = state["separate_strengths"]
         current_model = model
@@ -204,6 +212,9 @@ class InteliwebLoraStack:
                 )
                 strength_model = linked_strength
                 strength_clip = linked_strength
+
+            if current_clip is None:
+                strength_clip = 0.0
 
             if strength_model == 0.0 and strength_clip == 0.0:
                 continue
