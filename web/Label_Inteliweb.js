@@ -5,7 +5,7 @@ const DEFAULTS = Object.freeze({
   text: "Label Inteliweb",
   fontSize: 36,
   fontFamily: "Arial",
-  fontWeight: "bold",
+  fontStyle: "bold",
   textColor: "#000000",
   backgroundColor: "#a3e635",
   textAlign: "center",
@@ -60,6 +60,12 @@ function fontStack(fontFamily) {
 
 function ensureProperties(node) {
   node.properties = node.properties || {};
+
+  // Migrate labels saved before the Font style buttons existed.
+  if (node.properties.fontStyle === undefined) {
+    node.properties.fontStyle = node.properties.fontWeight === "normal" ? "normal" : "bold";
+  }
+
   for (const [key, value] of Object.entries(DEFAULTS)) {
     if (node.properties[key] === undefined) node.properties[key] = value;
   }
@@ -68,11 +74,14 @@ function ensureProperties(node) {
 
 function readConfig(node) {
   const p = ensureProperties(node);
+  const styleChoice = ["normal", "bold", "italic"].includes(p.fontStyle) ? p.fontStyle : "bold";
   return {
     text: String(p.text ?? DEFAULTS.text),
     fontSize: clamp(p.fontSize ?? DEFAULTS.fontSize, 8, 300),
     fontFamily: String(p.fontFamily ?? DEFAULTS.fontFamily),
-    fontWeight: p.fontWeight === "normal" ? "normal" : "bold",
+    styleChoice,
+    fontWeight: styleChoice === "bold" ? "bold" : "normal",
+    fontStyle: styleChoice === "italic" ? "italic" : "normal",
     textColor: String(p.textColor ?? DEFAULTS.textColor),
     backgroundColor: String(p.backgroundColor ?? DEFAULTS.backgroundColor),
     textAlign: ["left", "center", "right"].includes(p.textAlign) ? p.textAlign : "center",
@@ -84,7 +93,7 @@ function readConfig(node) {
 }
 
 function fontString(config) {
-  return `${config.fontWeight} ${config.fontSize}px ${fontStack(config.fontFamily)}`;
+  return `${config.fontStyle} ${config.fontWeight} ${config.fontSize}px ${fontStack(config.fontFamily)}`;
 }
 
 function measureLabel(config) {
@@ -277,6 +286,7 @@ function applyDomStyle(node) {
     fontFamily: fontStack(config.fontFamily),
     fontSize: `${config.fontSize}px`,
     fontWeight: config.fontWeight,
+    fontStyle: config.fontStyle,
     lineHeight: String(config.lineHeight),
     color: config.textColor,
     textAlign: config.textAlign,
@@ -476,7 +486,10 @@ function openEditor(node) {
   text.style.resize = "vertical";
   const fontSize = rangeNumberInput(config.fontSize, 8, 300, 1, 0);
   const fontFamily = selectInput(FONT_OPTIONS, config.fontFamily);
-  const fontWeight = selectInput([["normal", "Normal"], ["bold", "Bold"]], config.fontWeight);
+  const fontStyle = segmentedInput(
+    [["normal", "Normal"], ["bold", "Bold"], ["italic", "Italic"]],
+    config.styleChoice,
+  );
   const textColor = colorInput(config.textColor, "#000000");
   const backgroundColor = colorInput(config.backgroundColor, "#a3e635");
   const textAlign = segmentedInput([["left", "Left"], ["center", "Center"], ["right", "Right"]], config.textAlign);
@@ -489,7 +502,7 @@ function openEditor(node) {
     field("Text", text),
     field("Font size", fontSize),
     field("Font family", fontFamily),
-    field("Font weight", fontWeight),
+    field("Font style", fontStyle),
     field("Text color", textColor),
     field("Background", backgroundColor),
     field("Alignment", textAlign),
@@ -547,7 +560,7 @@ function openEditor(node) {
       text: text.value,
       fontSize: Number(fontSize.value) || DEFAULTS.fontSize,
       fontFamily: fontFamily.value,
-      fontWeight: fontWeight.value,
+      fontStyle: fontStyle.value,
       textColor: textColor.value,
       backgroundColor: backgroundColor.value,
       textAlign: textAlign.value,
