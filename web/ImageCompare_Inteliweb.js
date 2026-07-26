@@ -9,11 +9,11 @@ const MODES = Object.freeze([
   ["side_by_side", "Side by Side"],
 ]);
 
-const HEADER_HEIGHT = 48;
+const HEADER_HEIGHT = 38;
 const MIN_WIDTH = 360;
 const MIN_HEIGHT = 300;
 const BUTTON_GAP = 4;
-const STATE_VERSION = 2;
+const STATE_VERSION = 3;
 
 function isNodes2() {
   return Boolean(window.LiteGraph?.vueNodesMode);
@@ -24,32 +24,34 @@ function clamp(value, min, max) {
 }
 
 function ensureState(node) {
-  node.properties = node.properties || {};
+  node.properties ||= {};
+  const state = node.properties;
 
-  if (!MODES.some(([key]) => key === node.properties.compare_mode)) {
-    node.properties.compare_mode = "left_right";
-  }
-  if (!["a", "b"].includes(node.properties.toggle_image)) {
-    node.properties.toggle_image = "a";
-  }
-  if (!Number.isFinite(Number(node.properties.split_x))) {
-    node.properties.split_x = 0;
-  }
-  if (!Number.isFinite(Number(node.properties.split_y))) {
-    node.properties.split_y = 0.5;
+  if (state.compare_state_version !== STATE_VERSION) {
+    state.compare_mode = "left_right";
+    state.toggle_image = "a";
+    state.split_x = 0;
+    state.split_y = 0;
+    state.compare_state_version = STATE_VERSION;
   }
 
-  // Migrate nodes saved by the first test build.
-  if (node.properties.compare_state_version !== STATE_VERSION) {
-    node.properties.split_x = 0;
-    node.properties.toggle_image = "a";
-    node.properties.compare_state_version = STATE_VERSION;
+  if (!MODES.some(([key]) => key === state.compare_mode)) {
+    state.compare_mode = "left_right";
+  }
+  if (!["a", "b"].includes(state.toggle_image)) {
+    state.toggle_image = "a";
+  }
+  if (!Number.isFinite(Number(state.split_x))) {
+    state.split_x = 0;
+  }
+  if (!Number.isFinite(Number(state.split_y))) {
+    state.split_y = 0;
   }
 
-  node.properties.split_x = clamp(Number(node.properties.split_x), 0, 1);
-  node.properties.split_y = clamp(Number(node.properties.split_y), 0, 1);
+  state.split_x = clamp(Number(state.split_x), 0, 1);
+  state.split_y = clamp(Number(state.split_y), 0, 1);
   node.__inteliwebCompareImages ||= { a: null, b: null };
-  return node.properties;
+  return state;
 }
 
 function imageUrl(data) {
@@ -77,6 +79,7 @@ function containRect(image, viewport) {
   if (!image?.naturalWidth || !image?.naturalHeight || viewport.width <= 0 || viewport.height <= 0) {
     return { x: viewport.x, y: viewport.y, width: 0, height: 0 };
   }
+
   const scale = Math.min(
     viewport.width / image.naturalWidth,
     viewport.height / image.naturalHeight,
@@ -104,6 +107,7 @@ function buttonRects(width, classic = false) {
   const rightPad = 8;
   const available = width - leftPad - rightPad - BUTTON_GAP * (MODES.length - 1);
   const buttonWidth = Math.max(54, available / MODES.length);
+
   return MODES.map(([key, label], index) => ({
     key,
     label,
@@ -129,8 +133,8 @@ function drawToolbar(ctx, node, width, classic = false) {
 
   for (const rect of buttonRects(width, classic)) {
     const active = state.compare_mode === rect.key;
-    ctx.fillStyle = active ? "#ff6847" : "#343434";
-    ctx.strokeStyle = active ? "#ff8a70" : "#505050";
+    ctx.fillStyle = active ? "#1c1c1c" : "#343434";
+    ctx.strokeStyle = active ? "#707070" : "#505050";
     ctx.lineWidth = 1;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(rect.x, rect.y, rect.width, rect.height, 5);
@@ -141,13 +145,6 @@ function drawToolbar(ctx, node, width, classic = false) {
     ctx.fillText(rect.label, rect.x + rect.width / 2, rect.y + rect.height / 2);
   }
 
-  const { a, b } = node.__inteliwebCompareImages;
-  ctx.font = "10px system-ui, -apple-system, 'Segoe UI', sans-serif";
-  ctx.fillStyle = "#a8a8a8";
-  ctx.textAlign = "left";
-  ctx.fillText(a ? `A: ${a.naturalWidth} × ${a.naturalHeight}` : "A: —", 8, 40);
-  ctx.textAlign = "right";
-  ctx.fillText(b ? `B: ${b.naturalWidth} × ${b.naturalHeight}` : "B: —", width - 8, 40);
   ctx.restore();
 }
 
@@ -217,18 +214,16 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
     drawBadge(ctx, state.toggle_image.toUpperCase(), 8, HEADER_HEIGHT + 8);
   } else if (state.compare_mode === "up_down") {
     const splitY = HEADER_HEIGHT + imageArea.height * state.split_y;
+
+    // A is shown first. Moving the curtain downward reveals B from top to bottom.
+    drawContained(ctx, images.a, imageArea);
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, HEADER_HEIGHT, width, splitY - HEADER_HEIGHT);
     ctx.clip();
-    drawContained(ctx, images.a, imageArea);
-    ctx.restore();
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, splitY, width, HEADER_HEIGHT + imageArea.height - splitY);
-    ctx.clip();
     drawContained(ctx, images.b, imageArea);
     ctx.restore();
+
     ctx.strokeStyle = "rgba(255,255,255,.85)";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -238,7 +233,7 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
   } else {
     const splitX = width * state.split_x;
 
-    // A is shown first. Moving the curtain to the right reveals B from left to right.
+    // A is shown first. Moving the curtain right reveals B from left to right.
     drawContained(ctx, images.a, imageArea);
     ctx.save();
     ctx.beginPath();
@@ -270,6 +265,7 @@ function handlePointerDown(node, x, y, width, height, classic = false) {
     if (pointInRect(x, y, rect)) {
       state.compare_mode = rect.key;
       if (rect.key === "left_right") state.split_x = 0;
+      if (rect.key === "up_down") state.split_y = 0;
       if (rect.key === "toggle") state.toggle_image = "a";
       markDirty(node);
       return true;
@@ -286,6 +282,7 @@ function handlePointerDown(node, x, y, width, height, classic = false) {
     markDirty(node);
     return true;
   }
+
   return false;
 }
 
@@ -305,6 +302,7 @@ function handlePointerMove(node, x, y, width, height) {
     markDirty(node);
     return true;
   }
+
   return false;
 }
 
@@ -322,6 +320,7 @@ async function applyExecution(node, output) {
     loadImage(bySlot.b, generation, node),
   ]);
   if (node.__inteliwebCompareGeneration !== generation) return;
+
   node.__inteliwebCompareImages = { a, b };
   markDirty(node);
 }
