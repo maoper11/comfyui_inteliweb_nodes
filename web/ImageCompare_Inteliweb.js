@@ -10,11 +10,13 @@ const MODES = Object.freeze([
 ]);
 
 const HEADER_HEIGHT = 38;
+const CLASSIC_TOP_OFFSET = 50;
 const MIN_WIDTH = 360;
 const MIN_HEIGHT = 300;
 const BUTTON_GAP = 4;
 const STATE_VERSION = 3;
 const PREVIEW_STATE_VERSION = 1;
+const STYLE_ID = "inteliweb-image-compare-css";
 
 function isNodes2() {
   return Boolean(window.LiteGraph?.vueNodesMode);
@@ -22,6 +24,32 @@ function isNodes2() {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function rendererTop(classic) {
+  return classic ? CLASSIC_TOP_OFFSET : 0;
+}
+
+function injectStyles() {
+  if (document.getElementById(STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = `
+.lg-node:has(.inteliweb-image-compare) .lg-node-widget:has(textarea),
+.lg-node:has(.inteliweb-image-compare) .lg-node-widget:has(input[type="text"][value^="{\"version\""]),
+.lg-node:has(.inteliweb-image-compare) textarea {
+  display: none !important;
+  min-height: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+.lg-node:has(.inteliweb-image-compare) .lg-node-widgets {
+  row-gap: 0 !important;
+}
+`;
+  document.head.appendChild(style);
 }
 
 function ensureState(node) {
@@ -53,15 +81,20 @@ function previewStateWidget(node) {
 
 function hidePreviewStateWidget(node) {
   const widget = previewStateWidget(node);
-  if (!widget || widget.__inteliwebHidden) return;
+  if (!widget) return;
+
   widget.__inteliwebHidden = true;
   widget.type = "hidden";
   widget.hidden = true;
   widget.draw = () => {};
   widget.computeSize = () => [0, 0];
   widget.options = { ...(widget.options || {}), hidden: true };
+
   for (const element of [widget.element, widget.inputEl, widget.el]) {
-    if (element?.style) element.style.display = "none";
+    if (!element) continue;
+    if (element.style) element.style.display = "none";
+    const row = element.closest?.(".lg-node-widget");
+    if (row?.style) row.style.setProperty("display", "none", "important");
   }
 }
 
@@ -95,6 +128,7 @@ function readPreviewState(node) {
 function writePreviewState(node, bySlot) {
   const widget = previewStateWidget(node);
   if (!widget) return;
+
   const serialized = JSON.stringify({
     version: PREVIEW_STATE_VERSION,
     a: cleanPreviewDescriptor(bySlot.a, "a"),
@@ -165,10 +199,13 @@ function containRect(image, viewport) {
 function drawContained(ctx, image, viewport) {
   if (!image) return;
   const rect = containRect(image, viewport);
-  if (rect.width > 0 && rect.height > 0) ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height);
+  if (rect.width > 0 && rect.height > 0) {
+    ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height);
+  }
 }
 
 function buttonRects(width, classic = false) {
+  const top = rendererTop(classic);
   const leftPad = classic ? 86 : 8;
   const rightPad = 8;
   const available = width - leftPad - rightPad - BUTTON_GAP * (MODES.length - 1);
@@ -177,7 +214,7 @@ function buttonRects(width, classic = false) {
     key,
     label,
     x: leftPad + index * (buttonWidth + BUTTON_GAP),
-    y: 7,
+    y: top + 7,
     width: buttonWidth,
     height: 24,
   }));
@@ -189,12 +226,14 @@ function pointInRect(x, y, rect) {
 
 function drawToolbar(ctx, node, width, classic = false) {
   const state = ensureState(node);
+  const top = rendererTop(classic);
   ctx.save();
   ctx.fillStyle = "#242424";
-  ctx.fillRect(0, 0, width, HEADER_HEIGHT);
+  ctx.fillRect(0, top, width, HEADER_HEIGHT);
   ctx.font = "600 11px system-ui, -apple-system, 'Segoe UI', sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
+
   for (const rect of buttonRects(width, classic)) {
     const active = state.compare_mode === rect.key;
     ctx.fillStyle = active ? "#1c1c1c" : "#343434";
@@ -229,7 +268,13 @@ function drawBadge(ctx, label, x, y) {
 function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = false } = {}) {
   const state = ensureState(node);
   const images = node.__inteliwebCompareImages;
-  const imageArea = { x: 0, y: HEADER_HEIGHT, width, height: Math.max(0, height - HEADER_HEIGHT) };
+  const top = rendererTop(classic);
+  const imageArea = {
+    x: 0,
+    y: top + HEADER_HEIGHT,
+    width,
+    height: Math.max(0, height - top - HEADER_HEIGHT),
+  };
 
   ctx.save();
   if (clearCanvas) ctx.clearRect(0, 0, width, height);
@@ -242,7 +287,7 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
     ctx.font = "12px system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("Connect images and run to compare", width / 2, HEADER_HEIGHT + imageArea.height / 2);
+    ctx.fillText("Connect images and run to compare", width / 2, imageArea.y + imageArea.height / 2);
     ctx.restore();
     return;
   }
@@ -250,7 +295,7 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
   if (!images.a || !images.b) {
     const only = images.a || images.b;
     drawContained(ctx, only, imageArea);
-    drawBadge(ctx, images.a ? "A" : "B", 8, HEADER_HEIGHT + 8);
+    drawBadge(ctx, images.a ? "A" : "B", 8, imageArea.y + 8);
     ctx.restore();
     return;
   }
@@ -258,24 +303,24 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
   if (state.compare_mode === "side_by_side") {
     const gap = 2;
     const half = (width - gap) / 2;
-    const left = { x: 0, y: HEADER_HEIGHT, width: half, height: imageArea.height };
-    const right = { x: half + gap, y: HEADER_HEIGHT, width: half, height: imageArea.height };
+    const left = { x: 0, y: imageArea.y, width: half, height: imageArea.height };
+    const right = { x: half + gap, y: imageArea.y, width: half, height: imageArea.height };
     drawContained(ctx, images.a, left);
     drawContained(ctx, images.b, right);
     ctx.fillStyle = "#555555";
-    ctx.fillRect(half, HEADER_HEIGHT, gap, imageArea.height);
-    drawBadge(ctx, "A", 8, HEADER_HEIGHT + 8);
-    drawBadge(ctx, "B", half + gap + 8, HEADER_HEIGHT + 8);
+    ctx.fillRect(half, imageArea.y, gap, imageArea.height);
+    drawBadge(ctx, "A", 8, imageArea.y + 8);
+    drawBadge(ctx, "B", half + gap + 8, imageArea.y + 8);
   } else if (state.compare_mode === "toggle") {
     const selected = state.toggle_image === "b" ? images.b : images.a;
     drawContained(ctx, selected, imageArea);
-    drawBadge(ctx, state.toggle_image.toUpperCase(), 8, HEADER_HEIGHT + 8);
+    drawBadge(ctx, state.toggle_image.toUpperCase(), 8, imageArea.y + 8);
   } else if (state.compare_mode === "up_down") {
-    const splitY = HEADER_HEIGHT + imageArea.height * state.split_y;
+    const splitY = imageArea.y + imageArea.height * state.split_y;
     drawContained(ctx, images.a, imageArea);
     ctx.save();
     ctx.beginPath();
-    ctx.rect(0, HEADER_HEIGHT, width, splitY - HEADER_HEIGHT);
+    ctx.rect(0, imageArea.y, width, splitY - imageArea.y);
     ctx.clip();
     drawContained(ctx, images.b, imageArea);
     ctx.restore();
@@ -290,14 +335,14 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
     drawContained(ctx, images.a, imageArea);
     ctx.save();
     ctx.beginPath();
-    ctx.rect(0, HEADER_HEIGHT, splitX, imageArea.height);
+    ctx.rect(0, imageArea.y, splitX, imageArea.height);
     ctx.clip();
     drawContained(ctx, images.b, imageArea);
     ctx.restore();
     ctx.strokeStyle = "rgba(255,255,255,.85)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(splitX, HEADER_HEIGHT);
+    ctx.moveTo(splitX, imageArea.y);
     ctx.lineTo(splitX, height);
     ctx.stroke();
   }
@@ -311,6 +356,8 @@ function markDirty(node) {
 
 function handlePointerDown(node, x, y, width, height, classic = false) {
   const state = ensureState(node);
+  const imageTop = rendererTop(classic) + HEADER_HEIGHT;
+
   for (const rect of buttonRects(width, classic)) {
     if (pointInRect(x, y, rect)) {
       state.compare_mode = rect.key;
@@ -321,8 +368,9 @@ function handlePointerDown(node, x, y, width, height, classic = false) {
       return true;
     }
   }
+
   if (
-    y >= HEADER_HEIGHT &&
+    y >= imageTop &&
     state.compare_mode === "toggle" &&
     node.__inteliwebCompareImages?.a &&
     node.__inteliwebCompareImages?.b
@@ -334,16 +382,20 @@ function handlePointerDown(node, x, y, width, height, classic = false) {
   return false;
 }
 
-function handlePointerMove(node, x, y, width, height) {
+function handlePointerMove(node, x, y, width, height, classic = false) {
   const state = ensureState(node);
-  if (y < HEADER_HEIGHT || !node.__inteliwebCompareImages?.a || !node.__inteliwebCompareImages?.b) return false;
+  const imageTop = rendererTop(classic) + HEADER_HEIGHT;
+  if (y < imageTop || !node.__inteliwebCompareImages?.a || !node.__inteliwebCompareImages?.b) {
+    return false;
+  }
+
   if (state.compare_mode === "left_right") {
     state.split_x = clamp(x / Math.max(1, width), 0, 1);
     markDirty(node);
     return true;
   }
   if (state.compare_mode === "up_down") {
-    state.split_y = clamp((y - HEADER_HEIGHT) / Math.max(1, height - HEADER_HEIGHT), 0, 1);
+    state.split_y = clamp((y - imageTop) / Math.max(1, height - imageTop), 0, 1);
     markDirty(node);
     return true;
   }
@@ -370,13 +422,15 @@ function installClassic(nodeType) {
 
   const originalDown = nodeType.prototype.onMouseDown;
   nodeType.prototype.onMouseDown = function (event, pos, canvas) {
-    if (!isNodes2() && handlePointerDown(this, pos[0], pos[1], this.size[0], this.size[1], true)) return true;
+    if (!isNodes2() && handlePointerDown(this, pos[0], pos[1], this.size[0], this.size[1], true)) {
+      return true;
+    }
     return originalDown?.apply(this, arguments) ?? false;
   };
 
   const originalMove = nodeType.prototype.onMouseMove;
   nodeType.prototype.onMouseMove = function (event, pos, canvas) {
-    if (!isNodes2()) handlePointerMove(this, pos[0], pos[1], this.size[0], this.size[1]);
+    if (!isNodes2()) handlePointerMove(this, pos[0], pos[1], this.size[0], this.size[1], true);
     return originalMove?.apply(this, arguments);
   };
 }
@@ -385,7 +439,8 @@ function createNodes2Widget(node) {
   if (!node.addDOMWidget || node.__inteliwebCompareDom) return;
   const root = document.createElement("div");
   root.className = "inteliweb-image-compare";
-  root.style.cssText = "position:relative;width:100%;height:100%;min-height:240px;flex:1 1 0;overflow:hidden;box-sizing:border-box;";
+  root.style.cssText =
+    "position:relative;width:100%;height:100%;min-height:0;flex:1 1 0;overflow:hidden;box-sizing:border-box;";
   const canvas = document.createElement("canvas");
   canvas.style.cssText = "display:block;width:100%;height:100%;cursor:default;";
   root.appendChild(canvas);
@@ -444,6 +499,7 @@ app.registerExtension({
   name: "Inteliweb.ImageCompare",
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData.name !== NODE_CLASS) return;
+    injectStyles();
     installClassic(nodeType);
 
     const originalCreated = nodeType.prototype.onNodeCreated;
@@ -451,9 +507,16 @@ app.registerExtension({
       originalCreated?.apply(this, arguments);
       ensureState(this);
       hidePreviewStateWidget(this);
-      this.size = [Math.max(this.size?.[0] || 0, MIN_WIDTH), Math.max(this.size?.[1] || 0, MIN_HEIGHT)];
+      const minimumHeight = isNodes2() ? MIN_HEIGHT : MIN_HEIGHT + CLASSIC_TOP_OFFSET;
+      this.size = [
+        Math.max(this.size?.[0] || 0, MIN_WIDTH),
+        Math.max(this.size?.[1] || 0, minimumHeight),
+      ];
       if (isNodes2()) createNodes2Widget(this);
-      requestAnimationFrame(() => restorePreviewState(this));
+      requestAnimationFrame(() => {
+        hidePreviewStateWidget(this);
+        restorePreviewState(this);
+      });
     };
 
     const originalConfigure = nodeType.prototype.onConfigure;
@@ -462,7 +525,10 @@ app.registerExtension({
       ensureState(this);
       hidePreviewStateWidget(this);
       if (isNodes2()) createNodes2Widget(this);
-      requestAnimationFrame(() => restorePreviewState(this));
+      requestAnimationFrame(() => {
+        hidePreviewStateWidget(this);
+        restorePreviewState(this);
+      });
     };
 
     const originalExecuted = nodeType.prototype.onExecuted;
