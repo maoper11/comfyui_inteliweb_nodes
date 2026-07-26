@@ -45,32 +45,8 @@ function injectStyles() {
   padding: 0 !important;
   border: 0 !important;
 }
-.lg-node:has(.inteliweb-image-compare) .lg-node-content {
-  display: flex !important;
-  flex-direction: column !important;
-  min-height: 0 !important;
-  height: 100% !important;
-}
 .lg-node:has(.inteliweb-image-compare) .lg-node-widgets {
-  display: flex !important;
-  flex: 1 1 auto !important;
-  flex-direction: column !important;
-  min-height: 0 !important;
-  height: 100% !important;
   row-gap: 0 !important;
-  padding-bottom: 0 !important;
-}
-.lg-node:has(.inteliweb-image-compare) .lg-node-widget:has(.inteliweb-image-compare) {
-  display: flex !important;
-  flex: 1 1 auto !important;
-  min-height: 0 !important;
-  height: 100% !important;
-  padding: 0 !important;
-}
-.inteliweb-image-compare {
-  flex: 1 1 auto !important;
-  min-height: 0 !important;
-  height: 100% !important;
 }
 `;
   document.head.appendChild(style);
@@ -461,10 +437,12 @@ function installClassic(nodeType) {
 
 function createNodes2Widget(node) {
   if (!node.addDOMWidget || node.__inteliwebCompareDom) return;
+
   const root = document.createElement("div");
   root.className = "inteliweb-image-compare";
   root.style.cssText =
-    "position:relative;width:100%;height:100%;min-height:0;flex:1 1 auto;overflow:hidden;box-sizing:border-box;";
+    "position:relative;width:100%;height:100%;min-height:180px;overflow:hidden;box-sizing:border-box;";
+
   const canvas = document.createElement("canvas");
   canvas.style.cssText = "display:block;width:100%;height:100%;cursor:default;";
   root.appendChild(canvas);
@@ -476,16 +454,19 @@ function createNodes2Widget(node) {
     const dpr = window.devicePixelRatio || 1;
     const pixelWidth = Math.round(width * dpr);
     const pixelHeight = Math.round(height * dpr);
+
     if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
       canvas.width = pixelWidth;
       canvas.height = pixelHeight;
     }
+
     const ctx = canvas.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawComparer(ctx, node, width, height);
   };
 
   node.__inteliwebCompareRender = () => requestAnimationFrame(render);
+
   const localPoint = (event) => {
     const rect = canvas.getBoundingClientRect();
     return [event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height];
@@ -498,6 +479,7 @@ function createNodes2Widget(node) {
       event.stopPropagation();
     }
   });
+
   canvas.addEventListener("pointermove", (event) => {
     const [x, y, width, height] = localPoint(event);
     if (handlePointerMove(node, x, y, width, height)) {
@@ -507,21 +489,21 @@ function createNodes2Widget(node) {
     }
   });
 
+  const widgetHeight = () => Math.max(180, (node.size?.[1] || MIN_HEIGHT) - 86);
   const observer = new ResizeObserver(render);
   observer.observe(root);
   node.__inteliwebCompareDom = { root, canvas, observer };
-  const widget = node.addDOMWidget("inteliweb_compare", "inteliweb_compare", root, {
+
+  node.addDOMWidget("inteliweb_compare", "inteliweb_compare", root, {
     serialize: false,
     hideOnZoom: false,
     margin: 0,
-    getMinHeight: () => 180,
-    getHeight: () => "100%",
+    getMinHeight: widgetHeight,
+    getMaxHeight: widgetHeight,
+    getHeight: widgetHeight,
+    afterResize: () => requestAnimationFrame(render),
   });
-  widget.computeLayoutSize = (layoutNode) => ({
-    minHeight: 180,
-    maxHeight: Math.max(180, layoutNode?.size?.[1] || MIN_HEIGHT),
-    minWidth: 1,
-  });
+
   requestAnimationFrame(render);
 }
 
