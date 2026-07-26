@@ -45,8 +45,32 @@ function injectStyles() {
   padding: 0 !important;
   border: 0 !important;
 }
+.lg-node:has(.inteliweb-image-compare) .lg-node-content {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  height: 100% !important;
+}
 .lg-node:has(.inteliweb-image-compare) .lg-node-widgets {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  height: 100% !important;
   row-gap: 0 !important;
+  padding-bottom: 0 !important;
+}
+.lg-node:has(.inteliweb-image-compare) .lg-node-widget:has(.inteliweb-image-compare) {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  padding: 0 !important;
+}
+.inteliweb-image-compare {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
 }
 `;
   document.head.appendChild(style);
@@ -206,7 +230,7 @@ function drawContained(ctx, image, viewport) {
 
 function buttonRects(width, classic = false) {
   const top = rendererTop(classic);
-  const leftPad = classic ? 86 : 8;
+  const leftPad = 8;
   const rightPad = 8;
   const available = width - leftPad - rightPad - BUTTON_GAP * (MODES.length - 1);
   const buttonWidth = Math.max(54, available / MODES.length);
@@ -440,7 +464,7 @@ function createNodes2Widget(node) {
   const root = document.createElement("div");
   root.className = "inteliweb-image-compare";
   root.style.cssText =
-    "position:relative;width:100%;height:100%;min-height:0;flex:1 1 0;overflow:hidden;box-sizing:border-box;";
+    "position:relative;width:100%;height:100%;min-height:0;flex:1 1 auto;overflow:hidden;box-sizing:border-box;";
   const canvas = document.createElement("canvas");
   canvas.style.cssText = "display:block;width:100%;height:100%;cursor:default;";
   root.appendChild(canvas);
@@ -489,9 +513,15 @@ function createNodes2Widget(node) {
   const widget = node.addDOMWidget("inteliweb_compare", "inteliweb_compare", root, {
     serialize: false,
     hideOnZoom: false,
-    getMinHeight: () => MIN_HEIGHT - HEADER_HEIGHT,
+    margin: 0,
+    getMinHeight: () => 180,
+    getHeight: () => "100%",
   });
-  widget.computeLayoutSize = () => ({ minHeight: MIN_HEIGHT - HEADER_HEIGHT, minWidth: 1 });
+  widget.computeLayoutSize = (layoutNode) => ({
+    minHeight: 180,
+    maxHeight: Math.max(180, layoutNode?.size?.[1] || MIN_HEIGHT),
+    minWidth: 1,
+  });
   requestAnimationFrame(render);
 }
 
