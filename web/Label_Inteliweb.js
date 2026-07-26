@@ -60,12 +60,6 @@ function fontStack(fontFamily) {
 
 function ensureProperties(node) {
   node.properties = node.properties || {};
-
-  // Migrate labels saved before the Font style buttons existed.
-  if (node.properties.fontStyle === undefined) {
-    node.properties.fontStyle = node.properties.fontWeight === "normal" ? "normal" : "bold";
-  }
-
   for (const [key, value] of Object.entries(DEFAULTS)) {
     if (node.properties[key] === undefined) node.properties[key] = value;
   }
