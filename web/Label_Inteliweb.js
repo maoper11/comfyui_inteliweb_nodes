@@ -16,16 +16,16 @@ const DEFAULTS = Object.freeze({
 });
 
 const FONT_OPTIONS = Object.freeze([
-  ["system-ui", "System UI (recommended)"],
-  ["Arial", "Arial / Helvetica"],
-  ["Verdana", "Verdana / Geneva"],
-  ["Tahoma", "Tahoma / Verdana"],
-  ["Georgia", "Georgia / Times"],
-  ["Times New Roman", "Times New Roman / Times"],
-  ["Courier New", "Courier New / Courier"],
-  ["Impact", "Impact / Arial Narrow"],
-  ["Inter", "Inter (if installed)"],
-  ["Roboto", "Roboto (if installed)"],
+  ["system-ui", "System UI"],
+  ["Arial", "Arial"],
+  ["Verdana", "Verdana"],
+  ["Tahoma", "Tahoma"],
+  ["Georgia", "Georgia"],
+  ["Times New Roman", "Times New Roman"],
+  ["Courier New", "Courier New"],
+  ["Impact", "Impact"],
+  ["Inter", "Inter"],
+  ["Roboto", "Roboto"],
 ]);
 
 const FONT_STACKS = Object.freeze({
@@ -231,6 +231,35 @@ function injectCss() {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+.inteliweb-label-segmented {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  width: 100%;
+  border: 1px solid #484848;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #1d1d1d;
+}
+.inteliweb-label-segmented button {
+  min-height: 34px;
+  border: 0;
+  border-right: 1px solid #484848;
+  background: #2b2b2b;
+  color: #cccccc;
+  cursor: pointer;
+  font-weight: 600;
+}
+.inteliweb-label-segmented button:last-child {
+  border-right: 0;
+}
+.inteliweb-label-segmented button:hover {
+  background: #373737;
+}
+.inteliweb-label-segmented button.active {
+  background: #ff6647;
+  color: #ffffff;
+}
 `;
   document.head.appendChild(style);
 }
@@ -317,6 +346,39 @@ function selectInput(values, current) {
     select.appendChild(option);
   }
   return select;
+}
+
+function segmentedInput(values, current) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "inteliweb-label-segmented";
+  let selected = current;
+
+  const updateButtons = () => {
+    for (const button of wrapper.querySelectorAll("button")) {
+      button.classList.toggle("active", button.dataset.value === selected);
+      button.setAttribute("aria-pressed", String(button.dataset.value === selected));
+    }
+  };
+
+  for (const [value, label] of values) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.value = value;
+    button.textContent = label;
+    button.addEventListener("click", () => {
+      selected = value;
+      updateButtons();
+    });
+    wrapper.appendChild(button);
+  }
+
+  Object.defineProperty(wrapper, "value", {
+    configurable: true,
+    get: () => selected,
+  });
+
+  updateButtons();
+  return wrapper;
 }
 
 function rangeNumberInput(value, min, max, step = 1, decimals = 0) {
@@ -417,7 +479,7 @@ function openEditor(node) {
   const fontWeight = selectInput([["normal", "Normal"], ["bold", "Bold"]], config.fontWeight);
   const textColor = colorInput(config.textColor, "#000000");
   const backgroundColor = colorInput(config.backgroundColor, "#a3e635");
-  const textAlign = selectInput([["left", "Left"], ["center", "Center"], ["right", "Right"]], config.textAlign);
+  const textAlign = segmentedInput([["left", "Left"], ["center", "Center"], ["right", "Right"]], config.textAlign);
   const padding = rangeNumberInput(config.padding, 0, 100, 1, 0);
   const radius = rangeNumberInput(config.borderRadius, 0, 200, 1, 0);
   const opacity = rangeNumberInput(config.opacity, 0, 1, 0.05, 2);
