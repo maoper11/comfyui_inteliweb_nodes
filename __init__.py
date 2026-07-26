@@ -1,6 +1,7 @@
 from .nodes import (
     InteliwebInputSwitch,
     InteliwebLabel,
+    InteliwebLoraStack,
     InteliwebPromptList,
     InteliwebPurgeVRAM,
     InteliwebReplaceTextMulti,
@@ -19,6 +20,7 @@ NODE_CLASS_MAPPINGS = {
     "InteliwebPromptList": InteliwebPromptList,
     "InteliwebStringIndexSelector": InteliwebStringIndexSelector,
     "InteliwebLabel": InteliwebLabel,
+    "InteliwebLoraStack": InteliwebLoraStack,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -29,6 +31,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "InteliwebPromptList": "Prompt List (Inteliweb)",
     "InteliwebStringIndexSelector": "String Index Selector (Inteliweb)",
     "InteliwebLabel": "Label (Inteliweb)",
+    "InteliwebLoraStack": "Load LoRA Stack (Inteliweb)",
 }
 
 import os as _os
