@@ -73,4 +73,8 @@ class InteliwebImageCompare:
             images.append(preview_a)
         if preview_b is not None:
             images.append(preview_b)
-        return {"ui": {"images": images}}
+
+        # Deliberately avoid the conventional "images" UI key. ComfyUI's built-in
+        # Preview Image renderer consumes that key and would draw a second permanent
+        # preview underneath the custom comparison canvas.
+        return {"ui": {"inteliweb_compare": images}}
