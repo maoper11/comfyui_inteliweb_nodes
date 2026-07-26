@@ -14,6 +14,7 @@ const MIN_WIDTH = 360;
 const MIN_HEIGHT = 300;
 const BUTTON_GAP = 4;
 const STATE_VERSION = 3;
+const PREVIEW_STATE_VERSION = 1;
 
 function isNodes2() {
   return Boolean(window.LiteGraph?.vueNodesMode);
@@ -35,23 +36,73 @@ function ensureState(node) {
     state.compare_state_version = STATE_VERSION;
   }
 
-  if (!MODES.some(([key]) => key === state.compare_mode)) {
-    state.compare_mode = "left_right";
-  }
-  if (!["a", "b"].includes(state.toggle_image)) {
-    state.toggle_image = "a";
-  }
-  if (!Number.isFinite(Number(state.split_x))) {
-    state.split_x = 0;
-  }
-  if (!Number.isFinite(Number(state.split_y))) {
-    state.split_y = 0;
-  }
+  if (!MODES.some(([key]) => key === state.compare_mode)) state.compare_mode = "left_right";
+  if (!["a", "b"].includes(state.toggle_image)) state.toggle_image = "a";
+  if (!Number.isFinite(Number(state.split_x))) state.split_x = 0;
+  if (!Number.isFinite(Number(state.split_y))) state.split_y = 0;
 
   state.split_x = clamp(Number(state.split_x), 0, 1);
   state.split_y = clamp(Number(state.split_y), 0, 1);
   node.__inteliwebCompareImages ||= { a: null, b: null };
   return state;
+}
+
+function previewStateWidget(node) {
+  return node.widgets?.find((widget) => widget.name === "preview_state");
+}
+
+function hidePreviewStateWidget(node) {
+  const widget = previewStateWidget(node);
+  if (!widget || widget.__inteliwebHidden) return;
+  widget.__inteliwebHidden = true;
+  widget.type = "hidden";
+  widget.hidden = true;
+  widget.draw = () => {};
+  widget.computeSize = () => [0, 0];
+  widget.options = { ...(widget.options || {}), hidden: true };
+  for (const element of [widget.element, widget.inputEl, widget.el]) {
+    if (element?.style) element.style.display = "none";
+  }
+}
+
+function cleanPreviewDescriptor(data, slot) {
+  if (!data || typeof data !== "object" || !data.filename) return null;
+  return {
+    filename: String(data.filename),
+    subfolder: String(data.subfolder || ""),
+    type: String(data.type || "temp"),
+    slot,
+  };
+}
+
+function parsePreviewState(raw) {
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw || "{}") : raw;
+    return {
+      version: PREVIEW_STATE_VERSION,
+      a: cleanPreviewDescriptor(parsed?.a, "a"),
+      b: cleanPreviewDescriptor(parsed?.b, "b"),
+    };
+  } catch {
+    return { version: PREVIEW_STATE_VERSION, a: null, b: null };
+  }
+}
+
+function readPreviewState(node) {
+  return parsePreviewState(previewStateWidget(node)?.value);
+}
+
+function writePreviewState(node, bySlot) {
+  const widget = previewStateWidget(node);
+  if (!widget) return;
+  const serialized = JSON.stringify({
+    version: PREVIEW_STATE_VERSION,
+    a: cleanPreviewDescriptor(bySlot.a, "a"),
+    b: cleanPreviewDescriptor(bySlot.b, "b"),
+  });
+  widget.value = serialized;
+  widget.callback?.(serialized, node, widget);
+  node.graph?.setDirtyCanvas?.(true, true);
 }
 
 function imageUrl(data) {
@@ -75,15 +126,32 @@ function loadImage(data, generation, node) {
   });
 }
 
+async function loadPreviewDescriptors(node, bySlot) {
+  const generation = (node.__inteliwebCompareGeneration || 0) + 1;
+  node.__inteliwebCompareGeneration = generation;
+  const [a, b] = await Promise.all([
+    loadImage(bySlot.a, generation, node),
+    loadImage(bySlot.b, generation, node),
+  ]);
+  if (node.__inteliwebCompareGeneration !== generation) return;
+  node.__inteliwebCompareImages = { a, b };
+  markDirty(node);
+}
+
+function restorePreviewState(node) {
+  hidePreviewStateWidget(node);
+  const saved = readPreviewState(node);
+  const key = JSON.stringify(saved);
+  if (node.__inteliwebCompareRestoreKey === key) return;
+  node.__inteliwebCompareRestoreKey = key;
+  loadPreviewDescriptors(node, saved);
+}
+
 function containRect(image, viewport) {
   if (!image?.naturalWidth || !image?.naturalHeight || viewport.width <= 0 || viewport.height <= 0) {
     return { x: viewport.x, y: viewport.y, width: 0, height: 0 };
   }
-
-  const scale = Math.min(
-    viewport.width / image.naturalWidth,
-    viewport.height / image.naturalHeight,
-  );
+  const scale = Math.min(viewport.width / image.naturalWidth, viewport.height / image.naturalHeight);
   const width = image.naturalWidth * scale;
   const height = image.naturalHeight * scale;
   return {
@@ -97,9 +165,7 @@ function containRect(image, viewport) {
 function drawContained(ctx, image, viewport) {
   if (!image) return;
   const rect = containRect(image, viewport);
-  if (rect.width > 0 && rect.height > 0) {
-    ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height);
-  }
+  if (rect.width > 0 && rect.height > 0) ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height);
 }
 
 function buttonRects(width, classic = false) {
@@ -107,7 +173,6 @@ function buttonRects(width, classic = false) {
   const rightPad = 8;
   const available = width - leftPad - rightPad - BUTTON_GAP * (MODES.length - 1);
   const buttonWidth = Math.max(54, available / MODES.length);
-
   return MODES.map(([key, label], index) => ({
     key,
     label,
@@ -130,7 +195,6 @@ function drawToolbar(ctx, node, width, classic = false) {
   ctx.font = "600 11px system-ui, -apple-system, 'Segoe UI', sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-
   for (const rect of buttonRects(width, classic)) {
     const active = state.compare_mode === rect.key;
     ctx.fillStyle = active ? "#1c1c1c" : "#343434";
@@ -144,7 +208,6 @@ function drawToolbar(ctx, node, width, classic = false) {
     ctx.fillStyle = active ? "#ffffff" : "#dddddd";
     ctx.fillText(rect.label, rect.x + rect.width / 2, rect.y + rect.height / 2);
   }
-
   ctx.restore();
 }
 
@@ -166,12 +229,7 @@ function drawBadge(ctx, label, x, y) {
 function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = false } = {}) {
   const state = ensureState(node);
   const images = node.__inteliwebCompareImages;
-  const imageArea = {
-    x: 0,
-    y: HEADER_HEIGHT,
-    width,
-    height: Math.max(0, height - HEADER_HEIGHT),
-  };
+  const imageArea = { x: 0, y: HEADER_HEIGHT, width, height: Math.max(0, height - HEADER_HEIGHT) };
 
   ctx.save();
   if (clearCanvas) ctx.clearRect(0, 0, width, height);
@@ -214,8 +272,6 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
     drawBadge(ctx, state.toggle_image.toUpperCase(), 8, HEADER_HEIGHT + 8);
   } else if (state.compare_mode === "up_down") {
     const splitY = HEADER_HEIGHT + imageArea.height * state.split_y;
-
-    // A is shown first. Moving the curtain downward reveals B from top to bottom.
     drawContained(ctx, images.a, imageArea);
     ctx.save();
     ctx.beginPath();
@@ -223,7 +279,6 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
     ctx.clip();
     drawContained(ctx, images.b, imageArea);
     ctx.restore();
-
     ctx.strokeStyle = "rgba(255,255,255,.85)";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -232,8 +287,6 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
     ctx.stroke();
   } else {
     const splitX = width * state.split_x;
-
-    // A is shown first. Moving the curtain right reveals B from left to right.
     drawContained(ctx, images.a, imageArea);
     ctx.save();
     ctx.beginPath();
@@ -241,7 +294,6 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
     ctx.clip();
     drawContained(ctx, images.b, imageArea);
     ctx.restore();
-
     ctx.strokeStyle = "rgba(255,255,255,.85)";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -249,7 +301,6 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
     ctx.lineTo(splitX, height);
     ctx.stroke();
   }
-
   ctx.restore();
 }
 
@@ -260,7 +311,6 @@ function markDirty(node) {
 
 function handlePointerDown(node, x, y, width, height, classic = false) {
   const state = ensureState(node);
-
   for (const rect of buttonRects(width, classic)) {
     if (pointInRect(x, y, rect)) {
       state.compare_mode = rect.key;
@@ -271,7 +321,6 @@ function handlePointerDown(node, x, y, width, height, classic = false) {
       return true;
     }
   }
-
   if (
     y >= HEADER_HEIGHT &&
     state.compare_mode === "toggle" &&
@@ -282,16 +331,12 @@ function handlePointerDown(node, x, y, width, height, classic = false) {
     markDirty(node);
     return true;
   }
-
   return false;
 }
 
 function handlePointerMove(node, x, y, width, height) {
   const state = ensureState(node);
-  if (y < HEADER_HEIGHT || !node.__inteliwebCompareImages?.a || !node.__inteliwebCompareImages?.b) {
-    return false;
-  }
-
+  if (y < HEADER_HEIGHT || !node.__inteliwebCompareImages?.a || !node.__inteliwebCompareImages?.b) return false;
   if (state.compare_mode === "left_right") {
     state.split_x = clamp(x / Math.max(1, width), 0, 1);
     markDirty(node);
@@ -302,27 +347,17 @@ function handlePointerMove(node, x, y, width, height) {
     markDirty(node);
     return true;
   }
-
   return false;
 }
 
 async function applyExecution(node, output) {
-  const generation = (node.__inteliwebCompareGeneration || 0) + 1;
-  node.__inteliwebCompareGeneration = generation;
   const bySlot = { a: null, b: null };
-
   for (const data of output?.inteliweb_compare || []) {
     if (data?.slot === "a" || data?.slot === "b") bySlot[data.slot] = data;
   }
-
-  const [a, b] = await Promise.all([
-    loadImage(bySlot.a, generation, node),
-    loadImage(bySlot.b, generation, node),
-  ]);
-  if (node.__inteliwebCompareGeneration !== generation) return;
-
-  node.__inteliwebCompareImages = { a, b };
-  markDirty(node);
+  writePreviewState(node, bySlot);
+  node.__inteliwebCompareRestoreKey = JSON.stringify(parsePreviewState({ a: bySlot.a, b: bySlot.b }));
+  await loadPreviewDescriptors(node, bySlot);
 }
 
 function installClassic(nodeType) {
@@ -330,40 +365,27 @@ function installClassic(nodeType) {
   nodeType.prototype.onDrawForeground = function (ctx) {
     originalDraw?.apply(this, arguments);
     if (isNodes2()) return;
-    drawComparer(ctx, this, this.size[0], this.size[1], {
-      clearCanvas: false,
-      classic: true,
-    });
+    drawComparer(ctx, this, this.size[0], this.size[1], { clearCanvas: false, classic: true });
   };
 
   const originalDown = nodeType.prototype.onMouseDown;
   nodeType.prototype.onMouseDown = function (event, pos, canvas) {
-    if (
-      !isNodes2() &&
-      handlePointerDown(this, pos[0], pos[1], this.size[0], this.size[1], true)
-    ) {
-      return true;
-    }
+    if (!isNodes2() && handlePointerDown(this, pos[0], pos[1], this.size[0], this.size[1], true)) return true;
     return originalDown?.apply(this, arguments) ?? false;
   };
 
   const originalMove = nodeType.prototype.onMouseMove;
   nodeType.prototype.onMouseMove = function (event, pos, canvas) {
-    if (!isNodes2()) {
-      handlePointerMove(this, pos[0], pos[1], this.size[0], this.size[1]);
-    }
+    if (!isNodes2()) handlePointerMove(this, pos[0], pos[1], this.size[0], this.size[1]);
     return originalMove?.apply(this, arguments);
   };
 }
 
 function createNodes2Widget(node) {
   if (!node.addDOMWidget || node.__inteliwebCompareDom) return;
-
   const root = document.createElement("div");
   root.className = "inteliweb-image-compare";
-  root.style.cssText =
-    "position:relative;width:100%;height:100%;min-height:240px;flex:1 1 0;overflow:hidden;box-sizing:border-box;";
-
+  root.style.cssText = "position:relative;width:100%;height:100%;min-height:240px;flex:1 1 0;overflow:hidden;box-sizing:border-box;";
   const canvas = document.createElement("canvas");
   canvas.style.cssText = "display:block;width:100%;height:100%;cursor:default;";
   root.appendChild(canvas);
@@ -375,19 +397,16 @@ function createNodes2Widget(node) {
     const dpr = window.devicePixelRatio || 1;
     const pixelWidth = Math.round(width * dpr);
     const pixelHeight = Math.round(height * dpr);
-
     if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
       canvas.width = pixelWidth;
       canvas.height = pixelHeight;
     }
-
     const ctx = canvas.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawComparer(ctx, node, width, height);
   };
 
   node.__inteliwebCompareRender = () => requestAnimationFrame(render);
-
   const localPoint = (event) => {
     const rect = canvas.getBoundingClientRect();
     return [event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height];
@@ -400,7 +419,6 @@ function createNodes2Widget(node) {
       event.stopPropagation();
     }
   });
-
   canvas.addEventListener("pointermove", (event) => {
     const [x, y, width, height] = localPoint(event);
     if (handlePointerMove(node, x, y, width, height)) {
@@ -413,17 +431,12 @@ function createNodes2Widget(node) {
   const observer = new ResizeObserver(render);
   observer.observe(root);
   node.__inteliwebCompareDom = { root, canvas, observer };
-
   const widget = node.addDOMWidget("inteliweb_compare", "inteliweb_compare", root, {
     serialize: false,
     hideOnZoom: false,
     getMinHeight: () => MIN_HEIGHT - HEADER_HEIGHT,
   });
-  widget.computeLayoutSize = () => ({
-    minHeight: MIN_HEIGHT - HEADER_HEIGHT,
-    minWidth: 1,
-  });
-
+  widget.computeLayoutSize = () => ({ minHeight: MIN_HEIGHT - HEADER_HEIGHT, minWidth: 1 });
   requestAnimationFrame(render);
 }
 
@@ -431,18 +444,25 @@ app.registerExtension({
   name: "Inteliweb.ImageCompare",
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData.name !== NODE_CLASS) return;
-
     installClassic(nodeType);
 
     const originalCreated = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function () {
       originalCreated?.apply(this, arguments);
       ensureState(this);
-      this.size = [
-        Math.max(this.size?.[0] || 0, MIN_WIDTH),
-        Math.max(this.size?.[1] || 0, MIN_HEIGHT),
-      ];
+      hidePreviewStateWidget(this);
+      this.size = [Math.max(this.size?.[0] || 0, MIN_WIDTH), Math.max(this.size?.[1] || 0, MIN_HEIGHT)];
       if (isNodes2()) createNodes2Widget(this);
+      requestAnimationFrame(() => restorePreviewState(this));
+    };
+
+    const originalConfigure = nodeType.prototype.onConfigure;
+    nodeType.prototype.onConfigure = function () {
+      originalConfigure?.apply(this, arguments);
+      ensureState(this);
+      hidePreviewStateWidget(this);
+      if (isNodes2()) createNodes2Widget(this);
+      requestAnimationFrame(() => restorePreviewState(this));
     };
 
     const originalExecuted = nodeType.prototype.onExecuted;
