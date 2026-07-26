@@ -77,14 +77,15 @@ function drawContained(ctx, image, viewport) {
   }
 }
 
-function buttonRects(width) {
-  const pad = 8;
-  const available = width - pad * 2 - BUTTON_GAP * (MODES.length - 1);
+function buttonRects(width, classic = false) {
+  const leftPad = classic ? 86 : 8;
+  const rightPad = 8;
+  const available = width - leftPad - rightPad - BUTTON_GAP * (MODES.length - 1);
   const buttonWidth = Math.max(54, available / MODES.length);
   return MODES.map((entry, index) => ({
     key: entry[0],
     label: entry[1],
-    x: pad + index * (buttonWidth + BUTTON_GAP),
+    x: leftPad + index * (buttonWidth + BUTTON_GAP),
     y: 7,
     width: buttonWidth,
     height: 24,
@@ -95,7 +96,7 @@ function pointInRect(x, y, rect) {
   return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
 }
 
-function drawToolbar(ctx, node, width) {
+function drawToolbar(ctx, node, width, classic = false) {
   const state = ensureState(node);
   ctx.save();
   ctx.fillStyle = "#242424";
@@ -104,7 +105,7 @@ function drawToolbar(ctx, node, width) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  for (const rect of buttonRects(width)) {
+  for (const rect of buttonRects(width, classic)) {
     const active = state.compare_mode === rect.key;
     ctx.fillStyle = active ? "#ff6847" : "#343434";
     ctx.strokeStyle = active ? "#ff8a70" : "#505050";
@@ -144,14 +145,15 @@ function drawBadge(ctx, label, x, y) {
   ctx.restore();
 }
 
-function drawComparer(ctx, node, width, height) {
+function drawComparer(ctx, node, width, height, options = {}) {
   const state = ensureState(node);
   const images = node.__inteliwebCompareImages;
   const imageArea = { x: 0, y: HEADER_HEIGHT, width, height: Math.max(0, height - HEADER_HEIGHT) };
 
+  const { clearCanvas = true, classic = false } = options;
   ctx.save();
-  ctx.clearRect(0, 0, width, height);
-  drawToolbar(ctx, node, width);
+  if (clearCanvas) ctx.clearRect(0, 0, width, height);
+  drawToolbar(ctx, node, width, classic);
   ctx.fillStyle = "#111111";
   ctx.fillRect(imageArea.x, imageArea.y, imageArea.width, imageArea.height);
 
@@ -237,9 +239,9 @@ function markDirty(node) {
   node.__inteliwebCompareRender?.();
 }
 
-function handlePointerDown(node, x, y, width, height) {
+function handlePointerDown(node, x, y, width, height, classic = false) {
   const state = ensureState(node);
-  for (const rect of buttonRects(width)) {
+  for (const rect of buttonRects(width, classic)) {
     if (pointInRect(x, y, rect)) {
       state.compare_mode = rect.key;
       markDirty(node);
@@ -291,12 +293,12 @@ function installClassic(nodeType) {
   nodeType.prototype.onDrawForeground = function (ctx) {
     originalDraw?.apply(this, arguments);
     if (isNodes2()) return;
-    drawComparer(ctx, this, this.size[0], this.size[1]);
+    drawComparer(ctx, this, this.size[0], this.size[1], { clearCanvas: false, classic: true });
   };
 
   const originalDown = nodeType.prototype.onMouseDown;
   nodeType.prototype.onMouseDown = function (event, pos, canvas) {
-    if (!isNodes2() && handlePointerDown(this, pos[0], pos[1], this.size[0], this.size[1])) return true;
+    if (!isNodes2() && handlePointerDown(this, pos[0], pos[1], this.size[0], this.size[1], true)) return true;
     return originalDown?.apply(this, arguments) ?? false;
   };
 
