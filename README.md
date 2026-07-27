@@ -14,6 +14,10 @@
 
 ## Próxima versión
 
+- Añadidos controles rápidos para grupos nativos de ComfyUI: **Run**, **Bypass** y **Mute**.
+- Visibilidad configurable: **Always** o **Hover**.
+- Estilos visuales por grupo: **Default**, **Rounded** y **Card**.
+- La función usa grupos estándar de ComfyUI y no crea un sistema de grupos propietario.
 - Añadidos **Set (Inteliweb)** y **Get (Inteliweb)** para ocultar conexiones largas y organizar workflows complejos.
 - IDs internos exclusivos: `SetInteliweb` y `GetInteliweb`, compatibles con otros paquetes que también incluyen nodos Set/Get.
 - El tipo de dato se adopta automáticamente desde la conexión: `MODEL`, `CLIP`, `IMAGE`, `LATENT`, `VAE`, `CONDITIONING`, etc.
@@ -71,6 +75,30 @@ cd ..\..
 ```
 
 Después de instalar, reinicia ComfyUI.
+
+## Funciones frontend
+
+### Group Header Controls (Inteliweb)
+
+Añade controles rápidos a los grupos nativos de ComfyUI sin reemplazar su comportamiento estándar.
+
+- **Run:** ejecuta los nodos de salida contenidos en el grupo.
+- **Bypass:** alterna todos los nodos del grupo entre `Bypass` y `Always`.
+- **Mute:** alterna todos los nodos del grupo entre `Never` y `Always`.
+- Los modos disponibles para mostrar los botones son `Always` y `Hover`.
+- Los botones individuales pueden activarse o desactivarse desde `Settings → Inteliweb → Groups`.
+- La función queda desactivada por defecto para evitar duplicar controles cuando rgthree está instalado.
+
+El menú contextual del grupo incluye:
+
+```text
+Group Shape (Inteliweb)
+├── Default
+├── Rounded
+└── Card
+```
+
+El shape se guarda dentro de las flags del grupo y conserva el grupo como un `LGraphGroup` estándar.
 
 ## Nodos incluidos
 
@@ -201,6 +229,7 @@ comfyui_inteliweb_nodes/
 │   ├── string_index_selector.py
 │   └── system_check.py
 ├── web/
+│   ├── GroupHeaderControls_Inteliweb.js
 │   └── SetGet_Inteliweb.js
 └── assets/
 ```
@@ -216,6 +245,7 @@ comfyui_inteliweb_nodes/
 
 ## Créditos
 
+- **Group Header Controls (Inteliweb):** implementación independiente inspirada en los controles rápidos de grupos nativos de [`rgthree/rgthree-comfy`](https://github.com/rgthree/rgthree-comfy) y en las opciones de presentación de [`pixaroma/ComfyUI-Pixaroma`](https://github.com/pixaroma/ComfyUI-Pixaroma).
 - **Set/Get (Inteliweb):** implementación independiente inspirada en el patrón de variables virtuales de [`kijai/ComfyUI-KJNodes`](https://github.com/kijai/ComfyUI-KJNodes) y en las mejoras de compatibilidad y subgraphs de [`pixaroma/ComfyUI-Pixaroma`](https://github.com/pixaroma/ComfyUI-Pixaroma).
 - **Input Switch (Inteliweb):** implementación independiente inspirada conceptualmente por `Switch (Any)` de [`ltdrdata/ComfyUI-Impact-Pack`](https://github.com/ltdrdata/ComfyUI-Impact-Pack).
 - **Resource Monitor (Inteliweb):** inspirado en [`crystian/ComfyUI-Crystools`](https://github.com/crystian/ComfyUI-Crystools), licencia MIT.

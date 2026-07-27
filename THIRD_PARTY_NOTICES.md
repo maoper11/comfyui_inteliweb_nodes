@@ -1,5 +1,81 @@
 # Third-Party Notices
 
+## Group header controls
+
+`Group Header Controls (Inteliweb)` is an independent frontend implementation
+for native ComfyUI groups. During development, the following projects were
+studied for interaction behavior, group mode toggles and settings presentation:
+
+### rgthree-comfy
+
+- Project: rgthree-comfy
+- Author: Regis Gaughan III and contributors
+- Source: https://github.com/rgthree/rgthree-comfy
+- License: MIT License
+- Original copyright: Copyright (c) 2023 Regis Gaughan, III (rgthree)
+
+The Inteliweb implementation uses its own extension ID, settings IDs, drawing
+logic, event handling, icons and group-shape persistence. It does not import or
+require rgthree-comfy at runtime.
+
+MIT License
+
+Copyright (c) 2023 Regis Gaughan, III (rgthree)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+### ComfyUI-Pixaroma
+
+- Project: ComfyUI-Pixaroma
+- Author: pixaroma
+- Source: https://github.com/pixaroma/ComfyUI-Pixaroma
+- License: MIT License
+- Original copyright: Copyright (c) 2026 pixaroma
+
+Pixaroma was studied for its modern ComfyUI settings registration, vector icon
+strategy and group appearance options. Inteliweb continues to use native
+`LGraphGroup` instances instead of Pixaroma's separate group system.
+
+MIT License
+
+Copyright (c) 2026 pixaroma
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
 ## Set/Get virtual-node pattern
 
 `Set (Inteliweb)` and `Get (Inteliweb)` are an independent implementation of
