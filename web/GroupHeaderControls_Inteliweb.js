@@ -23,6 +23,7 @@ const state = {
   hoveredGroup: null,
   hoveredAction: null,
   canvasElement: null,
+  groupPrototype: null,
 };
 
 const ACTIONS = [
@@ -39,6 +40,14 @@ const SHAPES = [
 
 function currentGraph() {
   return app.canvas?.getCurrentGraph?.() || app.canvas?.graph || app.graph || null;
+}
+
+function graphGroups(graph = currentGraph()) {
+  if (!graph) return [];
+  const groups = graph._groups || graph.groups;
+  if (Array.isArray(groups)) return groups;
+  if (groups?.values) return [...groups.values()];
+  return [];
 }
 
 function markDirty() {
@@ -79,6 +88,7 @@ function groupShape(group) {
 function setGroupShape(group, shape) {
   if (!group) return;
   const graph = group.graph || currentGraph();
+
   graph?.beforeChange?.();
   group.flags ||= {};
   if (shape === "default") delete group.flags[SHAPE_FLAG];
@@ -99,10 +109,12 @@ function shapeMenuOptions(group) {
 function findGroupAt(canvas, point) {
   const graph = canvas?.getCurrentGraph?.() || canvas?.graph || currentGraph();
   if (!graph || !point) return null;
+
   if (typeof graph.getGroupOnPos === "function") {
     return graph.getGroupOnPos(point[0], point[1]) || null;
   }
-  const groups = graph._groups || graph.groups || [];
+
+  const groups = graphGroups(graph);
   for (let index = groups.length - 1; index >= 0; index--) {
     const group = groups[index];
     if (group?.isPointInside?.(point[0], point[1])) return group;
@@ -113,48 +125,83 @@ function findGroupAt(canvas, point) {
 function eventToGraphPoint(event) {
   const canvas = app.canvas;
   if (!canvas) return null;
+
   try {
     const point = canvas.convertEventToCanvasOffset?.(event);
-    if (point?.length >= 2) return point;
+    if (point?.length >= 2) return [point[0], point[1]];
   } catch {
-    // Fall back to graph_mouse below.
+    // Fall back to canvasX/canvasY or graph_mouse.
   }
+
   if (Number.isFinite(event.canvasX) && Number.isFinite(event.canvasY)) {
     return [event.canvasX, event.canvasY];
   }
+
   const point = canvas.graph_mouse;
   return point?.length >= 2 ? [point[0], point[1]] : null;
 }
 
-function groupNodes(group) {
+function looksLikeNode(item) {
+  return Boolean(
+    item &&
+    typeof item === "object" &&
+    (
+      "mode" in item ||
+      Array.isArray(item.inputs) ||
+      Array.isArray(item.outputs) ||
+      item.constructor?.nodeData
+    ),
+  );
+}
+
+function collectGroupNodes(group, recompute = false) {
   if (!group) return [];
-  try {
-    group.recomputeInsideNodes?.();
-  } catch (error) {
-    console.warn("[Inteliweb] Could not recompute group members:", error);
+
+  if (recompute) {
+    try {
+      group.recomputeInsideNodes?.();
+    } catch (error) {
+      console.warn("[Inteliweb] Could not recompute group members:", error);
+    }
   }
 
-  const roots = Array.isArray(group.nodes)
-    ? group.nodes
-    : Array.isArray(group._nodes)
-      ? group._nodes
-      : [];
-  const nodes = [];
-  const visited = new Set();
+  const result = [];
+  const visitedNodes = new Set();
+  const visitedGroups = new Set();
 
   const addNode = (node) => {
-    if (!node || visited.has(node)) return;
-    visited.add(node);
-    nodes.push(node);
+    if (!looksLikeNode(node) || visitedNodes.has(node)) return;
+    visitedNodes.add(node);
+    result.push(node);
 
-    const subgraphNodes = node.subgraph?._nodes || node.subgraph?.nodes;
-    if (Array.isArray(subgraphNodes)) {
-      for (const child of subgraphNodes) addNode(child);
+    const childNodes = node.subgraph?._nodes || node.subgraph?.nodes;
+    if (Array.isArray(childNodes)) {
+      for (const child of childNodes) addNode(child);
     }
   };
 
-  for (const node of roots) addNode(node);
-  return nodes;
+  const addGroup = (candidate) => {
+    if (!candidate || visitedGroups.has(candidate)) return;
+    visitedGroups.add(candidate);
+
+    const children = candidate.children || candidate._children;
+    if (children?.[Symbol.iterator]) {
+      for (const item of children) {
+        if (looksLikeNode(item)) addNode(item);
+        else if (item?.children || item?._children || item?._groups) addGroup(item);
+      }
+    }
+
+    const fallbackNodes = Array.isArray(candidate.nodes)
+      ? candidate.nodes
+      : Array.isArray(candidate._nodes)
+        ? candidate._nodes
+        : [];
+    for (const node of fallbackNodes) addNode(node);
+  };
+
+  addGroup(group);
+  return result;
 }
 
 function isOutputNode(node) {
@@ -165,8 +212,8 @@ function isOutputNode(node) {
   );
 }
 
-function outputNodesForGroup(group) {
-  return groupNodes(group).filter(isOutputNode);
+function outputNodesForGroup(group, recompute = false) {
+  return collectGroupNodes(group, recompute).filter(isOutputNode);
 }
 
 function notify(message) {
@@ -179,7 +226,7 @@ function notify(message) {
 }
 
 async function runGroup(group) {
-  const outputs = outputNodesForGroup(group);
+  const outputs = outputNodesForGroup(group, true);
   if (!outputs.length) {
     notify("This group does not contain an output node to run.");
     return;
@@ -187,6 +234,7 @@ async function runGroup(group) {
 
   const canvas = app.canvas;
   const command = app.extensionManager?.command;
+
   if (!canvas || !command?.execute) {
     if (window.rgthree?.queueOutputNodes) {
       await window.rgthree.queueOutputNodes(outputs);
@@ -203,6 +251,7 @@ async function runGroup(group) {
     canvas.deselectAllNodes?.();
     if (canvas.selectItems) canvas.selectItems(outputs);
     else for (const node of outputs) canvas.selectNode?.(node, true);
+
     await command.execute("Comfy.QueueSelectedOutputNodes");
   } catch (error) {
     console.error("[Inteliweb] Could not run group output nodes:", error);
@@ -224,7 +273,7 @@ function modeConstants() {
 }
 
 function changeGroupMode(group, action) {
-  const nodes = groupNodes(group);
+  const nodes = collectGroupNodes(group, true);
   if (!nodes.length) return;
 
   const modes = modeConstants();
@@ -241,7 +290,7 @@ function changeGroupMode(group, action) {
 }
 
 function groupModeState(group) {
-  const nodes = groupNodes(group);
+  const nodes = collectGroupNodes(group, false);
   const modes = modeConstants();
   return {
     hasNodes: nodes.length > 0,
@@ -296,6 +345,7 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
     ctx.roundRect(x, y, width, height, radius);
     return;
   }
+
   const r = Math.min(radius, width / 2, height / 2);
   ctx.moveTo(x + r, y);
   ctx.lineTo(x + width - r, y);
@@ -327,6 +377,22 @@ function groupPath(ctx, shape, x, y, width, height) {
   else drawRoundedRect(ctx, x, y, width, height, GROUP_RADIUS);
 }
 
+function drawResizeHandle(ctx, x, y, width, height, color, editorAlpha) {
+  ctx.save();
+  ctx.globalAlpha = 0.72 * editorAlpha;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.2;
+  ctx.lineCap = "round";
+
+  ctx.beginPath();
+  ctx.moveTo(x + width - 11, y + height - 3);
+  ctx.lineTo(x + width - 3, y + height - 11);
+  ctx.moveTo(x + width - 7, y + height - 3);
+  ctx.lineTo(x + width - 3, y + height - 7);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawStyledGroup(group, graphCanvas, ctx) {
   const shape = groupShape(group);
   const [x, y] = group.pos || group._pos;
@@ -334,7 +400,6 @@ function drawStyledGroup(group, graphCanvas, ctx) {
   const titleHeight = group.titleHeight || LiteGraph.NODE_TITLE_HEIGHT || 30;
   const color = group.color || group.constructor?.defaultColour || "#335";
   const editorAlpha = graphCanvas.editor_alpha ?? 1;
-  const resizeLength = group.constructor?.resizeLength || 10;
 
   ctx.save();
 
@@ -354,12 +419,7 @@ function drawStyledGroup(group, graphCanvas, ctx) {
   groupPath(ctx, shape, x + 0.5, y + 0.5, width, height);
   ctx.stroke();
 
-  ctx.beginPath();
-  ctx.moveTo(x + width, y + height);
-  ctx.lineTo(x + width - resizeLength, y + height);
-  ctx.lineTo(x + width, y + height - resizeLength);
-  ctx.closePath();
-  ctx.fill();
+  drawResizeHandle(ctx, x, y, width, height, color, editorAlpha);
 
   const fontSize = LiteGraph.GROUP_TEXT_SIZE || 20;
   ctx.font = `${fontSize}px ${LiteGraph.GROUP_FONT || "Inter"}`;
@@ -397,18 +457,23 @@ function drawBypassIcon(ctx, rect, active) {
   const cx = rect.x + rect.width / 2;
   const cy = rect.y + rect.height / 2;
   const radius = rect.width * 0.31;
+
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.stroke();
+
   ctx.beginPath();
   ctx.moveTo(cx - radius * 0.72, cy + radius * 0.72);
   ctx.lineTo(cx + radius * 0.72, cy - radius * 0.72);
   ctx.stroke();
+
   if (active) {
+    ctx.save();
+    ctx.globalAlpha *= 0.25;
     ctx.beginPath();
     ctx.arc(cx, cy, radius - 2, 0, Math.PI * 2);
-    ctx.globalAlpha *= 0.25;
     ctx.fill();
+    ctx.restore();
   }
 }
 
@@ -438,6 +503,7 @@ function drawMuteIcon(ctx, rect, active) {
 
 function drawControls(ctx, group, graphCanvas) {
   if (!controlsVisibleFor(group)) return;
+
   const rects = actionRects(group);
   if (!rects.length) return;
 
@@ -462,7 +528,10 @@ function drawControls(ctx, group, graphCanvas) {
       : hovered
         ? "rgba(0,0,0,0.48)"
         : "rgba(0,0,0,0.28)";
-    ctx.strokeStyle = hovered ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.72)";
+    ctx.strokeStyle = hovered
+      ? "rgba(255,255,255,0.95)"
+      : "rgba(255,255,255,0.72)";
+
     drawRoundedRect(ctx, rect.x, rect.y, rect.width, rect.height, 5);
     ctx.fill();
 
@@ -475,48 +544,42 @@ function drawControls(ctx, group, graphCanvas) {
   ctx.restore();
 }
 
-function installDrawHook() {
-  if (!window.LGraphCanvas?.prototype || window.LGraphCanvas.prototype.__inteliwebGroupControls) {
-    return;
+function findGroupPrototype() {
+  const globalPrototype = globalThis.LGraphGroup?.prototype;
+  if (globalPrototype?.draw) return globalPrototype;
+
+  for (const group of graphGroups()) {
+    const prototype = group?.constructor?.prototype;
+    if (prototype?.draw) return prototype;
   }
 
-  const prototype = window.LGraphCanvas.prototype;
-  const originalDrawGroups = prototype.drawGroups;
-  if (typeof originalDrawGroups !== "function") return;
+  return null;
+}
 
-  prototype.drawGroups = function () {
-    const graph = this.getCurrentGraph?.() || this.graph;
-    const groups = graph?._groups || graph?.groups || [];
-    const replaced = [];
+function installGroupDrawHook() {
+  const prototype = findGroupPrototype();
+  if (!prototype?.draw) return false;
+  if (prototype.__inteliwebGroupHeaderControls) {
+    state.groupPrototype = prototype;
+    return true;
+  }
 
-    for (const group of groups) {
-      if (groupShape(group) === "default") continue;
-      const ownDraw = Object.prototype.hasOwnProperty.call(group, "draw");
-      replaced.push({ group, ownDraw, draw: group.draw });
-      group.draw = function (graphCanvas, ctx) {
-        drawStyledGroup(this, graphCanvas, ctx);
-      };
+  const originalDraw = prototype.draw;
+  prototype.draw = function (graphCanvas, ctx) {
+    if (groupShape(this) === "default") {
+      originalDraw.apply(this, arguments);
+    } else {
+      drawStyledGroup(this, graphCanvas, ctx);
     }
 
-    try {
-      originalDrawGroups.apply(this, arguments);
-    } finally {
-      for (const item of replaced) {
-        if (item.ownDraw) item.group.draw = item.draw;
-        else delete item.group.draw;
-      }
-    }
-
-    if (!state.enabled) return;
-    const ctx = arguments[1];
-    if (!ctx) return;
-
-    ctx.save();
-    for (const group of groups) drawControls(ctx, group, this);
-    ctx.restore();
+    if (state.enabled) drawControls(ctx, this, graphCanvas);
   };
 
-  prototype.__inteliwebGroupControls = true;
+  prototype.__inteliwebGroupHeaderControls = true;
+  prototype.__inteliwebGroupHeaderControlsOriginalDraw = originalDraw;
+  state.groupPrototype = prototype;
+  markDirty();
+  return true;
 }
 
 function updateHover(event) {
@@ -531,7 +594,7 @@ function updateHover(event) {
 
   const point = eventToGraphPoint(event);
   const group = findGroupAt(app.canvas, point);
-  const action = group && controlsVisibleFor(group) ? actionAt(group, point) : null;
+  const action = group ? actionAt(group, point) : null;
 
   if (group !== state.hoveredGroup || action !== state.hoveredAction) {
     state.hoveredGroup = group;
@@ -549,9 +612,10 @@ function clearHover() {
 
 function handlePointerDown(event) {
   if (!state.enabled || event.button !== 0) return;
+
   const point = eventToGraphPoint(event);
   const group = findGroupAt(app.canvas, point);
-  if (!group || !controlsVisibleFor(group)) return;
+  if (!group) return;
 
   const action = actionAt(group, point);
   if (!action) return;
@@ -566,7 +630,8 @@ function handlePointerDown(event) {
 
 function attachCanvasListeners() {
   const element = app.canvas?.canvas;
-  if (!element || element === state.canvasElement) return Boolean(element);
+  if (!element) return false;
+  if (element === state.canvasElement) return true;
 
   if (state.canvasElement) {
     state.canvasElement.removeEventListener("pointermove", updateHover, true);
@@ -582,16 +647,17 @@ function attachCanvasListeners() {
 }
 
 function startCanvasIntegration() {
-  installDrawHook();
+  installGroupDrawHook();
   attachCanvasListeners();
 
   let attempts = 0;
   const timer = setInterval(() => {
     attempts += 1;
-    installDrawHook();
+    const hooked = installGroupDrawHook();
     const attached = attachCanvasListeners();
-    if (attached && attempts > 5) clearInterval(timer);
-    if (attempts > 60) clearInterval(timer);
+
+    if (hooked && attached && attempts > 5) clearInterval(timer);
+    if (attempts > 120) clearInterval(timer);
   }, 500);
 }
 
@@ -605,7 +671,7 @@ app.registerExtension({
       type: "boolean",
       defaultValue: defaults.enabled,
       tooltip: "Adds Run, Bypass and Mute buttons to native ComfyUI group headers.",
-      category: ["Inteliweb", "Groups"],
+      category: ["Inteliweb", "Groups", "Enable group header controls"],
       onChange: (value) => {
         state.enabled = Boolean(value);
         clearHover();
@@ -619,7 +685,7 @@ app.registerExtension({
       options: ["Always", "Hover"],
       defaultValue: defaults.visibility,
       tooltip: "Always keeps the buttons visible. Hover shows them only over a group or while it is selected.",
-      category: ["Inteliweb", "Groups"],
+      category: ["Inteliweb", "Groups", "Group header button visibility"],
       onChange: (value) => {
         state.visibility = value === "Always" ? "Always" : "Hover";
         markDirty();
@@ -630,7 +696,7 @@ app.registerExtension({
       name: "Show Run button",
       type: "boolean",
       defaultValue: defaults.showRun,
-      category: ["Inteliweb", "Groups"],
+      category: ["Inteliweb", "Groups", "Show Run button"],
       onChange: (value) => {
         state.showRun = Boolean(value);
         markDirty();
@@ -641,7 +707,7 @@ app.registerExtension({
       name: "Show Bypass button",
       type: "boolean",
       defaultValue: defaults.showBypass,
-      category: ["Inteliweb", "Groups"],
+      category: ["Inteliweb", "Groups", "Show Bypass button"],
       onChange: (value) => {
         state.showBypass = Boolean(value);
         markDirty();
@@ -652,7 +718,7 @@ app.registerExtension({
       name: "Show Mute button",
       type: "boolean",
       defaultValue: defaults.showMute,
-      category: ["Inteliweb", "Groups"],
+      category: ["Inteliweb", "Groups", "Show Mute button"],
       onChange: (value) => {
         state.showMute = Boolean(value);
         markDirty();
