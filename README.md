@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.19.0-blue" alt="version 0.19.0" />
+  <img src="https://img.shields.io/badge/version-0.20.0-blue" alt="version 0.20.0" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -10,20 +10,17 @@
   </a>
 </p>
 
-> Utilidades de Inteliweb AI para revisar el sistema, monitorear recursos, liberar memoria, enrutar entradas y construir prompts dentro de ComfyUI.
+> Utilidades de Inteliweb AI para controlar semillas, organizar conexiones, monitorear recursos, liberar memoria, enrutar entradas y construir prompts dentro de ComfyUI.
 
-## Próxima versión
+## Cambios en v0.20.0
 
-- Añadidos controles rápidos para grupos nativos de ComfyUI: **Run**, **Bypass** y **Mute**.
-- Visibilidad configurable: **Always** o **Hover**.
-- Estilos visuales por grupo: **Default**, **Rounded** y **Card**.
-- La función usa grupos estándar de ComfyUI y no crea un sistema de grupos propietario.
-- Añadidos **Set (Inteliweb)** y **Get (Inteliweb)** para ocultar conexiones largas y organizar workflows complejos.
-- IDs internos exclusivos: `SetInteliweb` y `GetInteliweb`, compatibles con otros paquetes que también incluyen nodos Set/Get.
-- El tipo de dato se adopta automáticamente desde la conexión: `MODEL`, `CLIP`, `IMAGE`, `LATENT`, `VAE`, `CONDITIONING`, etc.
-- El nodo Set incluye salida pass-through.
-- El nodo Get ofrece un selector con los nombres Set disponibles en su alcance.
-- Soporte para Classic, Nodes 2.0 y resolución desde subgraphs modernos.
+- Añadido **Seed (Inteliweb)** con salida `INT` y los modos **Randomize Each Time**, **New Fixed Random** y **Use Last Seed**.
+- En modo aleatorio, el campo muestra `random` mientras conserva internamente el valor especial `-1`.
+- Añadidos **Set (Inteliweb)** y **Get (Inteliweb)** para reutilizar conexiones por nombre y reducir cables largos.
+- Set y Get adoptan automáticamente el tipo y el color de datos como `MODEL`, `CLIP`, `IMAGE`, `LATENT`, `VAE` o `CONDITIONING`.
+- Cuando Get está conectado, su selector puede mostrar solamente variables Set compatibles con el tipo de entrada destino.
+- Añadidos controles rápidos para grupos nativos de ComfyUI: **Run**, **Bypass** y **Mute**, con visibilidad `Always` o `Hover`.
+- Compatibilidad con Classic, Nodes 2.0 y subgraphs modernos.
 
 ## Cambios en v0.19.0
 
@@ -31,9 +28,7 @@
 - Todos los campos `STRING`, incluidos `find` y `replace`, pueden convertirse en sockets.
 - Añadido **Prompt List (Inteliweb)** con cinco prompts multilinea y salidas `prompt_list` y `prompt_strings`.
 - Añadido **String Index Selector (Inteliweb)** con 10 textos multilinea e índice basado en 1.
-- Los nuevos nodos son compatibles con Nodes 1.0, Nodes 2.0 y subgraphs.
 - Los scripts de los nodos fueron organizados dentro de la carpeta `nodes/`.
-- `resource_monitor.py` permanece como servicio backend independiente para el monitor superior y System Check.
 
 ## Cambios en v0.18.4
 
@@ -43,7 +38,7 @@
 - System Check comparte la misma fuente de RAM y VRAM que Resource Monitor.
 - Validado en RunPod, Vast AI y Windows Pinokio.
 
-## Instalación de v0.19.0 — rama principal `main`
+## Instalación de v0.20.0 — rama principal `main`
 
 ### ComfyUI Manager
 
@@ -102,16 +97,34 @@ El shape se guarda dentro de las flags del grupo y conserva el grupo como un `LG
 
 ## Nodos incluidos
 
+### Seed (Inteliweb)
+
+Controla la semilla utilizada para generar variaciones y entrega una salida `INT` compatible con KSampler y otros nodos con entrada `seed`.
+
+- **🔀 Randomize Each Time:** genera una semilla diferente en cada ejecución.
+- **🆕 New Fixed Random:** crea una semilla aleatoria y la conserva como valor fijo.
+- **↩️ Use Last Seed:** recupera la última semilla enviada a la cola.
+- El modo aleatorio se muestra como `random`, pero se guarda internamente como `-1`.
+- También acepta una semilla numérica escrita manualmente.
+- La última semilla utilizada se conserva durante la sesión sin modificar el workflow guardado.
+- Incluye fallback en Python para ejecuciones mediante API.
+- ID interno: `InteliwebSeed`.
+- Categoría: `Inteliweb/Utils`.
+
 ### Set (Inteliweb) y Get (Inteliweb)
 
 Permiten reutilizar una conexión por nombre sin mantener cables largos atravesando el canvas.
 
 - **Set (Inteliweb)** recibe cualquier tipo, adopta automáticamente el socket y ofrece una salida pass-through.
 - **Get (Inteliweb)** selecciona uno de los Set visibles y entrega el mismo valor y tipo.
+- Set y Get adoptan automáticamente un color según el tipo de dato conectado.
+- Cuando Get se conecta a una entrada, puede filtrar el selector para mostrar solamente variables compatibles.
+- Con Get desconectado se muestran todas las variables Set visibles dentro de su alcance.
 - El nombre del Set debe ser único dentro de su alcance.
 - Al renombrar un Set, sus Gets asociados se actualizan.
 - Al copiar y pegar parejas Set/Get, los nombres duplicados se ajustan sin romper la pareja.
 - Menú contextual para crear un Get asociado, seleccionar Gets asociados o saltar al Set.
+- Las opciones **Filter Get node options by type** y **Auto-color nodes** están en `Settings → Inteliweb → Set & Get Nodes`.
 - Funcionan como nodos virtuales: no agregan procesamiento al backend.
 - IDs internos: `SetInteliweb` y `GetInteliweb`.
 - Categoría: `Inteliweb/Logic`.
@@ -124,7 +137,6 @@ Aplica hasta 10 reemplazos secuenciales sobre un texto.
 - Pares `find_1/replace_1` hasta `find_10/replace_10`.
 - Los campos `find` vacíos se ignoran.
 - Todos los widgets `STRING` pueden convertirse en sockets.
-- Los reemplazos posteriores pueden actuar sobre texto generado por reemplazos anteriores.
 - ID interno: `InteliwebReplaceTextMulti`.
 
 ### Prompt List (Inteliweb)
@@ -133,7 +145,7 @@ Crea una lista de prompts a partir de cinco campos multilinea.
 
 - Ignora prompts vacíos.
 - `prompt_list` devuelve la colección como un único valor `LIST`.
-- `prompt_strings` expone una secuencia iterable de `STRING`, útil para ejecutar la generación una vez por prompt.
+- `prompt_strings` expone una secuencia iterable de `STRING`.
 - Entrada opcional `optional_prompt_list` para concatenar una lista existente.
 - ID interno: `InteliwebPromptList`.
 
@@ -143,7 +155,6 @@ Selecciona uno de 10 textos mediante un índice.
 
 - Campos `string_1` a `string_10`.
 - Índice basado en 1: `1 → string_1`, `10 → string_10`.
-- El índice puede convertirse en socket.
 - Devuelve `string` y `selected_index`.
 - ID interno: `InteliwebStringIndexSelector`.
 
@@ -198,12 +209,9 @@ Monitor compacto integrado en la barra superior de ComfyUI.
 
 Muestra en tiempo real:
 
-- Disco.
-- CPU.
-- RAM.
-- Utilización de GPU cuando NVML está disponible.
+- Disco, CPU y RAM.
+- Utilización y temperatura de GPU cuando NVML está disponible.
 - VRAM.
-- Temperatura de GPU cuando NVML está disponible.
 
 Fuentes de telemetría:
 
@@ -214,22 +222,27 @@ Fuentes de telemetría:
 
 No ejecuta shells ni procesos externos y no inicia hilos de fondo.
 
-## Estructura del paquete
+## Estructura principal del paquete
 
 ```text
 comfyui_inteliweb_nodes/
 ├── __init__.py
 ├── resource_monitor.py
 ├── nodes/
-│   ├── __init__.py
+│   ├── image_compare.py
 │   ├── input_switch.py
+│   ├── label.py
+│   ├── lora_stack.py
 │   ├── prompt_list.py
 │   ├── purge_vram.py
 │   ├── replace_text_multi.py
+│   ├── seed.py
+│   ├── set_get.py
 │   ├── string_index_selector.py
 │   └── system_check.py
 ├── web/
 │   ├── GroupHeaderControls_Inteliweb.js
+│   ├── Seed_Inteliweb.js
 │   └── SetGet_Inteliweb.js
 └── assets/
 ```
@@ -245,6 +258,7 @@ comfyui_inteliweb_nodes/
 
 ## Créditos
 
+- **Seed (Inteliweb):** implementación independiente inspirada en el nodo Seed de [`rgthree/rgthree-comfy`](https://github.com/rgthree/rgthree-comfy) y en ideas de experiencia de usuario de [`pixaroma/ComfyUI-Pixaroma`](https://github.com/pixaroma/ComfyUI-Pixaroma).
 - **Group Header Controls (Inteliweb):** implementación independiente inspirada en los controles rápidos de grupos nativos de [`rgthree/rgthree-comfy`](https://github.com/rgthree/rgthree-comfy) y en las opciones de presentación de [`pixaroma/ComfyUI-Pixaroma`](https://github.com/pixaroma/ComfyUI-Pixaroma).
 - **Set/Get (Inteliweb):** implementación independiente inspirada en el patrón de variables virtuales de [`kijai/ComfyUI-KJNodes`](https://github.com/kijai/ComfyUI-KJNodes) y en las mejoras de compatibilidad y subgraphs de [`pixaroma/ComfyUI-Pixaroma`](https://github.com/pixaroma/ComfyUI-Pixaroma).
 - **Input Switch (Inteliweb):** implementación independiente inspirada conceptualmente por `Switch (Any)` de [`ltdrdata/ComfyUI-Impact-Pack`](https://github.com/ltdrdata/ComfyUI-Impact-Pack).
