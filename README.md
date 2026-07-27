@@ -12,6 +12,15 @@
 
 > Utilidades de Inteliweb AI para revisar el sistema, monitorear recursos, liberar memoria, enrutar entradas y construir prompts dentro de ComfyUI.
 
+## Próxima versión
+
+- Añadidos **Set (Inteliweb)** y **Get (Inteliweb)** para ocultar conexiones largas y organizar workflows complejos.
+- IDs internos exclusivos: `SetInteliweb` y `GetInteliweb`, compatibles con otros paquetes que también incluyen nodos Set/Get.
+- El tipo de dato se adopta automáticamente desde la conexión: `MODEL`, `CLIP`, `IMAGE`, `LATENT`, `VAE`, `CONDITIONING`, etc.
+- El nodo Set incluye salida pass-through.
+- El nodo Get ofrece un selector con los nombres Set disponibles en su alcance.
+- Soporte para Classic, Nodes 2.0 y resolución desde subgraphs modernos.
+
 ## Cambios en v0.19.0
 
 - Añadido **Replace Text Multi (Inteliweb)** con 10 pares `find/replace` secuenciales.
@@ -64,6 +73,20 @@ cd ..\..
 Después de instalar, reinicia ComfyUI.
 
 ## Nodos incluidos
+
+### Set (Inteliweb) y Get (Inteliweb)
+
+Permiten reutilizar una conexión por nombre sin mantener cables largos atravesando el canvas.
+
+- **Set (Inteliweb)** recibe cualquier tipo, adopta automáticamente el socket y ofrece una salida pass-through.
+- **Get (Inteliweb)** selecciona uno de los Set visibles y entrega el mismo valor y tipo.
+- El nombre del Set debe ser único dentro de su alcance.
+- Al renombrar un Set, sus Gets asociados se actualizan.
+- Al copiar y pegar parejas Set/Get, los nombres duplicados se ajustan sin romper la pareja.
+- Menú contextual para crear un Get asociado, seleccionar Gets asociados o saltar al Set.
+- Funcionan como nodos virtuales: no agregan procesamiento al backend.
+- IDs internos: `SetInteliweb` y `GetInteliweb`.
+- Categoría: `Inteliweb/Logic`.
 
 ### Replace Text Multi (Inteliweb)
 
@@ -178,6 +201,7 @@ comfyui_inteliweb_nodes/
 │   ├── string_index_selector.py
 │   └── system_check.py
 ├── web/
+│   └── SetGet_Inteliweb.js
 └── assets/
 ```
 
@@ -192,6 +216,7 @@ comfyui_inteliweb_nodes/
 
 ## Créditos
 
+- **Set/Get (Inteliweb):** implementación independiente inspirada en el patrón de variables virtuales de [`kijai/ComfyUI-KJNodes`](https://github.com/kijai/ComfyUI-KJNodes) y en las mejoras de compatibilidad y subgraphs de [`pixaroma/ComfyUI-Pixaroma`](https://github.com/pixaroma/ComfyUI-Pixaroma).
 - **Input Switch (Inteliweb):** implementación independiente inspirada conceptualmente por `Switch (Any)` de [`ltdrdata/ComfyUI-Impact-Pack`](https://github.com/ltdrdata/ComfyUI-Impact-Pack).
 - **Resource Monitor (Inteliweb):** inspirado en [`crystian/ComfyUI-Crystools`](https://github.com/crystian/ComfyUI-Crystools), licencia MIT.
 - **Free Memory (Inteliweb):** adaptación del concepto `PurgeVRAM` de [`chflame163/ComfyUI_LayerStyle`](https://github.com/chflame163/ComfyUI_LayerStyle), licencia MIT.

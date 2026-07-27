@@ -1,5 +1,61 @@
 # Third-Party Notices
 
+## Set/Get virtual-node pattern
+
+`Set (Inteliweb)` and `Get (Inteliweb)` are an independent implementation of
+the common ComfyUI virtual named-variable pattern. During development, the
+following projects were studied for behavior, renderer compatibility and
+subgraph handling:
+
+### ComfyUI-KJNodes
+
+- Project: ComfyUI-KJNodes
+- Author: Kijai and contributors
+- Source: https://github.com/kijai/ComfyUI-KJNodes
+- License of the referenced project: GNU General Public License v3.0
+
+The Inteliweb implementation does not copy or bundle KJNodes source files. It
+uses different class IDs (`SetInteliweb` and `GetInteliweb`), naming, category,
+state properties and implementation structure, and does not require KJNodes at
+runtime.
+
+### ComfyUI-Pixaroma
+
+- Project: ComfyUI-Pixaroma
+- Author: pixaroma
+- Source: https://github.com/pixaroma/ComfyUI-Pixaroma
+- License: MIT License
+- Original copyright: Copyright (c) 2026 pixaroma
+
+The Pixaroma implementation was studied particularly for Nodes 2.0 combo
+refresh behavior, stable state restoration and modern subgraph virtual-output
+resolution. The Inteliweb implementation has its own IDs, user interface,
+menus, scope helpers and node behavior.
+
+MIT License
+
+Copyright (c) 2026 pixaroma
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
 ## ComfyUI-Impact-Pack — Switch (Any) concept
 
 `Input Switch (Inteliweb)` is an independent implementation inspired by the
