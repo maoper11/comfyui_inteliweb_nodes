@@ -132,7 +132,9 @@ function ensureTooltipElement() {
     "display:none",
     "z-index:100000",
     "pointer-events:none",
-    "max-width:260px",
+    "width:max-content",
+    "max-width:calc(100vw - 20px)",
+    "box-sizing:border-box",
     "padding:7px 9px",
     "border:1px solid rgba(255,255,255,0.16)",
     "border-radius:6px",
@@ -140,7 +142,8 @@ function ensureTooltipElement() {
     "box-shadow:0 4px 14px rgba(0,0,0,0.35)",
     "color:#f2f2f2",
     "font:12px/1.35 system-ui,-apple-system,'Segoe UI',sans-serif",
-    "white-space:nowrap",
+    "white-space:normal",
+    "overflow-wrap:anywhere",
   ].join(";");
 
   document.body.appendChild(tooltip);
