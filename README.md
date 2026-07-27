@@ -287,7 +287,8 @@ comfyui_inteliweb_nodes/
 │   ├── LoraStack_Inteliweb.js
 │   ├── Seed_Inteliweb.js
 │   └── SetGet_Inteliweb.js
-└── assets/
+├── assets/
+└── workflows/
 ```
 
 ## Compatibilidad
@@ -298,6 +299,16 @@ comfyui_inteliweb_nodes/
 - NVIDIA: métricas completas mediante `pynvml`.
 - AMD/ROCm: nombre y VRAM mediante PyTorch cuando el entorno lo permite.
 - Diseñado alrededor de funciones oficiales de ComfyUI.
+
+## Demo Workflow
+
+A complete workflow demonstrating the Inteliweb nodes is included:
+
+`workflows/testing-inteliweb-nodes-v0.20.0.json`
+
+Drag the JSON file into ComfyUI to load it.
+
+The workflow uses Z-Image Turbo. Model download links are included inside the workflow.
 
 ## Créditos
 
