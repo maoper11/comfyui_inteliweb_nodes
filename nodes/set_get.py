@@ -26,6 +26,7 @@ class SetInteliwebRegistration:
     )
     SEARCH_ALIASES = [
         "Set Inteliweb",
+        "Set Node",
         "Set Variable",
         "Named Variable",
         "Wireless Connection",
@@ -52,6 +53,7 @@ class GetInteliwebRegistration:
     )
     SEARCH_ALIASES = [
         "Get Inteliweb",
+        "Get Node",
         "Get Variable",
         "Named Variable",
         "Wireless Connection",
