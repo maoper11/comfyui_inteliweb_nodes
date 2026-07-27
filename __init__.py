@@ -1,4 +1,5 @@
 from .nodes import (
+    InteliwebImageCompare,
     InteliwebInputSwitch,
     InteliwebLabel,
     InteliwebLoraStack,
@@ -21,6 +22,7 @@ NODE_CLASS_MAPPINGS = {
     "InteliwebStringIndexSelector": InteliwebStringIndexSelector,
     "InteliwebLabel": InteliwebLabel,
     "InteliwebLoraStack": InteliwebLoraStack,
+    "InteliwebImageCompare": InteliwebImageCompare,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -32,6 +34,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "InteliwebStringIndexSelector": "String Index Selector (Inteliweb)",
     "InteliwebLabel": "Label (Inteliweb)",
     "InteliwebLoraStack": "Load LoRA Stack (Inteliweb)",
+    "InteliwebImageCompare": "Image Compare (Inteliweb)",
 }
 
 import os as _os

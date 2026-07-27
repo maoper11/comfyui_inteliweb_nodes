@@ -1,5 +1,6 @@
 """Node implementations for comfyui_inteliweb_nodes."""
 
+from .image_compare import InteliwebImageCompare
 from .input_switch import InteliwebInputSwitch
 from .label import InteliwebLabel
 from .lora_stack import InteliwebLoraStack
@@ -10,6 +11,7 @@ from .string_index_selector import InteliwebStringIndexSelector
 from .system_check import InteliwebSystemCheck
 
 __all__ = [
+    "InteliwebImageCompare",
     "InteliwebInputSwitch",
     "InteliwebLabel",
     "InteliwebLoraStack",
