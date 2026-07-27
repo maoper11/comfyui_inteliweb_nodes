@@ -28,7 +28,7 @@ const ACTIONS = [
 ];
 
 const state = {
-  showTooltips: true,
+  showTooltips: false,
   canvasElement: null,
   tooltipElement: null,
   activeAction: null,
@@ -249,7 +249,8 @@ app.registerExtension({
       id: `${SETTING_PREFIX}showTooltips`,
       name: "Show tooltips",
       type: "boolean",
-      defaultValue: true,
+      defaultValue: false,
+      sortOrder: -100,
       tooltip: "Shows a short explanation when hovering over Run, Bypass or Mute.",
       category: ["Inteliweb", "Groups", "Show tooltips"],
       onChange: (value) => {
@@ -260,7 +261,7 @@ app.registerExtension({
   ],
 
   setup() {
-    state.showTooltips = Boolean(readSetting("showTooltips", true));
+    state.showTooltips = Boolean(readSetting("showTooltips", false));
     startCanvasIntegration();
   },
 });
