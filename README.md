@@ -10,7 +10,7 @@
   </a>
 </p>
 
-> Utilidades de Inteliweb AI para controlar semillas, organizar conexiones, monitorear recursos, liberar memoria, enrutar entradas y construir prompts dentro de ComfyUI.
+> Utilidades de Inteliweb AI para controlar semillas, organizar conexiones, comparar imágenes, cargar LoRAs, documentar workflows, monitorear recursos, liberar memoria, enrutar entradas y construir prompts dentro de ComfyUI.
 
 ## Cambios en v0.20.0
 
@@ -19,6 +19,9 @@
 - Añadidos **Set (Inteliweb)** y **Get (Inteliweb)** para reutilizar conexiones por nombre y reducir cables largos.
 - Set y Get adoptan automáticamente el tipo y el color de datos como `MODEL`, `CLIP`, `IMAGE`, `LATENT`, `VAE` o `CONDITIONING`.
 - Cuando Get está conectado, su selector puede mostrar solamente variables Set compatibles con el tipo de entrada destino.
+- Añadido **Image Compare (Inteliweb)** para comparar dos imágenes con vistas **Left Right**, **Up Down**, **Toggle** y **Side by Side**.
+- Añadido **Label (Inteliweb)** para crear etiquetas visuales personalizables dentro del workflow.
+- Añadido **Load LoRA Stack (Inteliweb)** para aplicar varias LoRAs en orden, activarlas, reordenarlas y conservar rutas portables entre Windows y Linux.
 - Añadidos controles rápidos para grupos nativos de ComfyUI: **Run**, **Bypass** y **Mute**, con visibilidad `Always` o `Hover`.
 - Compatibilidad con Classic, Nodes 2.0 y subgraphs modernos.
 
@@ -128,6 +131,43 @@ Permiten reutilizar una conexión por nombre sin mantener cables largos atravesa
 - Funcionan como nodos virtuales: no agregan procesamiento al backend.
 - IDs internos: `SetInteliweb` y `GetInteliweb`.
 - Categoría: `Inteliweb/Logic`.
+
+### Image Compare (Inteliweb)
+
+Compara dos imágenes directamente dentro del workflow.
+
+- Entradas opcionales `image_a` e `image_b`.
+- Modos **Left Right**, **Up Down**, **Toggle** y **Side by Side**.
+- Las vistas divididas permiten mover el separador para revisar diferencias con precisión.
+- Conserva el estado de visualización y las últimas previews del nodo.
+- Compatible con Classic y Nodes 2.0.
+- ID interno: `InteliwebImageCompare`.
+- Categoría: `Inteliweb/Image`.
+
+### Label (Inteliweb)
+
+Etiqueta visual para organizar y documentar workflows sin intervenir en la ejecución.
+
+- Edición mediante doble clic o desde **Edit Label** en el menú contextual.
+- Permite cambiar texto, fuente, tamaño, estilo, color, alineación, padding, bordes y opacidad.
+- Soporta fondo de color o transparente.
+- El tamaño del nodo se adapta automáticamente al contenido.
+- No tiene entradas ni salidas de ejecución.
+- ID interno: `InteliwebLabel`.
+- Categoría: `Inteliweb/Text`.
+
+### Load LoRA Stack (Inteliweb)
+
+Aplica varias LoRAs secuencialmente sobre un modelo.
+
+- Botón **Add LoRA** para agregar filas dinámicas.
+- Cada LoRA puede activarse, desactivarse, reordenarse o eliminarse.
+- Control de fuerza compartida para `MODEL` y `CLIP`.
+- La entrada `CLIP` es opcional para cargas que solo modifican el modelo.
+- Las rutas se guardan con `/` y se resuelven de forma portable entre Windows y Linux.
+- Salidas `MODEL` y `CLIP` después de aplicar las LoRAs habilitadas en orden.
+- ID interno: `InteliwebLoraStack`.
+- Categoría: `Inteliweb/Loaders`.
 
 ### Replace Text Multi (Inteliweb)
 
@@ -242,6 +282,9 @@ comfyui_inteliweb_nodes/
 │   └── system_check.py
 ├── web/
 │   ├── GroupHeaderControls_Inteliweb.js
+│   ├── ImageCompare_Inteliweb.js
+│   ├── Label_Inteliweb.js
+│   ├── LoraStack_Inteliweb.js
 │   ├── Seed_Inteliweb.js
 │   └── SetGet_Inteliweb.js
 └── assets/
