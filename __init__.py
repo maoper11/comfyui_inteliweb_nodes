@@ -52,8 +52,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "InteliwebLabel": "Label (Inteliweb)",
     "InteliwebLoraStack": "Load LoRA Stack (Inteliweb)",
     "InteliwebImageCompare": "Image Compare (Inteliweb)",
-    "SetInteliweb": "Set Inteliweb",
-    "GetInteliweb": "Get Inteliweb",
+    "SetInteliweb": "Set (Inteliweb)",
+    "GetInteliweb": "Get (Inteliweb)",
 }
 
 import os as _os
