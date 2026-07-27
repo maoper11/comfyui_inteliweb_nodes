@@ -447,10 +447,14 @@ function createNodes2Widget(node) {
   canvas.style.cssText = "display:block;width:100%;height:100%;cursor:default;";
   root.appendChild(canvas);
 
+  const widgetHeight = () => Math.max(180, (node.size?.[1] || MIN_HEIGHT) - 86);
+  const logicalSize = () => ({
+    width: Math.max(1, root.clientWidth || root.offsetWidth || node.size?.[0] || MIN_WIDTH),
+    height: Math.max(1, root.clientHeight || root.offsetHeight || widgetHeight()),
+  });
+
   const render = () => {
-    const rect = root.getBoundingClientRect();
-    const width = Math.max(1, rect.width);
-    const height = Math.max(1, rect.height);
+    const { width, height } = logicalSize();
     const dpr = window.devicePixelRatio || 1;
     const pixelWidth = Math.round(width * dpr);
     const pixelHeight = Math.round(height * dpr);
@@ -469,7 +473,15 @@ function createNodes2Widget(node) {
 
   const localPoint = (event) => {
     const rect = canvas.getBoundingClientRect();
-    return [event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height];
+    const { width, height } = logicalSize();
+    const scaleX = rect.width > 0 ? width / rect.width : 1;
+    const scaleY = rect.height > 0 ? height / rect.height : 1;
+    return [
+      (event.clientX - rect.left) * scaleX,
+      (event.clientY - rect.top) * scaleY,
+      width,
+      height,
+    ];
   };
 
   canvas.addEventListener("pointerdown", (event) => {
@@ -489,7 +501,6 @@ function createNodes2Widget(node) {
     }
   });
 
-  const widgetHeight = () => Math.max(180, (node.size?.[1] || MIN_HEIGHT) - 86);
   const observer = new ResizeObserver(render);
   observer.observe(root);
   node.__inteliwebCompareDom = { root, canvas, observer };
