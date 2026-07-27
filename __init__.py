@@ -1,4 +1,5 @@
 from .nodes import (
+    GetInteliwebRegistration,
     InteliwebImageCompare,
     InteliwebInputSwitch,
     InteliwebLabel,
@@ -8,7 +9,21 @@ from .nodes import (
     InteliwebReplaceTextMulti,
     InteliwebStringIndexSelector,
     InteliwebSystemCheck,
+    SetInteliwebRegistration,
 )
+
+# Keep every node under one consistently capitalized top-level category.
+InteliwebSystemCheck.CATEGORY = "Inteliweb/Utils"
+InteliwebPurgeVRAM.CATEGORY = "Inteliweb/Utils"
+InteliwebInputSwitch.CATEGORY = "Inteliweb/Utils"
+InteliwebReplaceTextMulti.CATEGORY = "Inteliweb/Text"
+InteliwebPromptList.CATEGORY = "Inteliweb/Text"
+InteliwebStringIndexSelector.CATEGORY = "Inteliweb/Text"
+InteliwebLabel.CATEGORY = "Inteliweb/Text"
+InteliwebLoraStack.CATEGORY = "Inteliweb/Loaders"
+InteliwebImageCompare.CATEGORY = "Inteliweb/Image"
+SetInteliwebRegistration.CATEGORY = "Inteliweb/Logic"
+GetInteliwebRegistration.CATEGORY = "Inteliweb/Logic"
 
 # Registers the scanner-friendly /inteliweb/resource_monitor endpoint.
 from . import resource_monitor as _resource_monitor  # noqa: F401
@@ -23,6 +38,8 @@ NODE_CLASS_MAPPINGS = {
     "InteliwebLabel": InteliwebLabel,
     "InteliwebLoraStack": InteliwebLoraStack,
     "InteliwebImageCompare": InteliwebImageCompare,
+    "SetInteliweb": SetInteliwebRegistration,
+    "GetInteliweb": GetInteliwebRegistration,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -35,6 +52,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "InteliwebLabel": "Label (Inteliweb)",
     "InteliwebLoraStack": "Load LoRA Stack (Inteliweb)",
     "InteliwebImageCompare": "Image Compare (Inteliweb)",
+    "SetInteliweb": "Set Inteliweb",
+    "GetInteliweb": "Get Inteliweb",
 }
 
 import os as _os
