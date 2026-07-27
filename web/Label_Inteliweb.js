@@ -1,6 +1,9 @@
 import { app } from "../../scripts/app.js";
 
 const NODE_CLASS = "InteliwebLabel";
+const FONT_SIZE_MIN = 8;
+const FONT_SIZE_MAX = 500;
+
 const DEFAULTS = Object.freeze({
   text: "Label Inteliweb",
   fontSize: 36,
@@ -54,6 +57,10 @@ function clamp(value, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, Number.isFinite(number) ? number : minimum));
 }
 
+function isHexColor(value) {
+  return /^#[0-9a-f]{6}$/i.test(String(value || ""));
+}
+
 function fontStack(fontFamily) {
   return FONT_STACKS[fontFamily] || `'${fontFamily}', system-ui, sans-serif`;
 }
@@ -71,7 +78,7 @@ function readConfig(node) {
   const styleChoice = ["normal", "bold", "italic"].includes(p.fontStyle) ? p.fontStyle : "bold";
   return {
     text: String(p.text ?? DEFAULTS.text),
-    fontSize: clamp(p.fontSize ?? DEFAULTS.fontSize, 8, 300),
+    fontSize: clamp(p.fontSize ?? DEFAULTS.fontSize, FONT_SIZE_MIN, FONT_SIZE_MAX),
     fontFamily: String(p.fontFamily ?? DEFAULTS.fontFamily),
     styleChoice,
     fontWeight: styleChoice === "bold" ? "bold" : "normal",
@@ -216,6 +223,50 @@ function injectCss() {
   border-radius: 6px !important;
   background: #1d1d1d !important;
   cursor: pointer !important;
+}
+.inteliweb-label-background {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.inteliweb-label-transparent {
+  position: relative;
+  width: 40px;
+  height: 34px;
+  padding: 4px;
+  border: 1px solid #484848;
+  border-radius: 6px;
+  background: #242424;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.inteliweb-label-transparent:hover {
+  background: #303030;
+}
+.inteliweb-label-transparent.active {
+  border-color: #ff6647;
+  box-shadow: 0 0 0 1px #ff6647;
+  background: #38241f;
+}
+.inteliweb-label-transparent-checker {
+  position: absolute;
+  inset: 5px;
+  border-radius: 3px;
+  background: conic-gradient(#d0d0d0 25%, #777 0 50%, #d0d0d0 0 75%, #777 0) 0 0 / 10px 10px;
+}
+.inteliweb-label-transparent-slash {
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  top: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: #ff6647;
+  transform: rotate(-35deg);
+  transform-origin: center;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
 }
 .inteliweb-label-range {
   display: grid;
@@ -433,14 +484,69 @@ function colorInput(value, fallback) {
   const input = document.createElement("input");
   input.type = "color";
   input.className = "inteliweb-label-color";
-  input.value = /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
+  input.value = isHexColor(value) ? value : fallback;
   return input;
+}
+
+function backgroundInput(value, rememberedValue = DEFAULTS.backgroundColor) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "inteliweb-label-background";
+
+  const transparent = value === "transparent";
+  const rememberedColor = isHexColor(rememberedValue)
+    ? rememberedValue
+    : isHexColor(value)
+      ? value
+      : DEFAULTS.backgroundColor;
+  const color = colorInput(value, rememberedColor);
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "inteliweb-label-transparent";
+  button.title = "Transparent background";
+  button.setAttribute("aria-label", "Transparent background");
+
+  const checker = document.createElement("span");
+  checker.className = "inteliweb-label-transparent-checker";
+  const slash = document.createElement("span");
+  slash.className = "inteliweb-label-transparent-slash";
+  button.append(checker, slash);
+
+  let isTransparent = transparent;
+  const refresh = () => {
+    button.classList.toggle("active", isTransparent);
+    button.setAttribute("aria-pressed", String(isTransparent));
+    color.disabled = isTransparent;
+    color.style.opacity = isTransparent ? "0.45" : "1";
+    color.style.cursor = isTransparent ? "not-allowed" : "pointer";
+  };
+
+  button.addEventListener("click", () => {
+    isTransparent = !isTransparent;
+    refresh();
+  });
+
+  Object.defineProperties(wrapper, {
+    value: {
+      configurable: true,
+      get: () => (isTransparent ? "transparent" : color.value),
+    },
+    colorValue: {
+      configurable: true,
+      get: () => color.value,
+    },
+  });
+
+  wrapper.append(color, button);
+  refresh();
+  return wrapper;
 }
 
 function openEditor(node) {
   if (node.__inteliwebCloseEditor) return;
   injectCss();
   const config = readConfig(node);
+  const properties = ensureProperties(node);
 
   const overlay = document.createElement("div");
   Object.assign(overlay.style, {
@@ -478,15 +584,21 @@ function openEditor(node) {
   text.value = config.text;
   text.rows = 4;
   text.style.resize = "vertical";
-  const fontSize = rangeNumberInput(config.fontSize, 8, 300, 1, 0);
+  const fontSize = rangeNumberInput(config.fontSize, FONT_SIZE_MIN, FONT_SIZE_MAX, 1, 0);
   const fontFamily = selectInput(FONT_OPTIONS, config.fontFamily);
   const fontStyle = segmentedInput(
     [["normal", "Normal"], ["bold", "Bold"], ["italic", "Italic"]],
     config.styleChoice,
   );
-  const textColor = colorInput(config.textColor, "#000000");
-  const backgroundColor = colorInput(config.backgroundColor, "#a3e635");
-  const textAlign = segmentedInput([["left", "Left"], ["center", "Center"], ["right", "Right"]], config.textAlign);
+  const textColor = colorInput(config.textColor, DEFAULTS.textColor);
+  const backgroundColor = backgroundInput(
+    config.backgroundColor,
+    properties.backgroundColorBeforeTransparent,
+  );
+  const textAlign = segmentedInput(
+    [["left", "Left"], ["center", "Center"], ["right", "Right"]],
+    config.textAlign,
+  );
   const padding = rangeNumberInput(config.padding, 0, 100, 1, 0);
   const radius = rangeNumberInput(config.borderRadius, 0, 200, 1, 0);
   const opacity = rangeNumberInput(config.opacity, 0, 1, 0.05, 2);
@@ -552,11 +664,12 @@ function openEditor(node) {
     node.properties = {
       ...ensureProperties(node),
       text: text.value,
-      fontSize: Number(fontSize.value) || DEFAULTS.fontSize,
+      fontSize: clamp(fontSize.value, FONT_SIZE_MIN, FONT_SIZE_MAX),
       fontFamily: fontFamily.value,
       fontStyle: fontStyle.value,
       textColor: textColor.value,
       backgroundColor: backgroundColor.value,
+      backgroundColorBeforeTransparent: backgroundColor.colorValue,
       textAlign: textAlign.value,
       padding: Number(padding.value) || 0,
       borderRadius: Number(radius.value) || 0,
