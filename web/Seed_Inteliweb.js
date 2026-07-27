@@ -59,7 +59,7 @@ function refreshSeedUI(node) {
     node._inteliwebLastSeedButton.disabled = !hasLast || seed === last;
     setButtonText(
       node._inteliwebLastSeedButton,
-      hasLast ? `♻️ Use Last Seed (${last})` : "♻️ (Use Last Seed)",
+      hasLast ? `↩️ Use Last Seed (${last})` : "↩️ (Use Last Seed)",
     );
   }
   app.canvas?.setDirty?.(true, true);
@@ -104,7 +104,7 @@ function setupSeedNode(node) {
 
   const randomButton = node.addWidget(
     "button",
-    "🎲 Randomize Each Time",
+    "🔀 Randomize Each Time",
     null,
     () => writeSeed(node, RANDOM_SENTINEL),
     { serialize: false },
@@ -113,7 +113,7 @@ function setupSeedNode(node) {
 
   const fixedButton = node.addWidget(
     "button",
-    "🎲 New Fixed Random",
+    "🆕 New Fixed Random",
     null,
     () => writeSeed(node, randomSeed()),
     { serialize: false },
@@ -122,7 +122,7 @@ function setupSeedNode(node) {
 
   const lastButton = node.addWidget(
     "button",
-    "♻️ (Use Last Seed)",
+    "↩️ (Use Last Seed)",
     null,
     () => {
       const last = node._inteliwebLastQueuedSeed;
