@@ -36,7 +36,7 @@ class InteliwebPromptList:
         }
 
     RETURN_TYPES = ("LIST", "STRING")
-    RETURN_NAMES = ("prompt_list", "prompt_strings")
+    RETURN_NAMES = ("PROMPT_LIST", "PROMPT_STRINGS")
     OUTPUT_IS_LIST = (False, True)
     OUTPUT_TOOLTIPS = (
         "The prompts packaged as one LIST value for nodes that explicitly accept a LIST.",
