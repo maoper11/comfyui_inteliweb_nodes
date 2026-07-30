@@ -1,7 +1,15 @@
 import { app } from "../../scripts/app.js";
 
 const CATEGORIES = {
-  System: ["Python version", "Operating System", "CPU", "RAM"],
+  System: [
+    "ComfyUI Version",
+    "Frontend Version",
+    "Inteliweb Nodes Version",
+    "Python version",
+    "Operating System",
+    "CPU",
+    "RAM",
+  ],
   "GPU & Runtime": ["VRAM", "GPU", "Accelerator runtime"],
   "Acceleration & Attention": ["PyTorch", "torchvision", "xformers", "triton", "SageAttention", "FlashAttention", "bitsandbytes"],
   "Vision & Media": ["numpy", "Pillow", "OpenCV", "timm", "kornia", "scipy", "scikit-image", "AV"],
@@ -10,6 +18,7 @@ const CATEGORIES = {
 };
 
 const ICONS = {
+  "ComfyUI Version": "🧩", "Frontend Version": "🖥️", "Inteliweb Nodes Version": "🟢",
   "Python version": "🐍", "Operating System": "🖥️", CPU: "⚙️", RAM: "🧠",
   VRAM: "🎮", GPU: "🎮", "Accelerator runtime": "🚀", PyTorch: "🔥",
   torchvision: "👁️", xformers: "⚡", triton: "🔱", SageAttention: "🌿",

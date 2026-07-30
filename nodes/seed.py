@@ -38,7 +38,7 @@ class InteliwebSeed:
         }
 
     RETURN_TYPES = ("INT",)
-    RETURN_NAMES = ("seed",)
+    RETURN_NAMES = ("SEED",)
     OUTPUT_TOOLTIPS = (
         "Seed value to connect to KSampler or any other seed input.",
     )

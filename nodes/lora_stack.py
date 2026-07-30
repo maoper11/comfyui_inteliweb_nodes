@@ -166,7 +166,7 @@ class InteliwebLoraStack:
         }
 
     RETURN_TYPES = ("MODEL", "CLIP")
-    RETURN_NAMES = ("model", "clip")
+    RETURN_NAMES = ("MODEL", "CLIP")
     OUTPUT_TOOLTIPS = (
         "Model after applying all enabled LoRAs in order.",
         "Modified CLIP when connected; otherwise None.",

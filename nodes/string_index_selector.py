@@ -35,7 +35,7 @@ class InteliwebStringIndexSelector:
         return {"required": required}
 
     RETURN_TYPES = ("STRING", "INT")
-    RETURN_NAMES = ("string", "selected_index")
+    RETURN_NAMES = ("string", "SELECTED_INDEX")
     FUNCTION = "select_string"
     CATEGORY = "inteliweb/text"
     DESCRIPTION = (
