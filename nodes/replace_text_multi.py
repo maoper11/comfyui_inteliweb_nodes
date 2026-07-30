@@ -43,7 +43,7 @@ class InteliwebReplaceTextMulti:
         return {"required": required}
 
     RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("string",)
+    RETURN_NAMES = ("STRING",)
     FUNCTION = "replace_text"
     CATEGORY = "inteliweb/text"
     DESCRIPTION = (
