@@ -6,7 +6,7 @@ const MIN_NODE_WIDTH = 370;
 const MIN_CONTENT_WIDTH = 350;
 const MIN_NODE_HEIGHT = 110;
 const FALLBACK_WIDGET_TOP = 76;
-const BOTTOM_PADDING = 8;
+const BOTTOM_PADDING = 5;
 
 function injectCompactStyles() {
   if (document.getElementById(STYLE_ID)) return;
@@ -21,34 +21,42 @@ function injectCompactStyles() {
   min-width: ${MIN_CONTENT_WIDTH}px !important;
   height: max-content !important;
   min-height: 0 !important;
-  padding: 1px 2px 2px !important;
-}
-
-.inteliweb-lora-toolbar {
-  position: absolute !important;
-  z-index: 4;
-  top: -46px;
-  left: 50%;
-  width: min(150px, calc(100% - 150px));
-  min-width: 118px;
-  transform: translateX(-50%);
-  pointer-events: auto;
-}
-
-.inteliweb-lora-toolbar .inteliweb-lora-button {
-  width: 100%;
-  min-height: 24px !important;
-  height: 24px;
-  padding: 0 8px;
-  border-radius: 5px;
-  font-size: 11px;
-  line-height: 22px;
+  padding: 1px 2px 0 !important;
 }
 
 .inteliweb-lora-summary {
-  min-height: 25px !important;
-  padding: 2px 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  min-height: 27px !important;
+  padding: 2px 4px 2px 6px !important;
   border-radius: 5px !important;
+}
+
+.inteliweb-lora-summary > .inteliweb-lora-switch-control {
+  flex: 0 0 auto;
+}
+
+.inteliweb-lora-summary .inteliweb-lora-toolbar {
+  position: static !important;
+  z-index: auto !important;
+  display: block !important;
+  width: auto !important;
+  min-width: 0 !important;
+  margin-left: auto !important;
+  transform: none !important;
+  pointer-events: auto;
+}
+
+.inteliweb-lora-summary .inteliweb-lora-toolbar .inteliweb-lora-button {
+  width: 98px !important;
+  min-height: 23px !important;
+  height: 23px !important;
+  padding: 0 7px !important;
+  border-radius: 5px !important;
+  font-size: 11px !important;
+  line-height: 21px !important;
+  white-space: nowrap;
 }
 
 .inteliweb-lora-rows {
@@ -72,7 +80,7 @@ function injectCompactStyles() {
 .inteliweb-lora-picker-trigger,
 .inteliweb-lora-icon-button {
   min-height: 25px !important;
-  height: 25px;
+  height: 25px !important;
 }
 
 .inteliweb-lora-row input[type="number"] {
@@ -145,13 +153,17 @@ function loraWidgetTop(node) {
   return Number.isFinite(top) && top > 0 ? top : FALLBACK_WIDGET_TOP;
 }
 
+function applyCompactMinimums(node) {
+  node.min_size ||= [MIN_NODE_WIDTH, MIN_NODE_HEIGHT];
+  node.min_size[0] = MIN_NODE_WIDTH;
+  node.min_size[1] = MIN_NODE_HEIGHT;
+}
+
 function fitCompactNode(node) {
   const root = node.__inteliwebLoraRoot;
   if (!root?.isConnected) return;
 
-  node.min_size ||= [MIN_NODE_WIDTH, MIN_NODE_HEIGHT];
-  node.min_size[0] = MIN_NODE_WIDTH;
-  node.min_size[1] = MIN_NODE_HEIGHT;
+  applyCompactMinimums(node);
 
   const width = Math.max(MIN_NODE_WIDTH, Number(node.size?.[0]) || MIN_NODE_WIDTH);
   const contentHeight = Math.max(0, intrinsicRootHeight(root));
@@ -161,9 +173,10 @@ function fitCompactNode(node) {
     MIN_NODE_HEIGHT,
     Math.ceil(loraWidgetTop(node) + contentHeight + BOTTOM_PADDING),
   );
+  node.__inteliwebCompactDesiredHeight = height;
+
   const currentWidth = Number(node.size?.[0]) || 0;
   const currentHeight = Number(node.size?.[1]) || 0;
-
   if (Math.abs(currentWidth - width) > 1 || Math.abs(currentHeight - height) > 1) {
     node.setSize?.([width, height]);
   }
@@ -172,14 +185,44 @@ function fitCompactNode(node) {
 
 function scheduleCompactFit(node) {
   cancelAnimationFrame(node.__inteliwebCompactFitFrame || 0);
+
+  // Measure immediately so the original LoRA Stack auto-fit never gets a frame
+  // in which it can expand the node before this compact override corrects it.
+  fitCompactNode(node);
+
   node.__inteliwebCompactFitFrame = requestAnimationFrame(() => {
-    node.__inteliwebCompactFitFrame = requestAnimationFrame(() => {
-      node.__inteliwebCompactFitFrame = requestAnimationFrame(() => fitCompactNode(node));
-    });
+    fitCompactNode(node);
   });
 }
 
-function showRowMenu(event, rowElement, controls) {
+function installSetSizeGuard(node) {
+  if (node.__inteliwebCompactSetSizeInstalled || typeof node.setSize !== "function") return;
+
+  node.__inteliwebCompactSetSizeInstalled = true;
+  const originalSetSize = node.setSize;
+
+  node.setSize = function (size, ...args) {
+    const requested = Array.isArray(size) ? [...size] : size;
+    if (Array.isArray(requested)) {
+      requested[0] = Math.max(MIN_NODE_WIDTH, Number(requested[0]) || MIN_NODE_WIDTH);
+
+      const desiredHeight = Number(this.__inteliwebCompactDesiredHeight);
+      if (this.__inteliwebLoraRoot?.isConnected && Number.isFinite(desiredHeight)) {
+        requested[1] = desiredHeight;
+      }
+    }
+    return originalSetSize.call(this, requested, ...args);
+  };
+}
+
+function moveToolbarIntoSummary(root) {
+  const toolbar = root.querySelector(".inteliweb-lora-toolbar");
+  const summary = root.querySelector(".inteliweb-lora-summary");
+  if (!toolbar || !summary || summary.contains(toolbar)) return;
+  summary.appendChild(toolbar);
+}
+
+function showRowMenu(event, controls) {
   event.preventDefault();
   event.stopPropagation();
 
@@ -221,6 +264,8 @@ function compactRows(node) {
   const root = node.__inteliwebLoraRoot;
   if (!root) return;
 
+  moveToolbarIntoSummary(root);
+
   for (const rowElement of root.querySelectorAll(".inteliweb-lora-row")) {
     if (rowElement.dataset.inteliwebCompact === "true") continue;
     rowElement.dataset.inteliwebCompact = "true";
@@ -237,15 +282,13 @@ function compactRows(node) {
     actions.title = "LoRA actions";
     actions.setAttribute("aria-label", "LoRA actions");
 
-    const openMenu = (event) => showRowMenu(event, rowElement, { toggle, up, down, remove });
+    const openMenu = (event) => showRowMenu(event, { toggle, up, down, remove });
     actions.addEventListener("click", openMenu);
     rowElement.addEventListener("contextmenu", openMenu);
     rowElement.appendChild(actions);
   }
 
-  node.min_size ||= [MIN_NODE_WIDTH, MIN_NODE_HEIGHT];
-  node.min_size[0] = MIN_NODE_WIDTH;
-  node.min_size[1] = MIN_NODE_HEIGHT;
+  applyCompactMinimums(node);
   scheduleCompactFit(node);
 }
 
@@ -261,6 +304,7 @@ function observeCompactNode(node) {
 
 function prepareCompactNode(node) {
   injectCompactStyles();
+  installSetSizeGuard(node);
 
   const waitForRoot = (attempt = 0) => {
     if (node.__inteliwebLoraRoot) {
@@ -285,9 +329,7 @@ app.registerExtension({
       const requestedWidth = Number(size?.[0]);
       const result = previousResize?.call(this, size, ...args);
 
-      this.min_size ||= [MIN_NODE_WIDTH, MIN_NODE_HEIGHT];
-      this.min_size[0] = MIN_NODE_WIDTH;
-      this.min_size[1] = MIN_NODE_HEIGHT;
+      applyCompactMinimums(this);
       if (Number.isFinite(requestedWidth)) {
         this.size[0] = Math.max(MIN_NODE_WIDTH, requestedWidth);
       }
