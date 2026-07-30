@@ -4,6 +4,9 @@ const NODE_CLASS = "InteliwebLoraStack";
 const STYLE_ID = "inteliweb-lora-stack-compact-css";
 const MIN_NODE_WIDTH = 370;
 const MIN_CONTENT_WIDTH = 350;
+const MIN_NODE_HEIGHT = 110;
+const FALLBACK_WIDGET_TOP = 76;
+const BOTTOM_PADDING = 8;
 
 function injectCompactStyles() {
   if (document.getElementById(STYLE_ID)) return;
@@ -13,15 +16,18 @@ function injectCompactStyles() {
   style.textContent = `
 .inteliweb-lora-stack {
   position: relative;
+  align-content: start !important;
   gap: 4px !important;
   min-width: ${MIN_CONTENT_WIDTH}px !important;
+  height: max-content !important;
+  min-height: 0 !important;
   padding: 1px 2px 2px !important;
 }
 
 .inteliweb-lora-toolbar {
   position: absolute !important;
   z-index: 4;
-  top: -58px;
+  top: -46px;
   left: 50%;
   width: min(150px, calc(100% - 150px));
   min-width: 118px;
@@ -48,6 +54,9 @@ function injectCompactStyles() {
 .inteliweb-lora-rows {
   gap: 4px !important;
   min-width: ${MIN_CONTENT_WIDTH}px !important;
+  height: max-content !important;
+  min-height: 0 !important;
+  align-content: start !important;
 }
 
 .inteliweb-lora-row {
@@ -112,19 +121,52 @@ function injectCompactStyles() {
   document.head.appendChild(style);
 }
 
+function intrinsicRootHeight(root) {
+  const rootStyle = getComputedStyle(root);
+  const gap = Number.parseFloat(rootStyle.rowGap || rootStyle.gap) || 0;
+  const paddingTop = Number.parseFloat(rootStyle.paddingTop) || 0;
+  const paddingBottom = Number.parseFloat(rootStyle.paddingBottom) || 0;
+  const children = [...root.children].filter((child) => {
+    const style = getComputedStyle(child);
+    return style.display !== "none" && style.position !== "absolute";
+  });
+  const childrenHeight = children.reduce((total, child) => total + child.offsetHeight, 0);
+  return Math.ceil(
+    paddingTop +
+      paddingBottom +
+      childrenHeight +
+      Math.max(0, children.length - 1) * gap,
+  );
+}
+
+function loraWidgetTop(node) {
+  const widget = node.widgets?.find((candidate) => candidate.name === "lora_stack_ui");
+  const top = Number(widget?.last_y);
+  return Number.isFinite(top) && top > 0 ? top : FALLBACK_WIDGET_TOP;
+}
+
 function fitCompactNode(node) {
   const root = node.__inteliwebLoraRoot;
   if (!root?.isConnected) return;
 
-  node.min_size ||= [MIN_NODE_WIDTH, 0];
+  node.min_size ||= [MIN_NODE_WIDTH, MIN_NODE_HEIGHT];
   node.min_size[0] = MIN_NODE_WIDTH;
+  node.min_size[1] = MIN_NODE_HEIGHT;
 
   const width = Math.max(MIN_NODE_WIDTH, Number(node.size?.[0]) || MIN_NODE_WIDTH);
-  const contentHeight = Math.ceil(root.getBoundingClientRect().height || root.offsetHeight || 0);
-  const height = Math.max(122, contentHeight + 76);
+  const contentHeight = Math.max(0, intrinsicRootHeight(root));
+  node.__inteliwebLoraUiHeight = contentHeight;
+
+  const height = Math.max(
+    MIN_NODE_HEIGHT,
+    Math.ceil(loraWidgetTop(node) + contentHeight + BOTTOM_PADDING),
+  );
+  const currentWidth = Number(node.size?.[0]) || 0;
   const currentHeight = Number(node.size?.[1]) || 0;
 
-  if (Math.abs(currentHeight - height) > 1) node.setSize?.([width, height]);
+  if (Math.abs(currentWidth - width) > 1 || Math.abs(currentHeight - height) > 1) {
+    node.setSize?.([width, height]);
+  }
   node.setDirtyCanvas?.(true, true);
 }
 
@@ -201,8 +243,9 @@ function compactRows(node) {
     rowElement.appendChild(actions);
   }
 
-  node.min_size ||= [MIN_NODE_WIDTH, 0];
+  node.min_size ||= [MIN_NODE_WIDTH, MIN_NODE_HEIGHT];
   node.min_size[0] = MIN_NODE_WIDTH;
+  node.min_size[1] = MIN_NODE_HEIGHT;
   scheduleCompactFit(node);
 }
 
@@ -242,8 +285,9 @@ app.registerExtension({
       const requestedWidth = Number(size?.[0]);
       const result = previousResize?.call(this, size, ...args);
 
-      this.min_size ||= [MIN_NODE_WIDTH, 0];
+      this.min_size ||= [MIN_NODE_WIDTH, MIN_NODE_HEIGHT];
       this.min_size[0] = MIN_NODE_WIDTH;
+      this.min_size[1] = MIN_NODE_HEIGHT;
       if (Number.isFinite(requestedWidth)) {
         this.size[0] = Math.max(MIN_NODE_WIDTH, requestedWidth);
       }
