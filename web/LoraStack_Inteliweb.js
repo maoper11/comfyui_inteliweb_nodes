@@ -3,8 +3,11 @@ import { api } from "../../scripts/api.js";
 
 const NODE_CLASS = "InteliwebLoraStack";
 const STYLE_ID = "inteliweb-lora-stack-css";
-const MIN_NODE_WIDTH = 400;
-const MIN_CONTENT_WIDTH = 380;
+const MIN_NODE_WIDTH = 220;
+const MIN_CONTENT_WIDTH = 200;
+const MIN_NODE_HEIGHT = 110;
+const BOTTOM_PADDING = 5;
+const FALLBACK_WIDGET_TOP = 96;
 const DEFAULT_STATE = Object.freeze({
   version: 1,
   separate_strengths: false,
@@ -61,6 +64,10 @@ function parseState(raw) {
 
 function stateWidget(node) {
   return node.widgets?.find((widget) => widget.name === "lora_stack");
+}
+
+function loraUiWidget(node) {
+  return node.widgets?.find((widget) => widget.name === "lora_stack_ui");
 }
 
 function hideStateWidget(node) {
@@ -143,13 +150,13 @@ function injectStyles() {
   display: grid;
   grid-auto-rows: max-content;
   align-content: start;
-  gap: 8px;
+  gap: 4px;
   width: 100%;
   min-width: ${MIN_CONTENT_WIDTH}px;
   height: max-content !important;
   min-height: 0 !important;
   box-sizing: border-box;
-  padding: 2px 2px 6px;
+  padding: 1px 2px 0;
   overflow: visible !important;
   font: 12px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   color: #e8e8e8;
@@ -168,16 +175,24 @@ function injectStyles() {
   border: 0 !important;
 }
 
-.inteliweb-lora-toolbar {
+.inteliweb-lora-header-row {
   display: grid;
-  grid-template-columns: 1fr;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  min-width: ${MIN_CONTENT_WIDTH}px;
 }
+
+.inteliweb-lora-toolbar {
+  display: block;
+  min-width: 0;
+}
+
 .inteliweb-lora-button,
 .inteliweb-lora-icon-button {
-  min-height: 30px;
   border: 1px solid #555;
-  border-radius: 6px;
+  border-radius: 5px;
   background: #2d2d2d;
   color: #ededed;
   cursor: pointer;
@@ -186,18 +201,22 @@ function injectStyles() {
 .inteliweb-lora-button:hover,
 .inteliweb-lora-icon-button:hover { background: #3a3a3a; }
 .inteliweb-lora-button.primary {
+  width: 84px;
+  min-height: 27px;
+  height: 27px;
+  padding: 0 4px;
   border-color: #555;
   background: #111111;
   color: #ffffff;
+  font-size: 10px;
+  line-height: 25px;
+  white-space: nowrap;
 }
 .inteliweb-lora-button.primary:hover {
   border-color: #707070;
   background: #1c1c1c;
 }
-.inteliweb-lora-icon-button {
-  width: 30px;
-  padding: 0;
-}
+.inteliweb-lora-button:disabled,
 .inteliweb-lora-icon-button:disabled {
   opacity: .35;
   cursor: default;
@@ -206,50 +225,46 @@ function injectStyles() {
 .inteliweb-lora-summary {
   display: flex;
   align-items: center;
-  min-height: 30px;
-  padding: 5px 8px;
+  gap: 6px;
+  min-width: 0;
+  min-height: 27px;
+  height: 27px;
+  padding: 2px 4px 2px 3px;
   border: 1px solid #4d4d4d;
-  border-radius: 6px;
+  border-radius: 5px;
   background: #292929;
   color: #c7c7c7;
 }
+
 .inteliweb-lora-rows {
   display: grid;
   grid-auto-rows: max-content;
-  gap: 6px;
+  gap: 4px;
   align-content: start;
   min-width: ${MIN_CONTENT_WIDTH}px;
+  height: max-content;
+  min-height: 0;
 }
+
 .inteliweb-lora-row {
   display: grid;
-  grid-template-columns: 36px minmax(90px, 1fr) 68px 30px 30px 30px;
-  gap: 4px;
+  grid-template-columns: 30px minmax(24px, 1fr) 58px 24px;
+  gap: 3px;
   align-items: center;
   min-width: ${MIN_CONTENT_WIDTH}px;
-  min-height: 42px;
-  padding: 5px;
+  min-height: 33px;
+  padding: 3px;
   border: 1px solid #4d4d4d;
-  border-radius: 7px;
+  border-radius: 6px;
   background: #252525;
 }
 .inteliweb-lora-row > * { min-width: 0; }
 .inteliweb-lora-row.disabled { opacity: .55; }
-.inteliweb-lora-row input[type="number"] {
-  width: 100%;
-  min-width: 0;
-  min-height: 30px;
-  border: 1px solid #505050;
-  border-radius: 5px;
-  background: #191919;
-  color: #f0f0f0;
-  padding: 4px 3px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
+
 .inteliweb-lora-empty {
-  padding: 12px;
+  padding: 7px;
   border: 1px dashed #555;
-  border-radius: 7px;
+  border-radius: 6px;
   color: #999;
   text-align: center;
 }
@@ -257,16 +272,19 @@ function injectStyles() {
 .inteliweb-lora-picker {
   position: relative;
   min-width: 0;
+  max-width: 100%;
 }
 .inteliweb-lora-picker-trigger {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 18px;
+  grid-template-columns: minmax(0, 1fr) 11px;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   width: 100%;
   min-width: 0;
-  min-height: 30px;
-  padding: 4px 6px;
+  max-width: 100%;
+  min-height: 25px;
+  height: 25px;
+  padding: 2px 3px;
   border: 1px solid #505050;
   border-radius: 5px;
   background: #191919;
@@ -286,6 +304,7 @@ function injectStyles() {
 }
 .inteliweb-lora-picker-value {
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -294,15 +313,16 @@ function injectStyles() {
 .inteliweb-lora-picker-value.missing { color: #ffcc80; }
 .inteliweb-lora-picker-caret {
   color: #aaa;
-  font-size: 10px;
+  font-size: 9px;
   text-align: center;
 }
+
 .inteliweb-lora-picker-popover {
   position: fixed;
   z-index: 100000;
   display: grid;
   grid-template-rows: max-content minmax(0, 1fr);
-  min-width: 320px;
+  min-width: 240px;
   max-width: calc(100vw - 16px);
   max-height: min(420px, calc(100vh - 16px));
   overflow: hidden;
@@ -384,7 +404,7 @@ function injectStyles() {
 .inteliweb-lora-switch-control {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
   user-select: none;
 }
@@ -402,8 +422,8 @@ function injectStyles() {
 .inteliweb-lora-switch-track {
   position: relative;
   display: inline-block;
-  width: 34px;
-  height: 18px;
+  width: 30px;
+  height: 16px;
   flex: 0 0 auto;
   border: 1px solid #666;
   border-radius: 999px;
@@ -415,8 +435,8 @@ function injectStyles() {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: #b8b8b8;
   transition: transform .12s ease, background .12s ease;
@@ -426,12 +446,82 @@ function injectStyles() {
   background: #666666;
 }
 .inteliweb-lora-switch-control input:checked + .inteliweb-lora-switch-track::after {
-  transform: translateX(16px);
+  transform: translateX(14px);
   background: #ffffff;
 }
 .inteliweb-lora-switch-control input:focus-visible + .inteliweb-lora-switch-track {
   outline: 2px solid #d0d0d0;
   outline-offset: 2px;
+}
+
+.inteliweb-lora-strength-control {
+  display: grid;
+  grid-template-columns: 14px minmax(20px, 1fr) 14px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 25px;
+  overflow: hidden;
+  border: 1px solid #505050;
+  border-radius: 5px;
+  background: #191919;
+}
+.inteliweb-lora-strength-control input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  min-height: 23px;
+  height: 23px;
+  padding: 1px 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: #f0f0f0;
+  font: inherit;
+  font-size: 10px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.inteliweb-lora-strength-control input[type="number"]::-webkit-inner-spin-button,
+.inteliweb-lora-strength-control input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.inteliweb-lora-strength-step {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  min-width: 14px;
+  height: 23px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+  font: inherit;
+  font-size: 8px;
+  line-height: 1;
+}
+.inteliweb-lora-strength-step:hover {
+  background: #303030;
+  color: #fff;
+}
+.inteliweb-lora-strength-step:focus-visible {
+  outline: 1px solid #bbb;
+  outline-offset: -2px;
+}
+
+.inteliweb-lora-actions {
+  width: 24px;
+  min-width: 24px;
+  min-height: 25px;
+  height: 25px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 22px;
 }
 `;
   document.head.appendChild(style);
@@ -466,17 +556,6 @@ function switchControl(checked, text = "", compact = false) {
   return { label, input };
 }
 
-function numberInput(value, title) {
-  const input = document.createElement("input");
-  input.type = "number";
-  input.min = "-100";
-  input.max = "100";
-  input.step = "0.05";
-  input.value = String(finiteNumber(value, 1));
-  input.title = title;
-  return input;
-}
-
 function closeActivePicker(restoreFocus = false) {
   if (!activePicker) return;
 
@@ -497,8 +576,8 @@ function positionPickerPanel(trigger, panel) {
   const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
   const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
   const width = Math.min(
-    Math.max(360, rect.width),
-    Math.max(240, viewportWidth - margin * 2),
+    Math.max(240, rect.width),
+    Math.max(220, viewportWidth - margin * 2),
   );
 
   panel.style.width = `${Math.round(width)}px`;
@@ -707,26 +786,117 @@ function createLoraPicker(current, loras, onChange) {
   return wrapper;
 }
 
+function createStrengthControl(value, title, onChange) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "inteliweb-lora-strength-control";
+
+  const decrease = button("◀", "inteliweb-lora-strength-step");
+  decrease.title = "Decrease strength";
+  decrease.setAttribute("aria-label", "Decrease LoRA strength");
+
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = "-100";
+  input.max = "100";
+  input.step = "0.05";
+  input.value = String(finiteNumber(value, 1));
+  input.title = title;
+
+  const increase = button("▶", "inteliweb-lora-strength-step");
+  increase.title = "Increase strength";
+  increase.setAttribute("aria-label", "Increase LoRA strength");
+
+  const commit = (nextValue = input.value) => {
+    const normalized = finiteNumber(nextValue, 1);
+    input.value = String(Number(normalized.toFixed(6)));
+    onChange(normalized);
+  };
+
+  const stepBy = (direction) => {
+    const current = finiteNumber(input.value, 1);
+    const step = Number(input.step) || 0.05;
+    commit(current + step * direction);
+  };
+
+  decrease.addEventListener("click", (event) => {
+    event.stopPropagation();
+    stepBy(-1);
+  });
+  increase.addEventListener("click", (event) => {
+    event.stopPropagation();
+    stepBy(1);
+  });
+  input.addEventListener("change", () => commit());
+
+  wrapper.append(decrease, input, increase);
+  return wrapper;
+}
+
+function showRowMenu(event, { enabled, canMoveUp, canMoveDown, onToggle, onMoveUp, onMoveDown, onRemove }) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const items = [
+    {
+      content: `${enabled ? "⚫" : "🟢"} ${enabled ? "Disable" : "Enable"}`,
+      callback: onToggle,
+    },
+    null,
+    {
+      content: "⬆️ Move Up",
+      disabled: !canMoveUp,
+      callback: onMoveUp,
+    },
+    {
+      content: "⬇️ Move Down",
+      disabled: !canMoveDown,
+      callback: onMoveDown,
+    },
+    {
+      content: "🗑️ Remove",
+      callback: onRemove,
+    },
+  ];
+
+  new LiteGraph.ContextMenu(items, {
+    title: "LORA",
+    event,
+  });
+}
+
 function measuredRootHeight(root) {
   const style = getComputedStyle(root);
-  const children = [...root.children];
   const gap = Number.parseFloat(style.rowGap || style.gap) || 0;
   const paddingTop = Number.parseFloat(style.paddingTop) || 0;
   const paddingBottom = Number.parseFloat(style.paddingBottom) || 0;
+  const children = [...root.children].filter((child) => {
+    const childStyle = getComputedStyle(child);
+    return childStyle.display !== "none" && childStyle.position !== "absolute";
+  });
   const childrenHeight = children.reduce((total, child) => total + child.offsetHeight, 0);
-  return Math.ceil(paddingTop + paddingBottom + childrenHeight + Math.max(0, children.length - 1) * gap);
+  return Math.ceil(
+    paddingTop + paddingBottom + childrenHeight + Math.max(0, children.length - 1) * gap,
+  );
 }
 
-function ensureMinimumNodeWidth(node) {
+function applyMinimums(node) {
   if (!node) return;
 
-  if (!node.min_size) node.min_size = [MIN_NODE_WIDTH, 0];
-  else node.min_size[0] = Math.max(MIN_NODE_WIDTH, Number(node.min_size[0]) || 0);
+  node.min_size ||= [MIN_NODE_WIDTH, MIN_NODE_HEIGHT];
+  node.min_size[0] = MIN_NODE_WIDTH;
+  node.min_size[1] = MIN_NODE_HEIGHT;
+
+  const widget = loraUiWidget(node);
+  if (widget) {
+    widget.options ||= {};
+    widget.options.minWidth = MIN_CONTENT_WIDTH;
+    widget.options.getMinWidth = () => MIN_CONTENT_WIDTH;
+    widget.getMinWidth = () => MIN_CONTENT_WIDTH;
+  }
 
   const currentWidth = Number(node.size?.[0]) || 0;
   if (currentWidth > 0 && currentWidth < MIN_NODE_WIDTH) {
     node.size[0] = MIN_NODE_WIDTH;
-    node.graph?.setDirtyCanvas?.(true, true);
   }
 }
 
@@ -734,16 +904,28 @@ function fitNodeToContent(node) {
   const root = node.__inteliwebLoraRoot;
   if (!root?.isConnected) return;
 
-  ensureMinimumNodeWidth(node);
-  const uiHeight = Math.max(70, measuredRootHeight(root));
+  applyMinimums(node);
+  const uiHeight = Math.max(0, measuredRootHeight(root));
   node.__inteliwebLoraUiHeight = uiHeight;
 
-  const width = Math.max(MIN_NODE_WIDTH, Number(node.size?.[0]) || MIN_NODE_WIDTH);
-  const height = Math.max(165, uiHeight + 100);
-  const currentWidth = Number(node.size?.[0]) || 0;
-  const currentHeight = Number(node.size?.[1]) || 0;
+  const computed = node.computeSize?.();
+  const computedHeight = Number(computed?.[1]);
+  const widgetTop = Number(loraUiWidget(node)?.last_y);
+  const fallbackHeight =
+    (Number.isFinite(widgetTop) && widgetTop > 0 ? widgetTop : FALLBACK_WIDGET_TOP) +
+    uiHeight +
+    BOTTOM_PADDING;
+  const height = Math.max(
+    MIN_NODE_HEIGHT,
+    Math.ceil(Number.isFinite(computedHeight) && computedHeight > 0
+      ? computedHeight + BOTTOM_PADDING
+      : fallbackHeight),
+  );
+  node.__inteliwebLoraDesiredHeight = height;
 
-  if (Math.abs(currentWidth - width) > 1 || Math.abs(currentHeight - height) > 1) {
+  const width = Math.max(MIN_NODE_WIDTH, Number(node.size?.[0]) || MIN_NODE_WIDTH);
+  const currentHeight = Number(node.size?.[1]) || 0;
+  if (Math.abs(currentHeight - height) > 1) {
     node.setSize?.([width, height]);
   }
   node.setDirtyCanvas?.(true, true);
@@ -751,9 +933,8 @@ function fitNodeToContent(node) {
 
 function scheduleFit(node) {
   cancelAnimationFrame(node.__inteliwebLoraFitFrame || 0);
-  node.__inteliwebLoraFitFrame = requestAnimationFrame(() => {
-    node.__inteliwebLoraFitFrame = requestAnimationFrame(() => fitNodeToContent(node));
-  });
+  fitNodeToContent(node);
+  node.__inteliwebLoraFitFrame = requestAnimationFrame(() => fitNodeToContent(node));
 }
 
 function renderNode(node) {
@@ -761,17 +942,15 @@ function renderNode(node) {
   if (!root) return;
 
   if (activePicker?.trigger && root.contains(activePicker.trigger)) closeActivePicker(false);
-  ensureMinimumNodeWidth(node);
+  applyMinimums(node);
 
   const state = readNodeState(node);
   state.separate_strengths = false;
   const loras = Array.isArray(cachedLoras) ? cachedLoras : [];
   root.replaceChildren();
 
-  const toolbar = document.createElement("div");
-  toolbar.className = "inteliweb-lora-toolbar";
-  const add = button("＋ Add LoRA", "inteliweb-lora-button primary");
-  toolbar.appendChild(add);
+  const header = document.createElement("div");
+  header.className = "inteliweb-lora-header-row";
 
   const summary = document.createElement("div");
   summary.className = "inteliweb-lora-summary";
@@ -781,6 +960,12 @@ function renderNode(node) {
   toggleAllControl.input.indeterminate = someEnabled && !allEnabled;
   toggleAllControl.input.disabled = state.loras.length === 0;
   summary.appendChild(toggleAllControl.label);
+
+  const toolbar = document.createElement("div");
+  toolbar.className = "inteliweb-lora-toolbar";
+  const add = button("＋ Add LoRA", "inteliweb-lora-button primary");
+  toolbar.appendChild(add);
+  header.append(summary, toolbar);
 
   const rows = document.createElement("div");
   rows.className = "inteliweb-lora-rows";
@@ -805,62 +990,70 @@ function renderNode(node) {
       renderNode(node);
     });
 
-    const strength = numberInput(row.strength, "MODEL and CLIP strength");
-    const up = button("↑", "inteliweb-lora-icon-button");
-    up.title = "Move up";
-    up.disabled = index === 0;
-    const down = button("↓", "inteliweb-lora-icon-button");
-    down.title = "Move down";
-    down.disabled = index === state.loras.length - 1;
-    const remove = button("×", "inteliweb-lora-icon-button");
-    remove.title = "Remove LoRA";
+    const strength = createStrengthControl(
+      row.strength,
+      "MODEL and CLIP strength",
+      (nextStrength) => {
+        row.strength = nextStrength;
+        row.strength_model = nextStrength;
+        row.strength_clip = nextStrength;
+        writeNodeState(node);
+      },
+    );
 
-    rowElement.append(enabledControl.label, picker, strength, up, down, remove);
-    rows.appendChild(rowElement);
-
-    enabledControl.input.addEventListener("change", () => {
-      row.on = enabledControl.input.checked;
-      rowElement.classList.toggle("disabled", !row.on);
-      writeNodeState(node);
-      renderNode(node);
-    });
-
-    strength.addEventListener("change", () => {
-      row.strength = finiteNumber(strength.value, 1);
-      row.strength_model = row.strength;
-      row.strength_clip = row.strength;
-      strength.value = String(row.strength);
-      writeNodeState(node);
-      scheduleFit(node);
-    });
-
-    up.addEventListener("click", () => {
+    const moveUp = () => {
       if (index <= 0) return;
       [state.loras[index - 1], state.loras[index]] = [state.loras[index], state.loras[index - 1]];
       writeNodeState(node);
       renderNode(node);
-    });
-
-    down.addEventListener("click", () => {
+    };
+    const moveDown = () => {
       if (index >= state.loras.length - 1) return;
       [state.loras[index + 1], state.loras[index]] = [state.loras[index], state.loras[index + 1]];
       writeNodeState(node);
       renderNode(node);
-    });
-
-    remove.addEventListener("click", () => {
+    };
+    const remove = () => {
       state.loras.splice(index, 1);
+      writeNodeState(node);
+      renderNode(node);
+    };
+    const toggle = () => {
+      row.on = !row.on;
+      writeNodeState(node);
+      renderNode(node);
+    };
+
+    const actions = button("⋮", "inteliweb-lora-icon-button inteliweb-lora-actions");
+    actions.title = "LoRA actions";
+    actions.setAttribute("aria-label", "LoRA actions");
+    const openMenu = (event) => showRowMenu(event, {
+      enabled: row.on !== false,
+      canMoveUp: index > 0,
+      canMoveDown: index < state.loras.length - 1,
+      onToggle: toggle,
+      onMoveUp: moveUp,
+      onMoveDown: moveDown,
+      onRemove: remove,
+    });
+    actions.addEventListener("click", openMenu);
+    rowElement.addEventListener("contextmenu", openMenu);
+
+    rowElement.append(enabledControl.label, picker, strength, actions);
+    rows.appendChild(rowElement);
+
+    enabledControl.input.addEventListener("change", () => {
+      row.on = enabledControl.input.checked;
       writeNodeState(node);
       renderNode(node);
     });
   });
 
-  root.append(toolbar, summary, rows);
+  root.append(header, rows);
 
   add.addEventListener("click", async () => {
     add.disabled = true;
     try {
-      // Fetch a current list here, so a separate refresh button is unnecessary.
       const available = await fetchLoras(true);
       state.loras.push({
         on: true,
@@ -892,7 +1085,7 @@ function prepareNode(node) {
   injectStyles();
   hideStateWidget(node);
   readNodeState(node);
-  ensureMinimumNodeWidth(node);
+  applyMinimums(node);
 
   if (!node.__inteliwebLoraRoot) {
     const root = document.createElement("div");
@@ -908,9 +1101,12 @@ function prepareNode(node) {
     if (widget?.options) {
       widget.options.canvasOnly = false;
       widget.options.minWidth = MIN_CONTENT_WIDTH;
+      widget.options.getMinWidth = () => MIN_CONTENT_WIDTH;
     }
+    if (widget) widget.getMinWidth = () => MIN_CONTENT_WIDTH;
   }
 
+  applyMinimums(node);
   renderNode(node);
   fetchLoras()
     .then(() => renderNode(node))
@@ -925,14 +1121,18 @@ app.registerExtension({
 
     const originalCreated = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function (...args) {
-      const result = originalCreated?.apply(this, args);
+      const result = typeof originalCreated === "function"
+        ? originalCreated.apply(this, args)
+        : undefined;
       queueMicrotask(() => prepareNode(this));
       return result;
     };
 
     const originalConfigure = nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure = function (...args) {
-      const result = originalConfigure?.apply(this, args);
+      const result = typeof originalConfigure === "function"
+        ? originalConfigure.apply(this, args)
+        : undefined;
       this.__inteliwebLoraState = null;
       queueMicrotask(() => prepareNode(this));
       return result;
@@ -940,9 +1140,17 @@ app.registerExtension({
 
     const originalResize = nodeType.prototype.onResize;
     nodeType.prototype.onResize = function (size, ...args) {
-      if (size && Number(size[0]) < MIN_NODE_WIDTH) size[0] = MIN_NODE_WIDTH;
-      const result = originalResize?.call(this, size, ...args);
-      ensureMinimumNodeWidth(this);
+      if (Array.isArray(size)) {
+        size[0] = Math.max(MIN_NODE_WIDTH, Number(size[0]) || MIN_NODE_WIDTH);
+        const desiredHeight = Number(this.__inteliwebLoraDesiredHeight);
+        if (Number.isFinite(desiredHeight)) size[1] = desiredHeight;
+      }
+
+      const result = typeof originalResize === "function"
+        ? originalResize.call(this, size, ...args)
+        : undefined;
+      applyMinimums(this);
+      this.graph?.setDirtyCanvas?.(true, true);
       return result;
     };
 
@@ -952,7 +1160,9 @@ app.registerExtension({
       if (activePicker?.trigger && this.__inteliwebLoraRoot?.contains(activePicker.trigger)) {
         closeActivePicker(false);
       }
-      return originalRemoved?.apply(this, args);
+      return typeof originalRemoved === "function"
+        ? originalRemoved.apply(this, args)
+        : undefined;
     };
   },
 
