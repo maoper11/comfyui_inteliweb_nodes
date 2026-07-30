@@ -134,17 +134,22 @@ function setupSeedNode(node) {
   lastButton.disabled = true;
   node._inteliwebLastSeedButton = lastButton;
 
-  const originalConfigure = node.onConfigure?.bind(node);
+  const originalConfigure = node.onConfigure;
   node.onConfigure = function (info) {
-    const result = originalConfigure?.(info);
+    const result =
+      typeof originalConfigure === "function"
+        ? originalConfigure.call(node, info)
+        : undefined;
     queueMicrotask(() => refreshSeedUI(this));
     return result;
   };
 
-  const originalRemoved = node.onRemoved?.bind(node);
-  node.onRemoved = function () {
+  const originalRemoved = node.onRemoved;
+  node.onRemoved = function (...args) {
     this._inteliwebSeedReady = false;
-    return originalRemoved?.();
+    return typeof originalRemoved === "function"
+      ? originalRemoved.call(node, ...args)
+      : undefined;
   };
 
   const computed = node.computeSize?.();
@@ -192,9 +197,9 @@ function installGraphToPromptHook() {
   if (graphToPromptInstalled) return;
   graphToPromptInstalled = true;
 
-  const originalGraphToPrompt = app.graphToPrompt.bind(app);
+  const originalGraphToPrompt = app.graphToPrompt;
   app.graphToPrompt = async function (...args) {
-    const result = await originalGraphToPrompt(...args);
+    const result = await originalGraphToPrompt.call(app, ...args);
 
     try {
       const output = result?.output;
