@@ -3,6 +3,8 @@ import { api } from "../../scripts/api.js";
 
 const NODE_CLASS = "InteliwebLoraStack";
 const STYLE_ID = "inteliweb-lora-stack-css";
+const MIN_NODE_WIDTH = 520;
+const MIN_CONTENT_WIDTH = 500;
 const DEFAULT_STATE = Object.freeze({
   version: 1,
   separate_strengths: false,
@@ -11,6 +13,7 @@ const DEFAULT_STATE = Object.freeze({
 
 let cachedLoras = null;
 let pendingLoras = null;
+let activePicker = null;
 
 function portablePath(value) {
   return String(value ?? "")
@@ -142,6 +145,7 @@ function injectStyles() {
   align-content: start;
   gap: 8px;
   width: 100%;
+  min-width: ${MIN_CONTENT_WIDTH}px;
   height: max-content !important;
   min-height: 0 !important;
   box-sizing: border-box;
@@ -214,12 +218,14 @@ function injectStyles() {
   grid-auto-rows: max-content;
   gap: 6px;
   align-content: start;
+  min-width: ${MIN_CONTENT_WIDTH}px;
 }
 .inteliweb-lora-row {
   display: grid;
   grid-template-columns: 40px minmax(180px, 1fr) 78px 30px 30px 30px;
   gap: 5px;
   align-items: center;
+  min-width: ${MIN_CONTENT_WIDTH}px;
   min-height: 44px;
   padding: 6px;
   border: 1px solid #4d4d4d;
@@ -227,7 +233,6 @@ function injectStyles() {
   background: #252525;
 }
 .inteliweb-lora-row.disabled { opacity: .55; }
-.inteliweb-lora-row select,
 .inteliweb-lora-row input[type="number"] {
   width: 100%;
   min-height: 30px;
@@ -245,6 +250,133 @@ function injectStyles() {
   padding: 12px;
   border: 1px dashed #555;
   border-radius: 7px;
+  color: #999;
+  text-align: center;
+}
+
+.inteliweb-lora-picker {
+  position: relative;
+  min-width: 0;
+}
+.inteliweb-lora-picker-trigger {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 7px;
+  border: 1px solid #505050;
+  border-radius: 5px;
+  background: #191919;
+  color: #f0f0f0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.inteliweb-lora-picker-trigger:hover,
+.inteliweb-lora-picker-trigger[aria-expanded="true"] {
+  border-color: #737373;
+  background: #202020;
+}
+.inteliweb-lora-picker-trigger:focus-visible {
+  outline: 2px solid #d0d0d0;
+  outline-offset: 1px;
+}
+.inteliweb-lora-picker-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inteliweb-lora-picker-value.placeholder { color: #999; }
+.inteliweb-lora-picker-value.missing { color: #ffcc80; }
+.inteliweb-lora-picker-caret {
+  color: #aaa;
+  font-size: 10px;
+  text-align: center;
+}
+.inteliweb-lora-picker-popover {
+  position: fixed;
+  z-index: 100000;
+  display: grid;
+  grid-template-rows: max-content minmax(0, 1fr);
+  min-width: 320px;
+  max-width: calc(100vw - 16px);
+  max-height: min(420px, calc(100vh - 16px));
+  overflow: hidden;
+  border: 1px solid #666;
+  border-radius: 7px;
+  background: #171717;
+  color: #f0f0f0;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .55);
+  font: 12px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.inteliweb-lora-picker-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  border-bottom: 1px solid #404040;
+  background: #202020;
+}
+.inteliweb-lora-picker-search {
+  width: 100%;
+  min-width: 0;
+  min-height: 31px;
+  padding: 5px 8px;
+  border: 1px solid #5a5a5a;
+  border-radius: 5px;
+  outline: none;
+  background: #111;
+  color: #fff;
+  font: inherit;
+}
+.inteliweb-lora-picker-search:focus {
+  border-color: #9a9a9a;
+  box-shadow: 0 0 0 1px #9a9a9a;
+}
+.inteliweb-lora-picker-count {
+  min-width: 54px;
+  color: #aaa;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.inteliweb-lora-picker-options {
+  min-height: 42px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+}
+.inteliweb-lora-picker-option {
+  display: block;
+  width: 100%;
+  min-height: 30px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #ededed;
+  cursor: pointer;
+  font: inherit;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.inteliweb-lora-picker-option:hover,
+.inteliweb-lora-picker-option:focus-visible {
+  outline: none;
+  background: #343434;
+}
+.inteliweb-lora-picker-option.selected {
+  background: #414141;
+  color: #fff;
+  font-weight: 600;
+}
+.inteliweb-lora-picker-option.missing { color: #ffcc80; }
+.inteliweb-lora-picker-no-results {
+  padding: 14px 10px;
   color: #999;
   text-align: center;
 }
@@ -345,23 +477,234 @@ function numberInput(value, title) {
   return input;
 }
 
-function option(select, value, text = value) {
-  const entry = document.createElement("option");
-  entry.value = value;
-  entry.textContent = text;
-  select.appendChild(entry);
+function closeActivePicker(restoreFocus = false) {
+  if (!activePicker) return;
+
+  const { panel, trigger, cleanup } = activePicker;
+  activePicker = null;
+  cleanup?.();
+  panel?.remove();
+  trigger?.setAttribute("aria-expanded", "false");
+  if (restoreFocus && trigger?.isConnected) trigger.focus();
 }
 
-function populateSelect(select, current, loras) {
-  select.replaceChildren();
-  const normalizedCurrent = portablePath(current);
+function positionPickerPanel(trigger, panel) {
+  if (!trigger?.isConnected || !panel?.isConnected) return;
 
-  if (!normalizedCurrent) option(select, "", "Select a LoRA…");
-  if (normalizedCurrent && !loras.includes(normalizedCurrent)) {
-    option(select, normalizedCurrent, `⚠ Missing: ${normalizedCurrent}`);
-  }
-  for (const name of loras) option(select, name);
-  select.value = normalizedCurrent;
+  const margin = 8;
+  const gap = 4;
+  const rect = trigger.getBoundingClientRect();
+  const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+  const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
+  const width = Math.min(
+    Math.max(360, rect.width),
+    Math.max(240, viewportWidth - margin * 2),
+  );
+
+  panel.style.width = `${Math.round(width)}px`;
+  panel.style.left = `${Math.round(Math.min(
+    Math.max(margin, rect.left),
+    Math.max(margin, viewportWidth - width - margin),
+  ))}px`;
+
+  const desiredHeight = Math.min(panel.scrollHeight || 420, 420, viewportHeight - margin * 2);
+  const roomBelow = viewportHeight - rect.bottom - margin;
+  const roomAbove = rect.top - margin;
+  const openAbove = roomBelow < Math.min(220, desiredHeight) && roomAbove > roomBelow;
+  const top = openAbove
+    ? Math.max(margin, rect.top - desiredHeight - gap)
+    : Math.min(rect.bottom + gap, Math.max(margin, viewportHeight - desiredHeight - margin));
+
+  panel.style.top = `${Math.round(top)}px`;
+}
+
+function createLoraPicker(current, loras, onChange) {
+  const normalizedCurrent = portablePath(current);
+  const available = [...new Set(loras.map(portablePath).filter(Boolean))];
+  const currentMissing = Boolean(normalizedCurrent && !available.includes(normalizedCurrent));
+  const allOptions = currentMissing ? [normalizedCurrent, ...available] : available;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "inteliweb-lora-picker";
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "inteliweb-lora-picker-trigger";
+  trigger.setAttribute("aria-haspopup", "listbox");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.title = normalizedCurrent || "Select LoRA";
+
+  const value = document.createElement("span");
+  value.className = "inteliweb-lora-picker-value";
+  if (!normalizedCurrent) value.classList.add("placeholder");
+  if (currentMissing) value.classList.add("missing");
+  value.textContent = normalizedCurrent
+    ? `${currentMissing ? "⚠ Missing: " : ""}${normalizedCurrent}`
+    : "Select a LoRA…";
+
+  const caret = document.createElement("span");
+  caret.className = "inteliweb-lora-picker-caret";
+  caret.setAttribute("aria-hidden", "true");
+  caret.textContent = "▼";
+  trigger.append(value, caret);
+  wrapper.appendChild(trigger);
+
+  const openPicker = () => {
+    if (activePicker?.trigger === trigger) {
+      closeActivePicker(true);
+      return;
+    }
+
+    closeActivePicker(false);
+
+    const panel = document.createElement("div");
+    panel.className = "inteliweb-lora-picker-popover";
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-label", "Select a LoRA");
+
+    const searchRow = document.createElement("div");
+    searchRow.className = "inteliweb-lora-picker-search-row";
+
+    const search = document.createElement("input");
+    search.type = "search";
+    search.className = "inteliweb-lora-picker-search";
+    search.placeholder = "Search LoRAs…";
+    search.autocomplete = "off";
+    search.spellcheck = false;
+    search.setAttribute("aria-label", "Search LoRAs");
+
+    const count = document.createElement("span");
+    count.className = "inteliweb-lora-picker-count";
+
+    const options = document.createElement("div");
+    options.className = "inteliweb-lora-picker-options";
+    options.setAttribute("role", "listbox");
+    options.setAttribute("aria-label", "LoRAs");
+
+    searchRow.append(search, count);
+    panel.append(searchRow, options);
+    document.body.appendChild(panel);
+    trigger.setAttribute("aria-expanded", "true");
+
+    const renderOptions = () => {
+      const terms = search.value
+        .trim()
+        .toLocaleLowerCase()
+        .split(/\s+/)
+        .filter(Boolean);
+      const filtered = terms.length === 0
+        ? allOptions
+        : allOptions.filter((name) => {
+          const haystack = name.toLocaleLowerCase();
+          return terms.every((term) => haystack.includes(term));
+        });
+
+      count.textContent = `${filtered.length}/${allOptions.length}`;
+      options.replaceChildren();
+
+      if (filtered.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "inteliweb-lora-picker-no-results";
+        empty.textContent = "No matching LoRAs.";
+        options.appendChild(empty);
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      for (const name of filtered) {
+        const optionButton = document.createElement("button");
+        optionButton.type = "button";
+        optionButton.className = "inteliweb-lora-picker-option";
+        optionButton.setAttribute("role", "option");
+        optionButton.setAttribute("aria-selected", String(name === normalizedCurrent));
+        optionButton.dataset.loraName = name;
+        optionButton.title = name;
+        optionButton.textContent = name;
+        if (name === normalizedCurrent) optionButton.classList.add("selected");
+        if (currentMissing && name === normalizedCurrent) optionButton.classList.add("missing");
+
+        optionButton.addEventListener("click", () => {
+          closeActivePicker(false);
+          onChange(name);
+        });
+        fragment.appendChild(optionButton);
+      }
+      options.appendChild(fragment);
+    };
+
+    const focusFirstOption = () => {
+      options.querySelector(".inteliweb-lora-picker-option")?.focus();
+    };
+
+    const onDocumentPointerDown = (event) => {
+      if (panel.contains(event.target) || trigger.contains(event.target)) return;
+      closeActivePicker(false);
+    };
+    const onDocumentKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeActivePicker(true);
+    };
+    const onViewportChange = () => positionPickerPanel(trigger, panel);
+    const cleanup = () => {
+      document.removeEventListener("pointerdown", onDocumentPointerDown, true);
+      document.removeEventListener("keydown", onDocumentKeyDown, true);
+      window.removeEventListener("resize", onViewportChange);
+      window.removeEventListener("scroll", onViewportChange, true);
+    };
+
+    activePicker = { panel, trigger, cleanup };
+    document.addEventListener("pointerdown", onDocumentPointerDown, true);
+    document.addEventListener("keydown", onDocumentKeyDown, true);
+    window.addEventListener("resize", onViewportChange);
+    window.addEventListener("scroll", onViewportChange, true);
+
+    panel.addEventListener("pointerdown", (event) => event.stopPropagation());
+    panel.addEventListener("keydown", (event) => event.stopPropagation());
+    search.addEventListener("input", () => {
+      renderOptions();
+      positionPickerPanel(trigger, panel);
+    });
+    search.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        focusFirstOption();
+      } else if (event.key === "Enter") {
+        const matches = options.querySelectorAll(".inteliweb-lora-picker-option");
+        if (matches.length === 1) {
+          event.preventDefault();
+          matches[0].click();
+        }
+      }
+    });
+    options.addEventListener("keydown", (event) => {
+      if (!event.target.classList?.contains("inteliweb-lora-picker-option")) return;
+      const buttons = [...options.querySelectorAll(".inteliweb-lora-picker-option")];
+      const index = buttons.indexOf(event.target);
+      if (event.key === "ArrowDown" && index < buttons.length - 1) {
+        event.preventDefault();
+        buttons[index + 1].focus();
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        if (index > 0) buttons[index - 1].focus();
+        else search.focus();
+      }
+    });
+
+    renderOptions();
+    positionPickerPanel(trigger, panel);
+    requestAnimationFrame(() => search.focus());
+  };
+
+  trigger.addEventListener("click", openPicker);
+  trigger.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowDown") return;
+    event.preventDefault();
+    openPicker();
+  });
+
+  return wrapper;
 }
 
 function measuredRootHeight(root) {
@@ -374,14 +717,28 @@ function measuredRootHeight(root) {
   return Math.ceil(paddingTop + paddingBottom + childrenHeight + Math.max(0, children.length - 1) * gap);
 }
 
+function ensureMinimumNodeWidth(node) {
+  if (!node) return;
+
+  if (!node.min_size) node.min_size = [MIN_NODE_WIDTH, 0];
+  else node.min_size[0] = Math.max(MIN_NODE_WIDTH, Number(node.min_size[0]) || 0);
+
+  const currentWidth = Number(node.size?.[0]) || 0;
+  if (currentWidth > 0 && currentWidth < MIN_NODE_WIDTH) {
+    node.size[0] = MIN_NODE_WIDTH;
+    node.graph?.setDirtyCanvas?.(true, true);
+  }
+}
+
 function fitNodeToContent(node) {
   const root = node.__inteliwebLoraRoot;
   if (!root?.isConnected) return;
 
+  ensureMinimumNodeWidth(node);
   const uiHeight = Math.max(70, measuredRootHeight(root));
   node.__inteliwebLoraUiHeight = uiHeight;
 
-  const width = Math.max(520, Number(node.size?.[0]) || 520);
+  const width = Math.max(MIN_NODE_WIDTH, Number(node.size?.[0]) || MIN_NODE_WIDTH);
   const height = Math.max(165, uiHeight + 100);
   const currentWidth = Number(node.size?.[0]) || 0;
   const currentHeight = Number(node.size?.[1]) || 0;
@@ -402,6 +759,9 @@ function scheduleFit(node) {
 function renderNode(node) {
   const root = node.__inteliwebLoraRoot;
   if (!root) return;
+
+  if (activePicker?.trigger && root.contains(activePicker.trigger)) closeActivePicker(false);
+  ensureMinimumNodeWidth(node);
 
   const state = readNodeState(node);
   state.separate_strengths = false;
@@ -439,9 +799,11 @@ function renderNode(node) {
     const enabledControl = switchControl(row.on !== false, "", true);
     enabledControl.input.title = "Enable LoRA";
 
-    const select = document.createElement("select");
-    select.title = row.name || "Select LoRA";
-    populateSelect(select, row.name, loras);
+    const picker = createLoraPicker(row.name, loras, (selectedName) => {
+      row.name = portablePath(selectedName);
+      writeNodeState(node);
+      renderNode(node);
+    });
 
     const strength = numberInput(row.strength, "MODEL and CLIP strength");
     const up = button("↑", "inteliweb-lora-icon-button");
@@ -453,7 +815,7 @@ function renderNode(node) {
     const remove = button("×", "inteliweb-lora-icon-button");
     remove.title = "Remove LoRA";
 
-    rowElement.append(enabledControl.label, select, strength, up, down, remove);
+    rowElement.append(enabledControl.label, picker, strength, up, down, remove);
     rows.appendChild(rowElement);
 
     enabledControl.input.addEventListener("change", () => {
@@ -461,12 +823,6 @@ function renderNode(node) {
       rowElement.classList.toggle("disabled", !row.on);
       writeNodeState(node);
       renderNode(node);
-    });
-
-    select.addEventListener("change", () => {
-      row.name = portablePath(select.value);
-      writeNodeState(node);
-      scheduleFit(node);
     });
 
     strength.addEventListener("change", () => {
@@ -536,6 +892,7 @@ function prepareNode(node) {
   injectStyles();
   hideStateWidget(node);
   readNodeState(node);
+  ensureMinimumNodeWidth(node);
 
   if (!node.__inteliwebLoraRoot) {
     const root = document.createElement("div");
@@ -546,8 +903,12 @@ function prepareNode(node) {
       serialize: false,
       hideOnZoom: false,
       getMinHeight: () => node.__inteliwebLoraUiHeight || 70,
+      getMinWidth: () => MIN_CONTENT_WIDTH,
     });
-    if (widget?.options) widget.options.canvasOnly = false;
+    if (widget?.options) {
+      widget.options.canvasOnly = false;
+      widget.options.minWidth = MIN_CONTENT_WIDTH;
+    }
   }
 
   renderNode(node);
@@ -577,9 +938,20 @@ app.registerExtension({
       return result;
     };
 
+    const originalResize = nodeType.prototype.onResize;
+    nodeType.prototype.onResize = function (size, ...args) {
+      if (size && Number(size[0]) < MIN_NODE_WIDTH) size[0] = MIN_NODE_WIDTH;
+      const result = originalResize?.call(this, size, ...args);
+      ensureMinimumNodeWidth(this);
+      return result;
+    };
+
     const originalRemoved = nodeType.prototype.onRemoved;
     nodeType.prototype.onRemoved = function (...args) {
       cancelAnimationFrame(this.__inteliwebLoraFitFrame || 0);
+      if (activePicker?.trigger && this.__inteliwebLoraRoot?.contains(activePicker.trigger)) {
+        closeActivePicker(false);
+      }
       return originalRemoved?.apply(this, args);
     };
   },
