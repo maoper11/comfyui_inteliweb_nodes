@@ -2,11 +2,11 @@ import { app } from "../../scripts/app.js";
 
 const NODE_CLASS = "InteliwebLoraStack";
 const STYLE_ID = "inteliweb-lora-stack-compact-css";
-const MIN_NODE_WIDTH = 370;
-const MIN_CONTENT_WIDTH = 350;
+const MIN_NODE_WIDTH = 300;
+const MIN_CONTENT_WIDTH = 280;
 const MIN_NODE_HEIGHT = 110;
-const FALLBACK_WIDGET_TOP = 76;
 const BOTTOM_PADDING = 5;
+const FALLBACK_WIDGET_TOP = 96;
 
 function injectCompactStyles() {
   if (document.getElementById(STYLE_ID)) return;
@@ -24,12 +24,23 @@ function injectCompactStyles() {
   padding: 1px 2px 0 !important;
 }
 
+.inteliweb-lora-header-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  min-width: ${MIN_CONTENT_WIDTH}px;
+}
+
 .inteliweb-lora-summary {
   display: flex !important;
   align-items: center !important;
   gap: 6px !important;
+  min-width: 0 !important;
   min-height: 27px !important;
-  padding: 2px 4px 2px 6px !important;
+  height: 27px !important;
+  padding: 2px 4px 2px 3px !important;
   border-radius: 5px !important;
 }
 
@@ -37,25 +48,25 @@ function injectCompactStyles() {
   flex: 0 0 auto;
 }
 
-.inteliweb-lora-summary .inteliweb-lora-toolbar {
+.inteliweb-lora-header-row > .inteliweb-lora-toolbar {
   position: static !important;
   z-index: auto !important;
   display: block !important;
   width: auto !important;
   min-width: 0 !important;
-  margin-left: auto !important;
+  margin: 0 !important;
   transform: none !important;
   pointer-events: auto;
 }
 
-.inteliweb-lora-summary .inteliweb-lora-toolbar .inteliweb-lora-button {
-  width: 98px !important;
-  min-height: 23px !important;
-  height: 23px !important;
+.inteliweb-lora-header-row > .inteliweb-lora-toolbar .inteliweb-lora-button {
+  width: 96px !important;
+  min-height: 27px !important;
+  height: 27px !important;
   padding: 0 7px !important;
   border-radius: 5px !important;
   font-size: 11px !important;
-  line-height: 21px !important;
+  line-height: 25px !important;
   white-space: nowrap;
 }
 
@@ -68,7 +79,7 @@ function injectCompactStyles() {
 }
 
 .inteliweb-lora-row {
-  grid-template-columns: 30px minmax(90px, 1fr) 58px 26px !important;
+  grid-template-columns: 30px minmax(58px, 1fr) 80px 26px !important;
   gap: 3px !important;
   min-width: ${MIN_CONTENT_WIDTH}px !important;
   min-height: 33px !important;
@@ -76,16 +87,10 @@ function injectCompactStyles() {
   border-radius: 6px !important;
 }
 
-.inteliweb-lora-row input[type="number"],
 .inteliweb-lora-picker-trigger,
 .inteliweb-lora-icon-button {
   min-height: 25px !important;
   height: 25px !important;
-}
-
-.inteliweb-lora-row input[type="number"] {
-  padding: 2px !important;
-  font-size: 11px;
 }
 
 .inteliweb-lora-picker-trigger {
@@ -121,6 +126,68 @@ function injectCompactStyles() {
   line-height: 22px;
 }
 
+.inteliweb-lora-strength-control {
+  display: grid;
+  grid-template-columns: 18px minmax(30px, 1fr) 18px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 25px;
+  overflow: hidden;
+  border: 1px solid #505050;
+  border-radius: 5px;
+  background: #191919;
+}
+
+.inteliweb-lora-strength-control input[type="number"] {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 23px !important;
+  height: 23px !important;
+  padding: 1px 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  font-size: 11px;
+  text-align: center;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.inteliweb-lora-strength-control input[type="number"]::-webkit-inner-spin-button,
+.inteliweb-lora-strength-control input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.inteliweb-lora-strength-step {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  min-width: 18px;
+  height: 23px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.inteliweb-lora-strength-step:hover {
+  background: #303030;
+  color: #fff;
+}
+
+.inteliweb-lora-strength-step:focus-visible {
+  outline: 1px solid #bbb;
+  outline-offset: -2px;
+}
+
 .inteliweb-lora-empty {
   padding: 7px !important;
   border-radius: 6px !important;
@@ -135,8 +202,8 @@ function intrinsicRootHeight(root) {
   const paddingTop = Number.parseFloat(rootStyle.paddingTop) || 0;
   const paddingBottom = Number.parseFloat(rootStyle.paddingBottom) || 0;
   const children = [...root.children].filter((child) => {
-    const style = getComputedStyle(child);
-    return style.display !== "none" && style.position !== "absolute";
+    const childStyle = getComputedStyle(child);
+    return childStyle.display !== "none" && childStyle.position !== "absolute";
   });
   const childrenHeight = children.reduce((total, child) => total + child.offsetHeight, 0);
   return Math.ceil(
@@ -159,20 +226,36 @@ function applyCompactMinimums(node) {
   node.min_size[1] = MIN_NODE_HEIGHT;
 }
 
+function desiredNodeWidth(node) {
+  const savedWidth = Number(node.__inteliwebCompactUserWidth);
+  if (Number.isFinite(savedWidth)) return Math.max(MIN_NODE_WIDTH, savedWidth);
+  return Math.max(MIN_NODE_WIDTH, Number(node.size?.[0]) || MIN_NODE_WIDTH);
+}
+
+function desiredNodeHeight(node, contentHeight) {
+  node.__inteliwebLoraUiHeight = contentHeight;
+
+  const computed = node.computeSize?.();
+  const computedHeight = Number(computed?.[1]);
+  if (Number.isFinite(computedHeight) && computedHeight > 0) {
+    return Math.max(MIN_NODE_HEIGHT, Math.ceil(computedHeight + BOTTOM_PADDING));
+  }
+
+  return Math.max(
+    MIN_NODE_HEIGHT,
+    Math.ceil(loraWidgetTop(node) + contentHeight + BOTTOM_PADDING),
+  );
+}
+
 function fitCompactNode(node) {
   const root = node.__inteliwebLoraRoot;
   if (!root?.isConnected) return;
 
   applyCompactMinimums(node);
 
-  const width = Math.max(MIN_NODE_WIDTH, Number(node.size?.[0]) || MIN_NODE_WIDTH);
   const contentHeight = Math.max(0, intrinsicRootHeight(root));
-  node.__inteliwebLoraUiHeight = contentHeight;
-
-  const height = Math.max(
-    MIN_NODE_HEIGHT,
-    Math.ceil(loraWidgetTop(node) + contentHeight + BOTTOM_PADDING),
-  );
+  const width = desiredNodeWidth(node);
+  const height = desiredNodeHeight(node, contentHeight);
   node.__inteliwebCompactDesiredHeight = height;
 
   const currentWidth = Number(node.size?.[0]) || 0;
@@ -185,14 +268,8 @@ function fitCompactNode(node) {
 
 function scheduleCompactFit(node) {
   cancelAnimationFrame(node.__inteliwebCompactFitFrame || 0);
-
-  // Measure immediately so the original LoRA Stack auto-fit never gets a frame
-  // in which it can expand the node before this compact override corrects it.
   fitCompactNode(node);
-
-  node.__inteliwebCompactFitFrame = requestAnimationFrame(() => {
-    fitCompactNode(node);
-  });
+  node.__inteliwebCompactFitFrame = requestAnimationFrame(() => fitCompactNode(node));
 }
 
 function installSetSizeGuard(node) {
@@ -204,7 +281,7 @@ function installSetSizeGuard(node) {
   node.setSize = function (size, ...args) {
     const requested = Array.isArray(size) ? [...size] : size;
     if (Array.isArray(requested)) {
-      requested[0] = Math.max(MIN_NODE_WIDTH, Number(requested[0]) || MIN_NODE_WIDTH);
+      requested[0] = desiredNodeWidth(this);
 
       const desiredHeight = Number(this.__inteliwebCompactDesiredHeight);
       if (this.__inteliwebLoraRoot?.isConnected && Number.isFinite(desiredHeight)) {
@@ -215,11 +292,92 @@ function installSetSizeGuard(node) {
   };
 }
 
-function moveToolbarIntoSummary(root) {
+function installResizeGuard(node) {
+  if (node.__inteliwebCompactResizeInstalled) return;
+
+  node.__inteliwebCompactResizeInstalled = true;
+  const originalResize = node.onResize;
+
+  node.onResize = function (size, ...args) {
+    const requestedWidth = Number(size?.[0]);
+    if (Number.isFinite(requestedWidth)) {
+      this.__inteliwebCompactUserWidth = Math.max(MIN_NODE_WIDTH, requestedWidth);
+    }
+
+    const requested = Array.isArray(size) ? [...size] : size;
+    if (Array.isArray(requested)) requested[0] = desiredNodeWidth(this);
+
+    const result =
+      typeof originalResize === "function"
+        ? originalResize.call(this, requested, ...args)
+        : undefined;
+
+    applyCompactMinimums(this);
+    if (Array.isArray(this.size)) this.size[0] = desiredNodeWidth(this);
+    scheduleCompactFit(this);
+    return result;
+  };
+}
+
+function arrangeHeaderRow(root) {
   const toolbar = root.querySelector(".inteliweb-lora-toolbar");
   const summary = root.querySelector(".inteliweb-lora-summary");
-  if (!toolbar || !summary || summary.contains(toolbar)) return;
-  summary.appendChild(toolbar);
+  if (!toolbar || !summary) return;
+
+  let header = root.querySelector(":scope > .inteliweb-lora-header-row");
+  if (!header) {
+    header = document.createElement("div");
+    header.className = "inteliweb-lora-header-row";
+    root.insertBefore(header, root.firstChild);
+  }
+
+  if (summary.parentElement !== header) header.appendChild(summary);
+  if (toolbar.parentElement !== header) header.appendChild(toolbar);
+}
+
+function adjustStrength(input, direction) {
+  const current = Number(input.value);
+  const step = Number(input.step) || 0.05;
+  const min = Number.isFinite(Number(input.min)) ? Number(input.min) : -100;
+  const max = Number.isFinite(Number(input.max)) ? Number(input.max) : 100;
+  const base = Number.isFinite(current) ? current : 1;
+  const next = Math.max(min, Math.min(max, base + step * direction));
+  input.value = String(Number(next.toFixed(6)));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function installStrengthControl(rowElement) {
+  const input = rowElement.querySelector(':scope > input[type="number"]');
+  if (!input || input.parentElement?.classList.contains("inteliweb-lora-strength-control")) return;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "inteliweb-lora-strength-control";
+
+  const decrease = document.createElement("button");
+  decrease.type = "button";
+  decrease.className = "inteliweb-lora-strength-step";
+  decrease.textContent = "◀";
+  decrease.title = "Decrease strength";
+  decrease.setAttribute("aria-label", "Decrease LoRA strength");
+
+  const increase = document.createElement("button");
+  increase.type = "button";
+  increase.className = "inteliweb-lora-strength-step";
+  increase.textContent = "▶";
+  increase.title = "Increase strength";
+  increase.setAttribute("aria-label", "Increase LoRA strength");
+
+  input.replaceWith(wrapper);
+  wrapper.append(decrease, input, increase);
+
+  decrease.addEventListener("click", (event) => {
+    event.stopPropagation();
+    adjustStrength(input, -1);
+  });
+  increase.addEventListener("click", (event) => {
+    event.stopPropagation();
+    adjustStrength(input, 1);
+  });
 }
 
 function showRowMenu(event, controls) {
@@ -260,32 +418,35 @@ function showRowMenu(event, controls) {
   });
 }
 
-function compactRows(node) {
+function decorateRows(node) {
   const root = node.__inteliwebLoraRoot;
   if (!root) return;
 
-  moveToolbarIntoSummary(root);
+  arrangeHeaderRow(root);
 
   for (const rowElement of root.querySelectorAll(".inteliweb-lora-row")) {
-    if (rowElement.dataset.inteliwebCompact === "true") continue;
-    rowElement.dataset.inteliwebCompact = "true";
+    if (rowElement.dataset.inteliwebCompact !== "true") {
+      rowElement.dataset.inteliwebCompact = "true";
 
-    const iconButtons = [...rowElement.querySelectorAll(".inteliweb-lora-icon-button")];
-    const [up, down, remove] = iconButtons;
-    for (const control of iconButtons) control.dataset.compactHidden = "true";
+      const iconButtons = [...rowElement.querySelectorAll(":scope > .inteliweb-lora-icon-button")];
+      const [up, down, remove] = iconButtons;
+      for (const control of iconButtons) control.dataset.compactHidden = "true";
 
-    const toggle = rowElement.querySelector('input[type="checkbox"]');
-    const actions = document.createElement("button");
-    actions.type = "button";
-    actions.className = "inteliweb-lora-icon-button inteliweb-lora-actions";
-    actions.textContent = "⋮";
-    actions.title = "LoRA actions";
-    actions.setAttribute("aria-label", "LoRA actions");
+      const toggle = rowElement.querySelector('input[type="checkbox"]');
+      const actions = document.createElement("button");
+      actions.type = "button";
+      actions.className = "inteliweb-lora-icon-button inteliweb-lora-actions";
+      actions.textContent = "⋮";
+      actions.title = "LoRA actions";
+      actions.setAttribute("aria-label", "LoRA actions");
 
-    const openMenu = (event) => showRowMenu(event, { toggle, up, down, remove });
-    actions.addEventListener("click", openMenu);
-    rowElement.addEventListener("contextmenu", openMenu);
-    rowElement.appendChild(actions);
+      const openMenu = (event) => showRowMenu(event, { toggle, up, down, remove });
+      actions.addEventListener("click", openMenu);
+      rowElement.addEventListener("contextmenu", openMenu);
+      rowElement.appendChild(actions);
+    }
+
+    installStrengthControl(rowElement);
   }
 
   applyCompactMinimums(node);
@@ -296,20 +457,21 @@ function observeCompactNode(node) {
   const root = node.__inteliwebLoraRoot;
   if (!root || node.__inteliwebCompactObserver) return;
 
-  const observer = new MutationObserver(() => compactRows(node));
+  const observer = new MutationObserver(() => decorateRows(node));
   observer.observe(root, { childList: true, subtree: true });
   node.__inteliwebCompactObserver = observer;
-  compactRows(node);
+  decorateRows(node);
 }
 
 function prepareCompactNode(node) {
   injectCompactStyles();
   installSetSizeGuard(node);
+  installResizeGuard(node);
 
   const waitForRoot = (attempt = 0) => {
     if (node.__inteliwebLoraRoot) {
       observeCompactNode(node);
-      compactRows(node);
+      decorateRows(node);
       return;
     }
     if (attempt < 12) requestAnimationFrame(() => waitForRoot(attempt + 1));
@@ -324,25 +486,14 @@ app.registerExtension({
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData?.name !== NODE_CLASS) return;
 
-    const previousResize = nodeType.prototype.onResize;
-    nodeType.prototype.onResize = function (size, ...args) {
-      const requestedWidth = Number(size?.[0]);
-      const result = previousResize?.call(this, size, ...args);
-
-      applyCompactMinimums(this);
-      if (Number.isFinite(requestedWidth)) {
-        this.size[0] = Math.max(MIN_NODE_WIDTH, requestedWidth);
-      }
-      scheduleCompactFit(this);
-      return result;
-    };
-
     const previousRemoved = nodeType.prototype.onRemoved;
     nodeType.prototype.onRemoved = function (...args) {
       cancelAnimationFrame(this.__inteliwebCompactFitFrame || 0);
       this.__inteliwebCompactObserver?.disconnect();
       this.__inteliwebCompactObserver = null;
-      return previousRemoved?.apply(this, args);
+      return typeof previousRemoved === "function"
+        ? previousRemoved.apply(this, args)
+        : undefined;
     };
   },
 
