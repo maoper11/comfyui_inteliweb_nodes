@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.20.0-blue" alt="version 0.20.0" />
+  <img src="https://img.shields.io/badge/version-0.20.1-blue" alt="version 0.20.1" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -11,6 +11,18 @@
 </p>
 
 > Utilidades de Inteliweb AI para controlar semillas, organizar conexiones, comparar imágenes, cargar LoRAs, documentar workflows, monitorear recursos, liberar memoria, enrutar entradas y construir prompts dentro de ComfyUI.
+
+## Cambios en v0.20.1
+
+- Unificadas las etiquetas visibles de salida: resultados nuevos o procesados usan mayúsculas, mientras los valores pass-through permanecen en minúscula.
+- **Load LoRA Stack** ahora muestra salidas `MODEL` y `CLIP`.
+- **Seed** ahora muestra la salida `SEED`.
+- **Prompt List** ahora muestra `PROMPT_LIST` y `PROMPT_STRINGS`.
+- **Replace Text Multi** ahora muestra la salida `STRING`.
+- **String Index Selector** mantiene `string` para el valor seleccionado y usa `SELECTED_INDEX` para el índice generado.
+- **Free Memory** fue simplificado a dos salidas: `anything` y `STATS`. El reporte de memoria se entrega como texto en lugar de múltiples sockets numéricos.
+- **System Check** ahora muestra las versiones de ComfyUI, ComfyUI Frontend e Inteliweb Nodes.
+- El botón **Run** de los encabezados de grupo ejecuta todas las salidas activas del grupo mediante el ciclo normal de ComfyUI, incluyendo la actualización correcta de semillas aleatorias.
 
 ## Cambios en v0.20.0
 
@@ -41,7 +53,7 @@
 - System Check comparte la misma fuente de RAM y VRAM que Resource Monitor.
 - Validado en RunPod, Vast AI y Windows Pinokio.
 
-## Instalación de v0.20.0 — rama principal `main`
+## Instalación de v0.20.1 — rama principal `main`
 
 ### ComfyUI Manager
 
@@ -80,7 +92,8 @@ Después de instalar, reinicia ComfyUI.
 
 Añade controles rápidos a los grupos nativos de ComfyUI sin reemplazar su comportamiento estándar.
 
-- **Run:** ejecuta los nodos de salida contenidos en el grupo.
+- **Run:** ejecuta todos los nodos de salida activos contenidos en el grupo.
+- La ejecución usa el ciclo normal de cola de ComfyUI para conservar semillas `randomize`, `increment` y `decrement`.
 - **Bypass:** alterna todos los nodos del grupo entre `Bypass` y `Always`.
 - **Mute:** alterna todos los nodos del grupo entre `Never` y `Always`.
 - Los modos disponibles para mostrar los botones son `Always` y `Hover`.
@@ -102,7 +115,7 @@ El shape se guarda dentro de las flags del grupo y conserva el grupo como un `LG
 
 ### Seed (Inteliweb)
 
-Controla la semilla utilizada para generar variaciones y entrega una salida `INT` compatible con KSampler y otros nodos con entrada `seed`.
+Controla la semilla utilizada para generar variaciones y entrega una salida `SEED` compatible con KSampler y otros nodos con entrada `seed`.
 
 - **🔀 Randomize Each Time:** genera una semilla diferente en cada ejecución.
 - **🆕 New Fixed Random:** crea una semilla aleatoria y la conserva como valor fijo.
@@ -177,6 +190,7 @@ Aplica hasta 10 reemplazos secuenciales sobre un texto.
 - Pares `find_1/replace_1` hasta `find_10/replace_10`.
 - Los campos `find` vacíos se ignoran.
 - Todos los widgets `STRING` pueden convertirse en sockets.
+- Devuelve el texto procesado mediante la salida `STRING`.
 - ID interno: `InteliwebReplaceTextMulti`.
 
 ### Prompt List (Inteliweb)
@@ -184,8 +198,8 @@ Aplica hasta 10 reemplazos secuenciales sobre un texto.
 Crea una lista de prompts a partir de cinco campos multilinea.
 
 - Ignora prompts vacíos.
-- `prompt_list` devuelve la colección como un único valor `LIST`.
-- `prompt_strings` expone una secuencia iterable de `STRING`.
+- `PROMPT_LIST` devuelve la colección como un único valor `LIST`.
+- `PROMPT_STRINGS` expone una secuencia iterable de `STRING`.
 - Entrada opcional `optional_prompt_list` para concatenar una lista existente.
 - ID interno: `InteliwebPromptList`.
 
@@ -195,7 +209,7 @@ Selecciona uno de 10 textos mediante un índice.
 
 - Campos `string_1` a `string_10`.
 - Índice basado en 1: `1 → string_1`, `10 → string_10`.
-- Devuelve `string` y `selected_index`.
+- Devuelve `string` sin modificar y `SELECTED_INDEX` como dato generado.
 - ID interno: `InteliwebStringIndexSelector`.
 
 ### Input Switch (Inteliweb)
@@ -215,11 +229,12 @@ Nota: ComfyUI todavía tiene limitaciones generales con entradas autogrow y tipo
 
 Nodo pass-through para liberar recursos entre etapas pesadas.
 
-- Acepta cualquier tipo de entrada y la devuelve sin modificar.
-- Mide VRAM y RAM antes y después.
+- Acepta cualquier tipo de entrada y la devuelve sin modificar mediante `anything`.
+- La salida `STATS` entrega un reporte de texto con VRAM y RAM antes/después, memoria liberada, modelos descargados, objetos recolectados y estado de la caché.
 - Puede descargar modelos administrados por ComfyUI.
 - Ejecuta garbage collection de Python.
 - Limpia la caché con `comfy.model_management.soft_empty_cache()`.
+- `show_report` controla el registro del reporte en la consola; la salida `STATS` siempre está disponible.
 - ID interno: `InteliwebPurgeVRAM`.
 
 Configuración habitual:
@@ -235,6 +250,7 @@ show_report = true
 
 Muestra:
 
+- Versiones de **ComfyUI**, **ComfyUI Frontend** e **Inteliweb Nodes**.
 - Python, sistema operativo y CPU.
 - RAM disponible y utilizada.
 - PyTorch, runtime CUDA/ROCm y GPU detectada.
@@ -282,11 +298,15 @@ comfyui_inteliweb_nodes/
 │   └── system_check.py
 ├── web/
 │   ├── GroupHeaderControls_Inteliweb.js
+│   ├── GroupHeaderTooltips_Inteliweb.js
 │   ├── ImageCompare_Inteliweb.js
+│   ├── InputSwitch_Inteliweb.js
 │   ├── Label_Inteliweb.js
 │   ├── LoraStack_Inteliweb.js
+│   ├── ResourceMonitor_Inteliweb.js
 │   ├── Seed_Inteliweb.js
-│   └── SetGet_Inteliweb.js
+│   ├── SetGet_Inteliweb.js
+│   └── SystemCheck_Inteliweb.js
 ├── assets/
 └── workflows/
 ```
