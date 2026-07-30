@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { api } from "../../scripts/api.js";
 
 const EXTENSION_NAME = "Inteliweb.GroupHeaderControls";
 const SETTING_PREFIX = "Inteliweb.Groups.";
@@ -24,6 +25,8 @@ const state = {
   hoveredAction: null,
   canvasElement: null,
   groupPrototype: null,
+  queueNodeIds: null,
+  apiQueueWrapped: false,
 };
 
 const ACTIONS = [
@@ -175,7 +178,7 @@ function collectGroupNodes(group, recompute = false) {
     result.push(node);
 
     const childNodes = node.subgraph?._nodes || node.subgraph?.nodes;
-    if (Array.isArray(childNodes)) {
+    if (childNodes?.[Symbol.iterator]) {
       for (const child of childNodes) addNode(child);
     }
   };
@@ -212,8 +215,13 @@ function isOutputNode(node) {
   );
 }
 
+function isActiveOutputNode(node) {
+  const never = globalThis.LiteGraph?.NEVER ?? 2;
+  return node?.mode !== never && isOutputNode(node);
+}
+
 function outputNodesForGroup(group, recompute = false) {
-  return collectGroupNodes(group, recompute).filter(isOutputNode);
+  return collectGroupNodes(group, recompute).filter(isActiveOutputNode);
 }
 
 function notify(message) {
@@ -225,42 +233,91 @@ function notify(message) {
   }
 }
 
+function recursivelyAddUpstream(nodeId, oldOutput, newOutput, visiting = new Set()) {
+  const currentId = String(nodeId);
+  if (newOutput[currentId] != null || visiting.has(currentId)) return;
+
+  const currentNode = oldOutput?.[currentId];
+  if (!currentNode) return;
+
+  visiting.add(currentId);
+  newOutput[currentId] = currentNode;
+
+  for (const inputValue of Object.values(currentNode.inputs || {})) {
+    if (Array.isArray(inputValue) && inputValue.length) {
+      recursivelyAddUpstream(inputValue[0], oldOutput, newOutput, visiting);
+    }
+  }
+
+  visiting.delete(currentId);
+}
+
+function installApiQueueFilter() {
+  if (api.queuePrompt?.__inteliwebGroupHeaderQueueFilter) {
+    state.apiQueueWrapped = true;
+    return true;
+  }
+
+  const originalQueuePrompt = api.queuePrompt;
+  if (typeof originalQueuePrompt !== "function") return false;
+
+  const wrappedQueuePrompt = async function (index, prompt, ...args) {
+    if (state.queueNodeIds?.length && prompt?.output) {
+      const oldOutput = prompt.output;
+      const newOutput = {};
+
+      for (const nodeId of state.queueNodeIds) {
+        recursivelyAddUpstream(nodeId, oldOutput, newOutput);
+      }
+
+      prompt.output = newOutput;
+    }
+
+    return await originalQueuePrompt.call(this, index, prompt, ...args);
+  };
+
+  wrappedQueuePrompt.__inteliwebGroupHeaderQueueFilter = true;
+  wrappedQueuePrompt.__inteliwebOriginalQueuePrompt = originalQueuePrompt;
+  api.queuePrompt = wrappedQueuePrompt;
+  state.apiQueueWrapped = true;
+  return true;
+}
+
+async function queueOutputNodes(outputs) {
+  const nodeIds = [...new Set(outputs.map((node) => String(node.id)))];
+  if (!nodeIds.length) return;
+  if (typeof app.queuePrompt !== "function") {
+    throw new Error("ComfyUI queuePrompt is unavailable.");
+  }
+
+  // Reinstall around the current api.queuePrompt if another extension replaced it
+  // after our setup hook. The filter only acts while queueNodeIds is populated.
+  if (!installApiQueueFilter()) {
+    throw new Error("ComfyUI api.queuePrompt is unavailable.");
+  }
+
+  state.queueNodeIds = nodeIds;
+  try {
+    // Use ComfyUI's normal queue lifecycle instead of a temporary canvas selection.
+    // This preserves control_after_generate behavior for random/incrementing seeds.
+    await app.queuePrompt(0);
+  } finally {
+    state.queueNodeIds = null;
+  }
+}
+
 async function runGroup(group) {
   const outputs = outputNodesForGroup(group, true);
   if (!outputs.length) {
-    notify("This group does not contain an output node to run.");
+    notify("This group does not contain an active output node to run.");
     return;
   }
-
-  const canvas = app.canvas;
-  const command = app.extensionManager?.command;
-
-  if (!canvas || !command?.execute) {
-    if (window.rgthree?.queueOutputNodes) {
-      await window.rgthree.queueOutputNodes(outputs);
-      return;
-    }
-    notify("Queue Selected Output Nodes is unavailable in this ComfyUI frontend.");
-    return;
-  }
-
-  const previousNodes = Object.values(canvas.selected_nodes || {});
-  const previousGroup = canvas.selected_group || null;
 
   try {
-    canvas.deselectAllNodes?.();
-    if (canvas.selectItems) canvas.selectItems(outputs);
-    else for (const node of outputs) canvas.selectNode?.(node, true);
-
-    await command.execute("Comfy.QueueSelectedOutputNodes");
+    await queueOutputNodes(outputs);
   } catch (error) {
     console.error("[Inteliweb] Could not run group output nodes:", error);
     notify("The group could not be queued. See the browser console for details.");
-  } finally {
-    canvas.deselectAllNodes?.();
-    for (const node of previousNodes) canvas.selectNode?.(node, true);
-    canvas.selected_group = previousGroup;
-    markDirty();
   }
 }
 
@@ -296,7 +353,7 @@ function groupModeState(group) {
     hasNodes: nodes.length > 0,
     allMuted: nodes.length > 0 && nodes.every((node) => node.mode === modes.never),
     allBypassed: nodes.length > 0 && nodes.every((node) => node.mode === modes.bypass),
-    hasOutput: nodes.some(isOutputNode),
+    hasOutput: nodes.some(isActiveOutputNode),
   };
 }
 
@@ -402,7 +459,6 @@ function drawStyledGroup(group, graphCanvas, ctx) {
   const editorAlpha = graphCanvas.editor_alpha ?? 1;
 
   ctx.save();
-
   ctx.fillStyle = color;
   ctx.strokeStyle = color;
   ctx.globalAlpha = 0.25 * editorAlpha;
@@ -418,7 +474,6 @@ function drawStyledGroup(group, graphCanvas, ctx) {
   ctx.globalAlpha = editorAlpha;
   groupPath(ctx, shape, x + 0.5, y + 0.5, width, height);
   ctx.stroke();
-
   drawResizeHandle(ctx, x, y, width, height, color, editorAlpha);
 
   const fontSize = LiteGraph.GROUP_TEXT_SIZE || 20;
@@ -566,11 +621,8 @@ function installGroupDrawHook() {
 
   const originalDraw = prototype.draw;
   prototype.draw = function (graphCanvas, ctx) {
-    if (groupShape(this) === "default") {
-      originalDraw.apply(this, arguments);
-    } else {
-      drawStyledGroup(this, graphCanvas, ctx);
-    }
+    if (groupShape(this) === "default") originalDraw.apply(this, arguments);
+    else drawStyledGroup(this, graphCanvas, ctx);
 
     if (state.enabled) drawControls(ctx, this, graphCanvas);
   };
@@ -647,12 +699,14 @@ function attachCanvasListeners() {
 }
 
 function startCanvasIntegration() {
+  installApiQueueFilter();
   installGroupDrawHook();
   attachCanvasListeners();
 
   let attempts = 0;
   const timer = setInterval(() => {
     attempts += 1;
+    installApiQueueFilter();
     const hooked = installGroupDrawHook();
     const attached = attachCanvasListeners();
 
