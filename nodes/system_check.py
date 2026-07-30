@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import importlib
 import platform
 import sys
 from importlib import metadata
+from pathlib import Path
 from typing import Any
 
 from .purge_vram import run_memory_cleanup
@@ -23,6 +25,61 @@ def _distribution_version(*names: str) -> str:
         except Exception:
             continue
     return "Not installed"
+
+
+def _module_version(*names: str) -> str | None:
+    """Return a conventional version attribute from the first importable module."""
+    for name in names:
+        try:
+            module = importlib.import_module(name)
+        except Exception:
+            continue
+        for attribute in ("__version__", "VERSION", "version"):
+            value = getattr(module, attribute, None)
+            if value not in (None, "") and not callable(value):
+                return str(value)
+    return None
+
+
+def _pyproject_version() -> str | None:
+    """Read this custom-node package version when distribution metadata is absent."""
+    path = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    try:
+        import tomllib
+
+        with path.open("rb") as handle:
+            value = tomllib.load(handle).get("project", {}).get("version")
+        return str(value) if value not in (None, "") else None
+    except Exception:
+        return None
+
+
+def _comfyui_version() -> str:
+    value = _distribution_version("comfyui")
+    if value != "Not installed":
+        return value
+    return _module_version("comfyui_version", "comfy") or "Unknown"
+
+
+def _frontend_version() -> str:
+    value = _distribution_version(
+        "comfyui-frontend-package",
+        "comfyui_frontend_package",
+        "comfyui-frontend",
+    )
+    if value != "Not installed":
+        return value
+    return _module_version("comfyui_frontend_package") or "Unknown"
+
+
+def _inteliweb_version() -> str:
+    value = _distribution_version(
+        "comfyui_inteliweb_nodes",
+        "comfyui-inteliweb-nodes",
+    )
+    if value != "Not installed":
+        return value
+    return _pyproject_version() or "Unknown"
 
 
 def _accelerator_runtime(torch) -> str:
@@ -115,6 +172,9 @@ def _collect(status: dict[str, Any] | None = None):
     ram = _ram_info(status)
 
     info = {
+        "ComfyUI Version": _comfyui_version(),
+        "Frontend Version": _frontend_version(),
+        "Inteliweb Nodes Version": _inteliweb_version(),
         "Python version": sys.version.split()[0],
         "Operating System": f"{platform.system()} {platform.release()}",
         "CPU": platform.processor() or platform.machine(),
