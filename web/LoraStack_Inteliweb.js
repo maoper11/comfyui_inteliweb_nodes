@@ -3,8 +3,8 @@ import { api } from "../../scripts/api.js";
 
 const NODE_CLASS = "InteliwebLoraStack";
 const STYLE_ID = "inteliweb-lora-stack-css";
-const MIN_NODE_WIDTH = 520;
-const MIN_CONTENT_WIDTH = 500;
+const MIN_NODE_WIDTH = 400;
+const MIN_CONTENT_WIDTH = 380;
 const DEFAULT_STATE = Object.freeze({
   version: 1,
   separate_strengths: false,
@@ -222,28 +222,28 @@ function injectStyles() {
 }
 .inteliweb-lora-row {
   display: grid;
-  grid-template-columns: 40px minmax(180px, 1fr) 78px 30px 30px 30px;
-  gap: 5px;
+  grid-template-columns: 36px minmax(90px, 1fr) 68px 30px 30px 30px;
+  gap: 4px;
   align-items: center;
   min-width: ${MIN_CONTENT_WIDTH}px;
-  min-height: 44px;
-  padding: 6px;
+  min-height: 42px;
+  padding: 5px;
   border: 1px solid #4d4d4d;
   border-radius: 7px;
   background: #252525;
 }
+.inteliweb-lora-row > * { min-width: 0; }
 .inteliweb-lora-row.disabled { opacity: .55; }
 .inteliweb-lora-row input[type="number"] {
   width: 100%;
+  min-width: 0;
   min-height: 30px;
   border: 1px solid #505050;
   border-radius: 5px;
   background: #191919;
   color: #f0f0f0;
-  padding: 4px 7px;
-}
-.inteliweb-lora-row input[type="number"] {
-  text-align: right;
+  padding: 4px 3px;
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 .inteliweb-lora-empty {
@@ -262,11 +262,11 @@ function injectStyles() {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 18px;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
   min-width: 0;
   min-height: 30px;
-  padding: 4px 7px;
+  padding: 4px 6px;
   border: 1px solid #505050;
   border-radius: 5px;
   background: #191919;
