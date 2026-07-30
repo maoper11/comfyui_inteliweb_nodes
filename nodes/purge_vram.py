@@ -9,7 +9,6 @@ See THIRD_PARTY_NOTICES.md.
 from __future__ import annotations
 
 import gc
-import json
 import logging
 
 LOGGER = logging.getLogger(__name__)
@@ -70,11 +69,7 @@ def _loaded_model_count(model_management):
     return None
 
 
-def purge_memory(
-    purge_cache=True,
-    purge_models=False,
-    gc_collect=True,
-):
+def purge_memory(purge_cache=True, purge_models=False, gc_collect=True):
     """Release ComfyUI-managed models, accelerator caches and Python garbage."""
     import comfy.model_management as model_management
 
@@ -138,14 +133,14 @@ def _build_report(stage_name, before, after, status):
         else "unknown"
     )
     report = (
-        f"[Inteliweb][{stage_name}] Memory cleanup completed | "
+        f"[{stage_name}] Memory cleanup completed\n"
         f"VRAM free: {_format_gb(before['vram_free_bytes'])} -> "
-        f"{_format_gb(after['vram_free_bytes'])} ({_signed_gb(vram_delta)}) | "
+        f"{_format_gb(after['vram_free_bytes'])} ({_signed_gb(vram_delta)})\n"
         f"RAM free: {_format_gb(before['ram_free_bytes'])} -> "
-        f"{_format_gb(after['ram_free_bytes'])} ({_signed_gb(ram_delta)}) | "
-        f"models unloaded: {models_text} | "
-        f"gc objects: {status['python_gc_collected']} | "
-        f"cache emptied: {status['cache_emptied']}"
+        f"{_format_gb(after['ram_free_bytes'])} ({_signed_gb(ram_delta)})\n"
+        f"Models unloaded: {models_text}\n"
+        f"GC objects collected: {status['python_gc_collected']}\n"
+        f"Cache emptied: {'Yes' if status['cache_emptied'] else 'No'}"
     )
     metrics["report"] = report
     return report, metrics
@@ -159,7 +154,7 @@ def run_memory_cleanup(
     gc_collect=True,
     show_report=True,
 ):
-    """Run the shared cleanup implementation and return metrics."""
+    """Run the shared cleanup implementation and return report plus metrics."""
     import comfy.model_management as model_management
     import torch
 
@@ -188,13 +183,13 @@ def run_memory_cleanup(
     report, metrics = _build_report(stage_name, before, after, status)
 
     if show_report:
-        LOGGER.info(report)
+        LOGGER.info(report.replace("\n", " | "))
 
     return report, metrics
 
 
 class InteliwebPurgeVRAM:
-    """Pass-through node that frees memory without breaking the workflow chain."""
+    """Pass-through node that frees memory and returns one text report."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -212,15 +207,11 @@ class InteliwebPurgeVRAM:
             }
         }
 
-    RETURN_TYPES = (ANY, "INT", "INT", "INT", "INT", "INT", "INT")
-    RETURN_NAMES = (
-        "anything",
-        "vram_before_mb",
-        "vram_after_mb",
-        "vram_freed_mb",
-        "ram_before_mb",
-        "ram_after_mb",
-        "ram_freed_mb",
+    RETURN_TYPES = (ANY, "STRING")
+    RETURN_NAMES = ("anything", "STATS")
+    OUTPUT_TOOLTIPS = (
+        "The original input value, passed through unchanged.",
+        "Text report with VRAM, RAM, model unload, garbage collection and cache results.",
     )
     FUNCTION = "purge_vram"
     CATEGORY = "inteliweb/utils"
@@ -229,7 +220,7 @@ class InteliwebPurgeVRAM:
     DESCRIPTION = (
         "Passes the input through unchanged while optionally unloading ComfyUI "
         "models, running garbage collection and clearing accelerator caches. "
-        "Reports free VRAM and RAM before/after."
+        "Returns the cleanup information through one STATS text output."
     )
 
     def purge_vram(
@@ -241,25 +232,11 @@ class InteliwebPurgeVRAM:
         show_report=True,
         stage_name="Memory Cleanup",
     ):
-        report, metrics = run_memory_cleanup(
+        report, _metrics = run_memory_cleanup(
             stage_name=stage_name,
             purge_cache=purge_cache,
             purge_models=purge_models,
             gc_collect=gc_collect,
             show_report=show_report,
         )
-
-        result = (
-            anything,
-            metrics["vram_before_mb"],
-            metrics["vram_after_mb"],
-            metrics["vram_freed_mb"],
-            metrics["ram_before_mb"],
-            metrics["ram_after_mb"],
-            metrics["ram_freed_mb"],
-        )
-        ui = {"inteliweb_memory": [json.dumps(metrics, ensure_ascii=False)]}
-        if show_report:
-            ui["text"] = [report]
-
-        return {"ui": ui, "result": result}
+        return anything, report
