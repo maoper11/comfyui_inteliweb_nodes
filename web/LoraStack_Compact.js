@@ -2,8 +2,8 @@ import { app } from "../../scripts/app.js";
 
 const NODE_CLASS = "InteliwebLoraStack";
 const STYLE_ID = "inteliweb-lora-stack-compact-css";
-const MIN_NODE_WIDTH = 300;
-const MIN_CONTENT_WIDTH = 280;
+const MIN_NODE_WIDTH = 260;
+const MIN_CONTENT_WIDTH = 240;
 const MIN_NODE_HEIGHT = 110;
 const BOTTOM_PADDING = 5;
 const FALLBACK_WIDGET_TOP = 96;
@@ -60,12 +60,12 @@ function injectCompactStyles() {
 }
 
 .inteliweb-lora-header-row > .inteliweb-lora-toolbar .inteliweb-lora-button {
-  width: 96px !important;
+  width: 88px !important;
   min-height: 27px !important;
   height: 27px !important;
-  padding: 0 7px !important;
+  padding: 0 5px !important;
   border-radius: 5px !important;
-  font-size: 11px !important;
+  font-size: 10.5px !important;
   line-height: 25px !important;
   white-space: nowrap;
 }
@@ -79,12 +79,25 @@ function injectCompactStyles() {
 }
 
 .inteliweb-lora-row {
-  grid-template-columns: 30px minmax(58px, 1fr) 80px 26px !important;
+  grid-template-columns: 30px minmax(32px, 1fr) 62px 24px !important;
   gap: 3px !important;
   min-width: ${MIN_CONTENT_WIDTH}px !important;
   min-height: 33px !important;
   padding: 3px !important;
   border-radius: 6px !important;
+}
+
+.inteliweb-lora-picker,
+.inteliweb-lora-picker-trigger,
+.inteliweb-lora-picker-value {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.inteliweb-lora-picker-value {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
 .inteliweb-lora-picker-trigger,
@@ -94,8 +107,9 @@ function injectCompactStyles() {
 }
 
 .inteliweb-lora-picker-trigger {
-  padding: 2px 5px !important;
-  grid-template-columns: minmax(0, 1fr) 14px !important;
+  padding: 2px 4px !important;
+  grid-template-columns: minmax(0, 1fr) 12px !important;
+  gap: 2px !important;
 }
 
 .inteliweb-lora-switch-track {
@@ -119,16 +133,16 @@ function injectCompactStyles() {
 }
 
 .inteliweb-lora-row .inteliweb-lora-actions {
-  width: 26px !important;
-  min-width: 26px;
+  width: 24px !important;
+  min-width: 24px !important;
   padding: 0 !important;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 22px;
 }
 
 .inteliweb-lora-strength-control {
   display: grid;
-  grid-template-columns: 18px minmax(30px, 1fr) 18px;
+  grid-template-columns: 15px minmax(24px, 1fr) 15px;
   align-items: center;
   width: 100%;
   min-width: 0;
@@ -149,7 +163,7 @@ function injectCompactStyles() {
   border-radius: 0 !important;
   outline: 0 !important;
   background: transparent !important;
-  font-size: 11px;
+  font-size: 10.5px;
   text-align: center;
   appearance: textfield;
   -moz-appearance: textfield;
@@ -165,8 +179,8 @@ function injectCompactStyles() {
 .inteliweb-lora-strength-step {
   display: grid;
   place-items: center;
-  width: 18px;
-  min-width: 18px;
+  width: 15px;
+  min-width: 15px;
   height: 23px;
   padding: 0;
   border: 0;
@@ -174,7 +188,7 @@ function injectCompactStyles() {
   color: #aaa;
   cursor: pointer;
   font: inherit;
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1;
 }
 
@@ -214,16 +228,30 @@ function intrinsicRootHeight(root) {
   );
 }
 
+function loraWidget(node) {
+  return node.widgets?.find((candidate) => candidate.name === "lora_stack_ui");
+}
+
 function loraWidgetTop(node) {
-  const widget = node.widgets?.find((candidate) => candidate.name === "lora_stack_ui");
-  const top = Number(widget?.last_y);
+  const top = Number(loraWidget(node)?.last_y);
   return Number.isFinite(top) && top > 0 ? top : FALLBACK_WIDGET_TOP;
+}
+
+function relaxDomWidgetMinimum(node) {
+  const widget = loraWidget(node);
+  if (!widget) return;
+
+  widget.options ||= {};
+  widget.options.minWidth = MIN_CONTENT_WIDTH;
+  widget.options.getMinWidth = () => MIN_CONTENT_WIDTH;
+  widget.getMinWidth = () => MIN_CONTENT_WIDTH;
 }
 
 function applyCompactMinimums(node) {
   node.min_size ||= [MIN_NODE_WIDTH, MIN_NODE_HEIGHT];
   node.min_size[0] = MIN_NODE_WIDTH;
   node.min_size[1] = MIN_NODE_HEIGHT;
+  relaxDomWidgetMinimum(node);
 }
 
 function desiredNodeWidth(node) {
