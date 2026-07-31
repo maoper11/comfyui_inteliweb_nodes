@@ -8,6 +8,12 @@ const MIN_CONTENT_WIDTH = 200;
 const MIN_NODE_HEIGHT = 110;
 const BOTTOM_PADDING = 5;
 const FALLBACK_WIDGET_TOP = 96;
+const HEADER_HEIGHT = 27;
+const ROOT_GAP = 4;
+const ROW_HEIGHT = 33;
+const ROW_GAP = 4;
+const ROOT_PADDING_TOP = 1;
+const HEIGHT_RETRY_DELAYS = [0, 50, 150, 400, 1000, 2000];
 const DEFAULT_STATE = Object.freeze({
   version: 1,
   separate_strengths: false,
@@ -865,6 +871,8 @@ function showRowMenu(event, { enabled, canMoveUp, canMoveDown, onToggle, onMoveU
 }
 
 function measuredRootHeight(root) {
+  if (!root?.isConnected) return 0;
+
   const style = getComputedStyle(root);
   const gap = Number.parseFloat(style.rowGap || style.gap) || 0;
   const paddingTop = Number.parseFloat(style.paddingTop) || 0;
@@ -873,10 +881,23 @@ function measuredRootHeight(root) {
     const childStyle = getComputedStyle(child);
     return childStyle.display !== "none" && childStyle.position !== "absolute";
   });
-  const childrenHeight = children.reduce((total, child) => total + child.offsetHeight, 0);
+  const childrenHeight = children.reduce(
+    (total, child) => total + (Number(child.offsetHeight) || 0),
+    0,
+  );
   return Math.ceil(
     paddingTop + paddingBottom + childrenHeight + Math.max(0, children.length - 1) * gap,
   );
+}
+
+function estimatedRootHeight(node) {
+  const state = readNodeState(node);
+  const count = Array.isArray(state?.loras) ? state.loras.length : 0;
+  const rowsHeight = count > 0
+    ? count * ROW_HEIGHT + Math.max(0, count - 1) * ROW_GAP
+    : ROW_HEIGHT;
+
+  return ROOT_PADDING_TOP + HEADER_HEIGHT + ROOT_GAP + rowsHeight;
 }
 
 function applyMinimums(node) {
@@ -902,10 +923,10 @@ function applyMinimums(node) {
 
 function fitNodeToContent(node) {
   const root = node.__inteliwebLoraRoot;
-  if (!root?.isConnected) return;
+  if (!root?.isConnected) return false;
 
   applyMinimums(node);
-  const uiHeight = Math.max(0, measuredRootHeight(root));
+  const uiHeight = Math.max(measuredRootHeight(root), estimatedRootHeight(node));
   node.__inteliwebLoraUiHeight = uiHeight;
 
   const computed = node.computeSize?.();
@@ -917,9 +938,11 @@ function fitNodeToContent(node) {
     BOTTOM_PADDING;
   const height = Math.max(
     MIN_NODE_HEIGHT,
-    Math.ceil(Number.isFinite(computedHeight) && computedHeight > 0
-      ? computedHeight + BOTTOM_PADDING
-      : fallbackHeight),
+    Math.ceil(
+      Number.isFinite(computedHeight) && computedHeight > 0
+        ? Math.max(computedHeight + BOTTOM_PADDING, fallbackHeight)
+        : fallbackHeight,
+    ),
   );
   node.__inteliwebLoraDesiredHeight = height;
 
@@ -929,12 +952,51 @@ function fitNodeToContent(node) {
     node.setSize?.([width, height]);
   }
   node.setDirtyCanvas?.(true, true);
+  return true;
 }
 
 function scheduleFit(node) {
   cancelAnimationFrame(node.__inteliwebLoraFitFrame || 0);
   fitNodeToContent(node);
   node.__inteliwebLoraFitFrame = requestAnimationFrame(() => fitNodeToContent(node));
+}
+
+function clearFitRetries(node) {
+  for (const timeoutId of node.__inteliwebLoraFitTimeouts || []) {
+    clearTimeout(timeoutId);
+  }
+  node.__inteliwebLoraFitTimeouts = [];
+}
+
+function scheduleFitRetries(node) {
+  clearFitRetries(node);
+  node.__inteliwebLoraFitTimeouts = HEIGHT_RETRY_DELAYS.map((delay) => setTimeout(() => {
+    node.__inteliwebLoraFitFrame = requestAnimationFrame(() => fitNodeToContent(node));
+  }, delay));
+}
+
+function installHeightObservers(node) {
+  const root = node.__inteliwebLoraRoot;
+  if (!root || node.__inteliwebLoraHeightObserversInstalled) return;
+  node.__inteliwebLoraHeightObserversInstalled = true;
+
+  const mutationObserver = new MutationObserver(() => scheduleFitRetries(node));
+  mutationObserver.observe(root, { childList: true, subtree: true });
+  node.__inteliwebLoraMutationObserver = mutationObserver;
+
+  if (globalThis.ResizeObserver) {
+    const resizeObserver = new ResizeObserver(() => fitNodeToContent(node));
+    resizeObserver.observe(root);
+    node.__inteliwebLoraResizeObserver = resizeObserver;
+  }
+
+  if (globalThis.IntersectionObserver) {
+    const intersectionObserver = new IntersectionObserver(() => fitNodeToContent(node));
+    intersectionObserver.observe(root);
+    node.__inteliwebLoraIntersectionObserver = intersectionObserver;
+  }
+
+  scheduleFitRetries(node);
 }
 
 function renderNode(node) {
@@ -1095,7 +1157,7 @@ function prepareNode(node) {
     const widget = node.addDOMWidget?.("lora_stack_ui", "INTELIWEB_LORA_STACK", root, {
       serialize: false,
       hideOnZoom: false,
-      getMinHeight: () => node.__inteliwebLoraUiHeight || 70,
+      getMinHeight: () => node.__inteliwebLoraUiHeight || estimatedRootHeight(node),
       getMinWidth: () => MIN_CONTENT_WIDTH,
     });
     if (widget?.options) {
@@ -1107,7 +1169,9 @@ function prepareNode(node) {
   }
 
   applyMinimums(node);
+  installHeightObservers(node);
   renderNode(node);
+  scheduleFitRetries(node);
   fetchLoras()
     .then(() => renderNode(node))
     .catch((error) => console.warn("[Inteliweb LoRA Stack] Unable to preload LoRAs:", error));
@@ -1157,6 +1221,14 @@ app.registerExtension({
     const originalRemoved = nodeType.prototype.onRemoved;
     nodeType.prototype.onRemoved = function (...args) {
       cancelAnimationFrame(this.__inteliwebLoraFitFrame || 0);
+      clearFitRetries(this);
+      this.__inteliwebLoraMutationObserver?.disconnect();
+      this.__inteliwebLoraResizeObserver?.disconnect();
+      this.__inteliwebLoraIntersectionObserver?.disconnect();
+      this.__inteliwebLoraMutationObserver = null;
+      this.__inteliwebLoraResizeObserver = null;
+      this.__inteliwebLoraIntersectionObserver = null;
+      this.__inteliwebLoraHeightObserversInstalled = false;
       if (activePicker?.trigger && this.__inteliwebLoraRoot?.contains(activePicker.trigger)) {
         closeActivePicker(false);
       }
