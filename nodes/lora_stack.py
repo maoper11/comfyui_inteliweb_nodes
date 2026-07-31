@@ -148,7 +148,6 @@ class InteliwebLoraStack:
                         "default": json.dumps(_DEFAULT_STATE, separators=(",", ":")),
                         "multiline": True,
                         "dynamicPrompts": False,
-                        "tooltip": "Serialized LoRA Stack state managed by the Inteliweb frontend.",
                     },
                 ),
             },
