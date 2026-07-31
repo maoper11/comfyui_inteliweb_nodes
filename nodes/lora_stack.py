@@ -17,6 +17,7 @@ _DEFAULT_STATE = {
     "separate_strengths": False,
     "loras": [],
 }
+_DEFAULT_STATE_JSON = json.dumps(_DEFAULT_STATE, separators=(",", ":"))
 
 
 def _normalize_lora_name(value: object) -> str:
@@ -142,15 +143,6 @@ class InteliwebLoraStack:
                     "MODEL",
                     {"tooltip": "Diffusion model that receives the enabled LoRAs in row order."},
                 ),
-                "lora_stack": (
-                    "STRING",
-                    {
-                        "default": json.dumps(_DEFAULT_STATE, separators=(",", ":")),
-                        "multiline": True,
-                        "dynamicPrompts": False,
-                        "socketless": True,
-                    },
-                ),
             },
             "optional": {
                 "clip": (
@@ -161,6 +153,15 @@ class InteliwebLoraStack:
                             "to the diffusion model."
                         )
                     },
+                ),
+            },
+            # The browser stores this JSON in node.properties and injects it into
+            # the execution prompt. Keeping it in hidden prevents Classic and
+            # Nodes 2.0 from creating a widget-backed connection socket.
+            "hidden": {
+                "lora_stack": (
+                    "STRING",
+                    {"default": _DEFAULT_STATE_JSON},
                 ),
             },
         }
@@ -189,7 +190,7 @@ class InteliwebLoraStack:
     def __init__(self):
         self._loader = comfy_nodes.LoraLoader()
 
-    def apply_loras(self, model, lora_stack, clip=None):
+    def apply_loras(self, model, lora_stack=_DEFAULT_STATE_JSON, clip=None):
         state = _parse_state(lora_stack)
         separate_strengths = state["separate_strengths"]
         current_model = model
