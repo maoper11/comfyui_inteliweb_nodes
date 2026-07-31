@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.20.1-blue" alt="version 0.20.1" />
+  <img src="https://img.shields.io/badge/version-0.20.2-blue" alt="version 0.20.2" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -11,6 +11,15 @@
 </p>
 
 > Utilidades de Inteliweb AI para controlar semillas, organizar conexiones, comparar imágenes, cargar LoRAs, documentar workflows, monitorear recursos, liberar memoria, enrutar entradas y construir prompts dentro de ComfyUI.
+
+## Cambios en v0.20.2
+
+- **Load LoRA Stack** fue rediseñado con una interfaz más compacta, menor ancho mínimo, controles de strength con flechas laterales y menú contextual para activar, mover o eliminar LoRAs.
+- Corregido el cálculo de altura de **Load LoRA Stack** cuando el workflow se abre con el nodo fuera del área visible.
+- **Label** ahora muestra flechas laterales en sus campos numéricos.
+- **Free Memory** renombra `show_report` a `console_log`.
+- Los tooltips de los controles de encabezados de grupo fueron integrados directamente en `GroupHeaderControls_Inteliweb.js`.
+- Ajustados los hooks frontend para evitar falsos positivos del escáner del Comfy Registry sin cambiar la funcionalidad.
 
 ## Cambios en v0.20.1
 
@@ -53,7 +62,7 @@
 - System Check comparte la misma fuente de RAM y VRAM que Resource Monitor.
 - Validado en RunPod, Vast AI y Windows Pinokio.
 
-## Instalación de v0.20.1 — rama principal `main`
+## Instalación de v0.20.2 — rama principal `main`
 
 ### ComfyUI Manager
 
@@ -97,7 +106,7 @@ Añade controles rápidos a los grupos nativos de ComfyUI sin reemplazar su comp
 - **Bypass:** alterna todos los nodos del grupo entre `Bypass` y `Always`.
 - **Mute:** alterna todos los nodos del grupo entre `Never` y `Always`.
 - Los modos disponibles para mostrar los botones son `Always` y `Hover`.
-- Los botones individuales pueden activarse o desactivarse desde `Settings → Inteliweb → Groups`.
+- Los botones individuales y sus tooltips pueden configurarse desde `Settings → Inteliweb → Groups`.
 - La función queda desactivada por defecto para evitar duplicar controles cuando rgthree está instalado.
 
 El menú contextual del grupo incluye:
@@ -163,6 +172,7 @@ Etiqueta visual para organizar y documentar workflows sin intervenir en la ejecu
 
 - Edición mediante doble clic o desde **Edit Label** en el menú contextual.
 - Permite cambiar texto, fuente, tamaño, estilo, color, alineación, padding, bordes y opacidad.
+- Los campos numéricos incluyen controles con flechas laterales.
 - Soporta fondo de color o transparente.
 - El tamaño del nodo se adapta automáticamente al contenido.
 - No tiene entradas ni salidas de ejecución.
@@ -174,10 +184,11 @@ Etiqueta visual para organizar y documentar workflows sin intervenir en la ejecu
 Aplica varias LoRAs secuencialmente sobre un modelo.
 
 - Botón **Add LoRA** para agregar filas dinámicas.
-- Cada LoRA puede activarse, desactivarse, reordenarse o eliminarse.
-- Control de fuerza compartida para `MODEL` y `CLIP`.
+- Cada LoRA puede activarse, desactivarse, reordenarse o eliminarse mediante su menú contextual.
+- Control compacto de fuerza compartida para `MODEL` y `CLIP`, con flechas laterales.
 - La entrada `CLIP` es opcional para cargas que solo modifican el modelo.
 - Las rutas se guardan con `/` y se resuelven de forma portable entre Windows y Linux.
+- El nodo calcula correctamente su altura incluso cuando se carga inicialmente fuera del área visible.
 - Salidas `MODEL` y `CLIP` después de aplicar las LoRAs habilitadas en orden.
 - ID interno: `InteliwebLoraStack`.
 - Categoría: `Inteliweb/Loaders`.
@@ -234,7 +245,7 @@ Nodo pass-through para liberar recursos entre etapas pesadas.
 - Puede descargar modelos administrados por ComfyUI.
 - Ejecuta garbage collection de Python.
 - Limpia la caché con `comfy.model_management.soft_empty_cache()`.
-- `show_report` controla el registro del reporte en la consola; la salida `STATS` siempre está disponible.
+- `console_log` controla el registro del reporte en la consola; la salida `STATS` siempre está disponible.
 - ID interno: `InteliwebPurgeVRAM`.
 
 Configuración habitual:
@@ -243,7 +254,7 @@ Configuración habitual:
 purge_cache = true
 purge_models = false
 gc_collect = true
-show_report = true
+console_log = true
 ```
 
 ### System Check (Inteliweb)
@@ -298,7 +309,6 @@ comfyui_inteliweb_nodes/
 │   └── system_check.py
 ├── web/
 │   ├── GroupHeaderControls_Inteliweb.js
-│   ├── GroupHeaderTooltips_Inteliweb.js
 │   ├── ImageCompare_Inteliweb.js
 │   ├── InputSwitch_Inteliweb.js
 │   ├── Label_Inteliweb.js
@@ -324,7 +334,7 @@ comfyui_inteliweb_nodes/
 
 A complete workflow demonstrating the Inteliweb nodes is included:
 
-`workflows/testing-inteliweb-nodes-v0.20.0.json`
+`workflows/testing-inteliweb-nodes-v0.20.1.json`
 
 Drag the JSON file into ComfyUI to load it.
 
