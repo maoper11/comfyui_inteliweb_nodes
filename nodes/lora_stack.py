@@ -1,4 +1,11 @@
-"""Portable multi-LoRA stack node for ComfyUI."""
+"""Portable multi-LoRA stack node for ComfyUI.
+
+The visible LoRA rows live in ``node.properties`` in the browser. The frontend
+injects that state into the hidden ``lora_stack`` input immediately before the
+workflow is queued, following the same architecture used by Pixaroma's LoRA
+Loader. Keeping the state input truly hidden prevents Classic and Nodes 2.0 from
+creating a widget socket for the internal JSON value.
+"""
 
 from __future__ import annotations
 
@@ -17,6 +24,7 @@ _DEFAULT_STATE = {
     "separate_strengths": False,
     "loras": [],
 }
+_DEFAULT_STATE_JSON = json.dumps(_DEFAULT_STATE, separators=(",", ":"))
 
 
 def _normalize_lora_name(value: object) -> str:
@@ -142,18 +150,6 @@ class InteliwebLoraStack:
                     "MODEL",
                     {"tooltip": "Diffusion model that receives the enabled LoRAs in row order."},
                 ),
-                # Keep the state as a normal serializable widget so existing
-                # workflows remain compatible, but mark it socketless so neither
-                # Classic nor Nodes 2.0 creates a connection point for it.
-                "lora_stack": (
-                    "STRING",
-                    {
-                        "default": json.dumps(_DEFAULT_STATE, separators=(",", ":")),
-                        "multiline": True,
-                        "dynamicPrompts": False,
-                        "socketless": True,
-                    },
-                ),
             },
             "optional": {
                 "clip": (
@@ -165,6 +161,9 @@ class InteliwebLoraStack:
                         )
                     },
                 ),
+            },
+            "hidden": {
+                "lora_stack": ("STRING", {"default": _DEFAULT_STATE_JSON}),
             },
         }
 
@@ -192,7 +191,7 @@ class InteliwebLoraStack:
     def __init__(self):
         self._loader = comfy_nodes.LoraLoader()
 
-    def apply_loras(self, model, lora_stack, clip=None):
+    def apply_loras(self, model, clip=None, lora_stack=_DEFAULT_STATE_JSON):
         state = _parse_state(lora_stack)
         separate_strengths = state["separate_strengths"]
         current_model = model
