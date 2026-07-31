@@ -1,8 +1,12 @@
 import { app } from "../../scripts/app.js";
 
 const NODE_CLASS = "InteliwebLabel";
+const DOM_WIDGET_NAME = "label_dom";
+const NODE_PATCH_FLAG = "__inteliwebLabelNodePatched";
 const FONT_SIZE_MIN = 8;
 const FONT_SIZE_MAX = 500;
+const MODE_WATCH_INTERVAL_MS = 150;
+const MODE_SETTLE_DELAY_MS = 180;
 
 const DEFAULTS = Object.freeze({
   text: "Label Inteliweb",
@@ -43,6 +47,8 @@ const FONT_STACKS = Object.freeze({
   Inter: "Inter, Arial, Helvetica, sans-serif",
   Roboto: "Roboto, Arial, Helvetica, sans-serif",
 });
+
+let rendererSyncGeneration = 0;
 
 function isLabel(node) {
   return node?.comfyClass === NODE_CLASS || node?.type === NODE_CLASS;
@@ -113,6 +119,11 @@ function measureLabel(config) {
   };
 }
 
+function markNodeDirty(node) {
+  node.setDirtyCanvas?.(true, true);
+  node.graph?.setDirtyCanvas?.(true, true);
+}
+
 function resizeToContent(node) {
   const measured = measureLabel(readConfig(node));
   node.__inteliwebLabelMeasure = measured;
@@ -122,7 +133,7 @@ function resizeToContent(node) {
   } else {
     node.size = [measured.width, measured.height];
   }
-  node.graph?.setDirtyCanvas?.(true, true);
+  markNodeDirty(node);
   return measured;
 }
 
@@ -242,9 +253,7 @@ function injectCss() {
   cursor: pointer;
   box-sizing: border-box;
 }
-.inteliweb-label-transparent:hover {
-  background: #303030;
-}
+.inteliweb-label-transparent:hover { background: #303030; }
 .inteliweb-label-transparent.active {
   border-color: #ff6647;
   box-shadow: 0 0 0 1px #ff6647;
@@ -328,10 +337,7 @@ function injectCss() {
   font-size: 9px;
   line-height: 1;
 }
-.inteliweb-label-number-step:hover {
-  background: #303030;
-  color: #fff;
-}
+.inteliweb-label-number-step:hover { background: #303030; color: #fff; }
 .inteliweb-label-number-step:focus-visible {
   outline: 1px solid #bbb;
   outline-offset: -2px;
@@ -355,12 +361,8 @@ function injectCss() {
   cursor: pointer;
   font-weight: 600;
 }
-.inteliweb-label-segmented button:last-child {
-  border-right: 0;
-}
-.inteliweb-label-segmented button:hover {
-  background: #373737;
-}
+.inteliweb-label-segmented button:last-child { border-right: 0; }
+.inteliweb-label-segmented button:hover { background: #373737; }
 .inteliweb-label-segmented button.active {
   background: #ff6647;
   color: #ffffff;
@@ -372,11 +374,12 @@ function injectCss() {
 function applyDomStyle(node) {
   const element = node.__inteliwebLabelElement;
   if (!element) return;
+
   const config = readConfig(node);
   const measured = resizeToContent(node);
   element.textContent = config.text || " ";
   Object.assign(element.style, {
-    display: isVueNodes() ? "inline-block" : "none",
+    display: "inline-block",
     width: `${measured.width}px`,
     height: `${measured.height}px`,
     fontFamily: fontStack(config.fontFamily),
@@ -393,24 +396,94 @@ function applyDomStyle(node) {
   });
 }
 
-function createDomLabel(node) {
+function removeDomWidgetArtifacts(node) {
+  const elements = new Set();
+  if (node.__inteliwebLabelElement) elements.add(node.__inteliwebLabelElement);
+
+  for (let index = (node.widgets?.length || 0) - 1; index >= 0; index -= 1) {
+    const widget = node.widgets[index];
+    if (widget?.name !== DOM_WIDGET_NAME) continue;
+    for (const element of [widget.element, widget.inputEl, widget.el]) {
+      if (element) elements.add(element);
+    }
+    widget.onRemove?.();
+    node.widgets.splice(index, 1);
+  }
+
+  for (const element of elements) {
+    const wrapper = element?.closest?.(".lg-node-widget");
+    element?.remove?.();
+    wrapper?.remove?.();
+  }
+
+  node.__inteliwebLabelElement = null;
+  node.__inteliwebLabelWidget = null;
+}
+
+function mountVueLabel(node) {
   injectCss();
-  if (node.__inteliwebLabelElement) {
+
+  const widgets = (node.widgets || []).filter((widget) => widget?.name === DOM_WIDGET_NAME);
+  if (widgets.length === 1 && node.__inteliwebLabelElement) {
+    node.__inteliwebLabelWidget = widgets[0];
     applyDomStyle(node);
     return;
   }
 
+  removeDomWidgetArtifacts(node);
+
   const element = document.createElement("div");
   element.className = "inteliweb-label-dom";
-  node.__inteliwebLabelElement = element;
 
-  const widget = node.addDOMWidget?.("label_dom", "INTELIWEB_LABEL", element, {
+  const widget = node.addDOMWidget?.(DOM_WIDGET_NAME, "INTELIWEB_LABEL", element, {
     serialize: false,
     hideOnZoom: false,
     getMinHeight: () => node.__inteliwebLabelMeasure?.height || 30,
+    getMaxHeight: () => node.__inteliwebLabelMeasure?.height || 30,
   });
+
+  node.__inteliwebLabelElement = element;
+  node.__inteliwebLabelWidget = widget || null;
   if (widget?.options) widget.options.canvasOnly = false;
   applyDomStyle(node);
+}
+
+function unmountVueLabel(node) {
+  removeDomWidgetArtifacts(node);
+}
+
+function prepareBaseNode(node, resize = true) {
+  ensureProperties(node);
+  node.flags = node.flags || {};
+  node.flags.no_title = true;
+  node.resizable = false;
+  node.color = "rgba(0,0,0,0)";
+  node.bgcolor = "rgba(0,0,0,0)";
+  node.badges = [];
+  if (node.inputs?.length) node.inputs.length = 0;
+  if (node.outputs?.length) node.outputs.length = 0;
+  if (resize || !node.__inteliwebLabelMeasure) resizeToContent(node);
+}
+
+function syncLabelRenderer(node, vueMode = isVueNodes(), resize = true) {
+  if (!isLabel(node)) return;
+
+  const generation = (node.__inteliwebLabelRendererGeneration || 0) + 1;
+  node.__inteliwebLabelRendererGeneration = generation;
+  node.__inteliwebLabelRendererMode = "transition";
+  prepareBaseNode(node, resize);
+
+  if (vueMode) {
+    mountVueLabel(node);
+    if (node.__inteliwebLabelRendererGeneration !== generation) return;
+    node.__inteliwebLabelRendererMode = "vue";
+  } else {
+    unmountVueLabel(node);
+    if (node.__inteliwebLabelRendererGeneration !== generation) return;
+    node.__inteliwebLabelRendererMode = "classic";
+  }
+
+  markNodeDirty(node);
 }
 
 function styleInput(input) {
@@ -718,8 +791,8 @@ function openEditor(node) {
   const save = document.createElement("button");
   save.textContent = "Save";
 
-  for (const button of [cancel, save]) {
-    Object.assign(button.style, {
+  for (const actionButton of [cancel, save]) {
+    Object.assign(actionButton.style, {
       border: "0",
       borderRadius: "6px",
       padding: "9px 16px",
@@ -764,8 +837,8 @@ function openEditor(node) {
       lineHeight: Number(lineHeight.value) || DEFAULTS.lineHeight,
     };
     resizeToContent(node);
-    if (node.__inteliwebLabelElement) applyDomStyle(node);
-    node.graph?.setDirtyCanvas?.(true, true);
+    if (node.__inteliwebLabelRendererMode === "vue") applyDomStyle(node);
+    markNodeDirty(node);
     close();
   });
 
@@ -776,21 +849,6 @@ function openEditor(node) {
   text.focus();
 }
 
-function prepareNode(node, resize = false) {
-  ensureProperties(node);
-  node.flags = node.flags || {};
-  node.flags.no_title = true;
-  node.resizable = false;
-  node.color = "rgba(0,0,0,0)";
-  node.bgcolor = "rgba(0,0,0,0)";
-  node.badges = [];
-  if (node.inputs?.length) node.inputs.length = 0;
-  if (node.outputs?.length) node.outputs.length = 0;
-  if (resize) resizeToContent(node);
-  if (isVueNodes()) createDomLabel(node);
-  else if (node.__inteliwebLabelElement) node.__inteliwebLabelElement.style.display = "none";
-}
-
 function installClassicDrawHook() {
   if (window.__inteliwebLabelDrawWrapped) return;
   const prototype = window.LGraphCanvas?.prototype;
@@ -799,7 +857,12 @@ function installClassicDrawHook() {
   window.__inteliwebLabelDrawWrapped = true;
   const originalDrawNode = prototype.drawNode;
   prototype.drawNode = function (node, context) {
-    if (!isLabel(node) || isVueNodes() || !context) {
+    if (
+      !isLabel(node)
+      || isVueNodes()
+      || node.__inteliwebLabelRendererMode !== "classic"
+      || !context
+    ) {
       return originalDrawNode.apply(this, arguments);
     }
 
@@ -809,7 +872,6 @@ function installClassicDrawHook() {
 
     const originalFill = context.fill;
     const originalFillText = context.fillText;
-
     context.fill = function () {};
     context.fillText = function () {};
 
@@ -826,30 +888,47 @@ function installClassicDrawHook() {
   };
 }
 
-function syncRendererMode() {
-  for (const node of app.graph?._nodes || []) {
-    if (!isLabel(node)) continue;
-    prepareNode(node, false);
-    if (isVueNodes()) {
-      createDomLabel(node);
-      applyDomStyle(node);
-    } else if (node.__inteliwebLabelElement) {
-      node.__inteliwebLabelElement.style.display = "none";
-    }
-    node.setDirtyCanvas?.(true, true);
+function walkGraph(graph, callback, visited = new WeakSet()) {
+  if (!graph || visited.has(graph)) return;
+  visited.add(graph);
+  for (const node of graph._nodes || graph.nodes || []) {
+    if (!node) continue;
+    callback(node);
+    const innerGraph = node.subgraph || node._graph;
+    if (innerGraph && innerGraph !== graph) walkGraph(innerGraph, callback, visited);
   }
+}
+
+function syncRendererMode(vueMode = isVueNodes()) {
+  walkGraph(app.graph, (node) => {
+    if (isLabel(node)) syncLabelRenderer(node, vueMode, true);
+  });
+}
+
+function scheduleRendererSync(vueMode = isVueNodes()) {
+  const generation = ++rendererSyncGeneration;
+  const run = () => {
+    if (generation !== rendererSyncGeneration || isVueNodes() !== vueMode) return;
+    syncRendererMode(vueMode);
+  };
+
+  queueMicrotask(run);
+  requestAnimationFrame(() => requestAnimationFrame(run));
+  window.setTimeout(run, MODE_SETTLE_DELAY_MS);
 }
 
 function installModeWatcher() {
   if (window.__inteliwebLabelModeWatcher) return;
   window.__inteliwebLabelModeWatcher = true;
   let lastMode = isVueNodes();
+  scheduleRendererSync(lastMode);
+
   window.setInterval(() => {
     const currentMode = isVueNodes();
     if (currentMode === lastMode) return;
     lastMode = currentMode;
-    requestAnimationFrame(() => requestAnimationFrame(syncRendererMode));
-  }, 250);
+    scheduleRendererSync(currentMode);
+  }, MODE_WATCH_INTERVAL_MS);
 }
 
 app.registerExtension({
@@ -866,21 +945,22 @@ app.registerExtension({
     return [null, { content: "✏️ Edit Label (Inteliweb)", callback: () => openEditor(node) }];
   },
 
-  async beforeRegisterNodeDef(nodeType, nodeData) {
-    if (nodeData?.name !== NODE_CLASS) return;
+  beforeRegisterNodeDef(nodeType, nodeData) {
+    if (nodeData?.name !== NODE_CLASS || nodeType.prototype[NODE_PATCH_FLAG]) return;
+    nodeType.prototype[NODE_PATCH_FLAG] = true;
     nodeType.title_mode = LiteGraph.NO_TITLE;
 
     const originalCreated = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function (...args) {
       const result = originalCreated?.apply(this, args);
-      queueMicrotask(() => prepareNode(this, true));
+      queueMicrotask(() => syncLabelRenderer(this, isVueNodes(), true));
       return result;
     };
 
     const originalConfigure = nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure = function (...args) {
       const result = originalConfigure?.apply(this, args);
-      queueMicrotask(() => prepareNode(this, false));
+      queueMicrotask(() => syncLabelRenderer(this, isVueNodes(), true));
       return result;
     };
 
@@ -904,13 +984,24 @@ app.registerExtension({
     const originalRemoved = nodeType.prototype.onRemoved;
     nodeType.prototype.onRemoved = function (...args) {
       this.__inteliwebCloseEditor?.();
+      this.__inteliwebLabelRendererMode = "removed";
+      unmountVueLabel(this);
       return originalRemoved?.apply(this, args);
     };
   },
 
   nodeCreated(node) {
     if (!isLabel(node)) return;
-    queueMicrotask(() => prepareNode(node, true));
+    queueMicrotask(() => syncLabelRenderer(node, isVueNodes(), true));
+  },
+
+  loadedGraphNode(node) {
+    if (!isLabel(node)) return;
+    queueMicrotask(() => syncLabelRenderer(node, isVueNodes(), true));
+  },
+
+  afterConfigureGraph() {
+    scheduleRendererSync(isVueNodes());
   },
 });
 
@@ -918,20 +1009,20 @@ if (!window.__inteliwebLabelDblClickInstalled) {
   window.__inteliwebLabelDblClickInstalled = true;
   document.addEventListener("dblclick", (event) => {
     if (!isVueNodes()) return;
-    for (const node of app.graph?._nodes || []) {
-      if (!isLabel(node)) continue;
+    walkGraph(app.graph, (node) => {
+      if (event.__inteliwebLabelHandled || !isLabel(node)) return;
       const element = node.__inteliwebLabelElement;
-      if (!element?.isConnected) continue;
+      if (!element?.isConnected) return;
       const rect = element.getBoundingClientRect();
       if (
-        event.clientX >= rect.left &&
-        event.clientX <= rect.right &&
-        event.clientY >= rect.top &&
-        event.clientY <= rect.bottom
+        event.clientX >= rect.left
+        && event.clientX <= rect.right
+        && event.clientY >= rect.top
+        && event.clientY <= rect.bottom
       ) {
+        event.__inteliwebLabelHandled = true;
         openEditor(node);
-        break;
       }
-    }
+    });
   }, true);
 }
