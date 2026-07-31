@@ -17,6 +17,7 @@ const defaults = {
   showRun: true,
   showBypass: true,
   showMute: true,
+  showTooltips: false,
 };
 
 const state = {
@@ -27,12 +28,29 @@ const state = {
   groupPrototype: null,
   queueNodeIds: null,
   apiQueueWrapped: false,
+  tooltipElement: null,
+  activeTooltipAction: null,
 };
 
 const ACTIONS = [
-  { key: "run", label: "Run" },
-  { key: "bypass", label: "Bypass" },
-  { key: "mute", label: "Mute" },
+  {
+    key: "run",
+    label: "Run",
+    description: "Queue this group's output nodes.",
+    setting: "showRun",
+  },
+  {
+    key: "bypass",
+    label: "Bypass",
+    description: "Skip group processing and pass data through.",
+    setting: "showBypass",
+  },
+  {
+    key: "mute",
+    label: "Mute",
+    description: "Disable group nodes and stop their outputs.",
+    setting: "showMute",
+  },
 ];
 
 const SHAPES = [
@@ -72,15 +90,11 @@ function loadSettings() {
   state.showRun = Boolean(readSetting("showRun"));
   state.showBypass = Boolean(readSetting("showBypass"));
   state.showMute = Boolean(readSetting("showMute"));
+  state.showTooltips = Boolean(readSetting("showTooltips"));
 }
 
 function enabledActions() {
-  return ACTIONS.filter((action) => {
-    if (action.key === "run") return state.showRun;
-    if (action.key === "bypass") return state.showBypass;
-    if (action.key === "mute") return state.showMute;
-    return false;
-  });
+  return ACTIONS.filter((action) => Boolean(state[action.setting]));
 }
 
 function groupShape(group) {
@@ -386,14 +400,97 @@ function pointInRect(point, rect) {
   );
 }
 
+function actionRectAt(group, point) {
+  return actionRects(group).find((rect) => pointInRect(point, rect)) || null;
+}
+
 function actionAt(group, point) {
-  return actionRects(group).find((rect) => pointInRect(point, rect))?.key || null;
+  return actionRectAt(group, point)?.key || null;
 }
 
 function controlsVisibleFor(group) {
   if (!state.enabled) return false;
   if (state.visibility === "Always") return true;
   return state.hoveredGroup === group || Boolean(group?.selected);
+}
+
+function ensureTooltipElement() {
+  if (state.tooltipElement?.isConnected) return state.tooltipElement;
+
+  const tooltip = document.createElement("div");
+  tooltip.className = "inteliweb-group-header-tooltip";
+  tooltip.style.cssText = [
+    "position:fixed",
+    "display:none",
+    "z-index:100000",
+    "pointer-events:none",
+    "width:max-content",
+    "max-width:calc(100vw - 20px)",
+    "box-sizing:border-box",
+    "padding:7px 9px",
+    "border:1px solid rgba(255,255,255,0.16)",
+    "border-radius:6px",
+    "background:rgba(24,24,24,0.96)",
+    "box-shadow:0 4px 14px rgba(0,0,0,0.35)",
+    "color:#f2f2f2",
+    "font:12px/1.35 system-ui,-apple-system,'Segoe UI',sans-serif",
+    "white-space:normal",
+    "overflow-wrap:anywhere",
+  ].join(";");
+
+  document.body.appendChild(tooltip);
+  state.tooltipElement = tooltip;
+  return tooltip;
+}
+
+function positionTooltip(tooltip, event) {
+  const margin = 10;
+  const offset = 14;
+  let left = event.clientX + offset;
+  let top = event.clientY + offset;
+
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
+
+  const rect = tooltip.getBoundingClientRect();
+  if (rect.right > window.innerWidth - margin) {
+    left = Math.max(margin, event.clientX - rect.width - offset);
+  }
+  if (rect.bottom > window.innerHeight - margin) {
+    top = Math.max(margin, event.clientY - rect.height - offset);
+  }
+
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
+}
+
+function showTooltip(action, event) {
+  if (!state.showTooltips || !action) {
+    hideTooltip();
+    return;
+  }
+
+  const tooltip = ensureTooltipElement();
+  if (state.activeTooltipAction !== action.key) {
+    tooltip.replaceChildren();
+
+    const title = document.createElement("strong");
+    title.textContent = action.label;
+
+    const description = document.createElement("span");
+    description.textContent = ` — ${action.description}`;
+
+    tooltip.append(title, description);
+    state.activeTooltipAction = action.key;
+  }
+
+  tooltip.style.display = "block";
+  positionTooltip(tooltip, event);
+}
+
+function hideTooltip() {
+  if (state.tooltipElement) state.tooltipElement.style.display = "none";
+  state.activeTooltipAction = null;
 }
 
 function drawRoundedRect(ctx, x, y, width, height, radius) {
@@ -641,28 +738,35 @@ function updateHover(event) {
       state.hoveredAction = null;
       markDirty();
     }
+    hideTooltip();
     return;
   }
 
   const point = eventToGraphPoint(event);
   const group = findGroupAt(app.canvas, point);
-  const action = group ? actionAt(group, point) : null;
+  const actionRect = group ? actionRectAt(group, point) : null;
+  const action = actionRect?.key || null;
 
   if (group !== state.hoveredGroup || action !== state.hoveredAction) {
     state.hoveredGroup = group;
     state.hoveredAction = action;
     markDirty();
   }
+
+  if (actionRect && state.showTooltips) showTooltip(actionRect, event);
+  else hideTooltip();
 }
 
 function clearHover() {
-  if (!state.hoveredGroup && !state.hoveredAction) return;
+  const hadHover = Boolean(state.hoveredGroup || state.hoveredAction);
   state.hoveredGroup = null;
   state.hoveredAction = null;
-  markDirty();
+  hideTooltip();
+  if (hadHover) markDirty();
 }
 
 function handlePointerDown(event) {
+  hideTooltip();
   if (!state.enabled || event.button !== 0) return;
 
   const point = eventToGraphPoint(event);
@@ -753,6 +857,7 @@ app.registerExtension({
       category: ["Inteliweb", "Groups", "Show Run button"],
       onChange: (value) => {
         state.showRun = Boolean(value);
+        hideTooltip();
         markDirty();
       },
     },
@@ -764,6 +869,7 @@ app.registerExtension({
       category: ["Inteliweb", "Groups", "Show Bypass button"],
       onChange: (value) => {
         state.showBypass = Boolean(value);
+        hideTooltip();
         markDirty();
       },
     },
@@ -775,7 +881,21 @@ app.registerExtension({
       category: ["Inteliweb", "Groups", "Show Mute button"],
       onChange: (value) => {
         state.showMute = Boolean(value);
+        hideTooltip();
         markDirty();
+      },
+    },
+    {
+      id: `${SETTING_PREFIX}showTooltips`,
+      name: "Show tooltips",
+      type: "boolean",
+      defaultValue: defaults.showTooltips,
+      sortOrder: -100,
+      tooltip: "Shows a short explanation when hovering over Run, Bypass or Mute.",
+      category: ["Inteliweb", "Groups", "Show tooltips"],
+      onChange: (value) => {
+        state.showTooltips = Boolean(value);
+        if (!state.showTooltips) hideTooltip();
       },
     },
   ],
