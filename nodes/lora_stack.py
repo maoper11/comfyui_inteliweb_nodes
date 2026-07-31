@@ -148,6 +148,7 @@ class InteliwebLoraStack:
                         "default": json.dumps(_DEFAULT_STATE, separators=(",", ":")),
                         "multiline": True,
                         "dynamicPrompts": False,
+                        "socketless": True,
                     },
                 ),
             },
