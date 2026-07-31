@@ -2,7 +2,10 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
 const NODE_CLASS = "InteliwebLoraStack";
+const STATE_WIDGET_NAME = "lora_stack";
 const STYLE_ID = "inteliweb-lora-stack-css";
+const CLASSIC_WIDGET_PATCH_FLAG = "__inteliwebClassicLoraWidgetPatched";
+const CLASSIC_REFRESH_PATCH_FLAG = "__inteliwebClassicLoraRefreshPatched";
 const MIN_NODE_WIDTH = 220;
 const MIN_CONTENT_WIDTH = 200;
 const MIN_NODE_HEIGHT = 110;
@@ -23,6 +26,10 @@ const DEFAULT_STATE = Object.freeze({
 let cachedLoras = null;
 let pendingLoras = null;
 let activePicker = null;
+
+function isClassicNodes() {
+  return !globalThis.LiteGraph?.vueNodesMode;
+}
 
 function portablePath(value) {
   return String(value ?? "")
@@ -69,7 +76,7 @@ function parseState(raw) {
 }
 
 function stateWidget(node) {
-  return node.widgets?.find((widget) => widget.name === "lora_stack");
+  return node.widgets?.find((widget) => widget.name === STATE_WIDGET_NAME);
 }
 
 function loraUiWidget(node) {
@@ -83,12 +90,29 @@ function hideStateWidget(node) {
   widget.__inteliwebHidden = true;
   widget.type = "hidden";
   widget.hidden = true;
+  widget.tooltip = "";
   widget.draw = () => {};
   widget.computeSize = () => [0, 0];
-  widget.options = { ...(widget.options || {}), hidden: true };
+  widget.options = { ...(widget.options || {}), hidden: true, tooltip: "" };
 
   for (const element of [widget.element, widget.inputEl, widget.el]) {
     if (element?.style) element.style.display = "none";
+  }
+
+  if (!isClassicNodes()) return;
+
+  // Classic NodeTooltip asks getWidgetOnPos(..., true), which still returns
+  // zero-size hidden widgets. Keep the serialized state widget completely out
+  // of classic hit testing so it cannot overlap the MODEL input or expose its
+  // internal tooltip/promotion marker.
+  widget.last_y = -100000;
+  if (!node[CLASSIC_WIDGET_PATCH_FLAG] && typeof node.getWidgetOnPos === "function") {
+    const originalGetWidgetOnPos = node.getWidgetOnPos;
+    node.getWidgetOnPos = function (...args) {
+      const found = originalGetWidgetOnPos.apply(this, args);
+      return found?.name === STATE_WIDGET_NAME ? undefined : found;
+    };
+    node[CLASSIC_WIDGET_PATCH_FLAG] = true;
   }
 }
 
@@ -1182,6 +1206,27 @@ app.registerExtension({
 
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData?.name !== NODE_CLASS) return;
+
+    if (!nodeType.prototype[CLASSIC_REFRESH_PATCH_FLAG]) {
+      const originalRefreshComboInNode = nodeType.prototype.refreshComboInNode;
+      nodeType.prototype.refreshComboInNode = async function (...args) {
+        const result = typeof originalRefreshComboInNode === "function"
+          ? await originalRefreshComboInNode.apply(this, args)
+          : undefined;
+
+        if (isClassicNodes()) {
+          try {
+            await fetchLoras(true);
+            renderNode(this);
+          } catch (error) {
+            console.warn("[Inteliweb LoRA Stack] Unable to refresh LoRAs:", error);
+          }
+          hideStateWidget(this);
+        }
+        return result;
+      };
+      nodeType.prototype[CLASSIC_REFRESH_PATCH_FLAG] = true;
+    }
 
     const originalCreated = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function (...args) {
