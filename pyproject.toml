@@ -1,6 +1,6 @@
 [project]
 name = "comfyui_inteliweb_nodes"
-version = "0.20.1"
+version = "0.20.2"
 description = "Inteliweb utilities for ComfyUI: seed, Set/Get, monitoring, memory, routing, prompts, and text tools."
 readme = "README.md"
 license = { text = "Apache-2.0" }
