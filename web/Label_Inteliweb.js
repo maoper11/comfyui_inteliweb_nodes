@@ -279,11 +279,62 @@ function injectCss() {
   width: 100%;
   accent-color: #ff6647;
 }
-.inteliweb-label-range input[type="number"] {
-  width: 78px !important;
-  padding: 6px 8px !important;
-  text-align: right;
+.inteliweb-label-number-control {
+  display: grid;
+  grid-template-columns: 18px minmax(36px, 1fr) 18px;
+  align-items: center;
+  width: 78px;
+  min-width: 78px;
+  height: 34px;
+  overflow: hidden;
+  border: 1px solid #484848;
+  border-radius: 6px;
+  background: #1d1d1d;
+  box-sizing: border-box;
+}
+.inteliweb-label-number-control input[type="number"] {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 32px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  color: #f1f1f1 !important;
+  text-align: center !important;
   font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.inteliweb-label-number-control input[type="number"]::-webkit-inner-spin-button,
+.inteliweb-label-number-control input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.inteliweb-label-number-step {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  min-width: 18px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+  font: inherit;
+  font-size: 9px;
+  line-height: 1;
+}
+.inteliweb-label-number-step:hover {
+  background: #303030;
+  color: #fff;
+}
+.inteliweb-label-number-step:focus-visible {
+  outline: 1px solid #bbb;
+  outline-offset: -2px;
 }
 .inteliweb-label-segmented {
   display: grid;
@@ -452,6 +503,23 @@ function rangeNumberInput(value, min, max, step = 1, decimals = 0) {
   number.max = String(max);
   number.step = String(step);
 
+  const numberControl = document.createElement("div");
+  numberControl.className = "inteliweb-label-number-control";
+
+  const decrease = document.createElement("button");
+  decrease.type = "button";
+  decrease.className = "inteliweb-label-number-step";
+  decrease.textContent = "◀";
+  decrease.title = "Decrease value";
+  decrease.setAttribute("aria-label", "Decrease value");
+
+  const increase = document.createElement("button");
+  increase.type = "button";
+  increase.className = "inteliweb-label-number-step";
+  increase.textContent = "▶";
+  increase.title = "Increase value";
+  increase.setAttribute("aria-label", "Increase value");
+
   const format = (raw) => {
     const safe = clamp(raw, min, max);
     return decimals > 0 ? safe.toFixed(decimals) : String(Math.round(safe));
@@ -463,12 +531,30 @@ function rangeNumberInput(value, min, max, step = 1, decimals = 0) {
     number.value = formatted;
   };
 
+  const adjust = (direction) => {
+    const current = Number(number.value);
+    const base = Number.isFinite(current) ? current : Number(value) || min;
+    setBoth(base + step * direction);
+    number.dispatchEvent(new Event("input", { bubbles: true }));
+    number.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
   range.addEventListener("input", () => setBoth(range.value));
   number.addEventListener("input", () => {
     const parsed = Number(number.value);
     if (Number.isFinite(parsed)) range.value = String(clamp(parsed, min, max));
   });
   number.addEventListener("change", () => setBoth(number.value));
+  decrease.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    adjust(-1);
+  });
+  increase.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    adjust(1);
+  });
   setBoth(value);
 
   Object.defineProperty(wrapper, "value", {
@@ -476,7 +562,8 @@ function rangeNumberInput(value, min, max, step = 1, decimals = 0) {
     get: () => number.value,
   });
 
-  wrapper.append(range, number);
+  numberControl.append(decrease, number, increase);
+  wrapper.append(range, numberControl);
   return wrapper;
 }
 

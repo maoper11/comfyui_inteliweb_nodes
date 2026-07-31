@@ -152,7 +152,7 @@ def run_memory_cleanup(
     purge_cache=True,
     purge_models=False,
     gc_collect=True,
-    show_report=True,
+    console_log=True,
 ):
     """Run the shared cleanup implementation and return report plus metrics."""
     import comfy.model_management as model_management
@@ -162,7 +162,7 @@ def run_memory_cleanup(
     _safe_sync(model_management)
     before = _memory_snapshot(model_management, torch)
 
-    if show_report:
+    if console_log:
         LOGGER.info(
             "[Inteliweb][%s] Starting memory cleanup "
             "(purge_cache=%s, purge_models=%s, gc_collect=%s)",
@@ -182,7 +182,7 @@ def run_memory_cleanup(
     after = _memory_snapshot(model_management, torch)
     report, metrics = _build_report(stage_name, before, after, status)
 
-    if show_report:
+    if console_log:
         LOGGER.info(report.replace("\n", " | "))
 
     return report, metrics
@@ -199,7 +199,7 @@ class InteliwebPurgeVRAM:
                 "purge_cache": ("BOOLEAN", {"default": True}),
                 "purge_models": ("BOOLEAN", {"default": False}),
                 "gc_collect": ("BOOLEAN", {"default": True}),
-                "show_report": ("BOOLEAN", {"default": True}),
+                "console_log": ("BOOLEAN", {"default": True}),
                 "stage_name": (
                     "STRING",
                     {"default": "Memory Cleanup", "multiline": False},
@@ -229,7 +229,7 @@ class InteliwebPurgeVRAM:
         purge_cache=True,
         purge_models=False,
         gc_collect=True,
-        show_report=True,
+        console_log=True,
         stage_name="Memory Cleanup",
     ):
         report, _metrics = run_memory_cleanup(
@@ -237,6 +237,6 @@ class InteliwebPurgeVRAM:
             purge_cache=purge_cache,
             purge_models=purge_models,
             gc_collect=gc_collect,
-            show_report=show_report,
+            console_log=console_log,
         )
         return anything, report
