@@ -2,25 +2,36 @@ import { app } from "../../scripts/app.js";
 
 const SET_TYPE = "SetInteliweb";
 const GET_TYPE = "GetInteliweb";
-const CATEGORY = "Inteliweb/Logic";
+const CATEGORY = "Inteliweb/Utils";
 const PACKAGE_ID = "maoper11/comfyui_inteliweb_nodes";
 const SETTING_PREFIX = "Inteliweb.SetGet.";
+const IMPLEMENTATION_VERSION = 3;
+const NAME_WIDGET = "name";
+
+const SET_METADATA = Object.freeze({
+  displayName: "Set (Inteliweb)",
+  description: "Stores a connected value under a variable name so it can be retrieved elsewhere with Get (Inteliweb).",
+  searchAliases: ["set node", "set variable", "named variable", "wireless connection"],
+});
+
+const GET_METADATA = Object.freeze({
+  displayName: "Get (Inteliweb)",
+  description: "Retrieves a value stored by Set (Inteliweb) without drawing a long connection across the workflow.",
+  searchAliases: ["get node", "get variable", "named variable", "wireless connection"],
+});
 
 const defaults = {
   filterGetOptionsByType: true,
   autoColor: true,
 };
 
-// Coordinates Set/Get renames during a single paste operation.
 const pasteRenameMap = new Map();
+const pendingGraphReconciles = new WeakMap();
 let cachedTypeColorMap = null;
 
 function readSetting(name) {
   try {
-    return (
-      app.ui?.settings?.getSettingValue?.(`${SETTING_PREFIX}${name}`) ??
-      defaults[name]
-    );
+    return app.ui?.settings?.getSettingValue?.(`${SETTING_PREFIX}${name}`) ?? defaults[name];
   } catch {
     return defaults[name];
   }
@@ -42,8 +53,7 @@ function rootGraph(graph) {
 function directChildGraphs(graph) {
   const result = [];
   for (const node of graph?._nodes || graph?.nodes || []) {
-    if (node?.subgraph && !result.includes(node.subgraph))
-      result.push(node.subgraph);
+    if (node?.subgraph && !result.includes(node.subgraph)) result.push(node.subgraph);
   }
   return result;
 }
@@ -55,7 +65,6 @@ function allGraphs(graph) {
   const result = [];
   const queue = [root];
   const seen = new Set();
-
   while (queue.length) {
     const current = queue.shift();
     if (!current || seen.has(current)) continue;
@@ -63,20 +72,17 @@ function allGraphs(graph) {
     result.push(current);
 
     for (const child of directChildGraphs(current)) queue.push(child);
-
     const registered = current._subgraphs || current.subgraphs;
     if (registered?.values) {
       for (const child of registered.values()) queue.push(child);
     }
   }
-
   return result;
 }
 
 function parentGraphOf(graph) {
   const root = rootGraph(graph);
   if (!graph || !root || graph === root) return null;
-
   for (const candidate of allGraphs(root)) {
     for (const node of candidate?._nodes || candidate?.nodes || []) {
       if (node?.subgraph === graph) return candidate;
@@ -89,13 +95,11 @@ function graphAncestors(graph) {
   const result = [];
   const seen = new Set();
   let current = graph;
-
   while (current && !seen.has(current)) {
     seen.add(current);
     result.push(current);
     current = parentGraphOf(current);
   }
-
   return result;
 }
 
@@ -109,8 +113,47 @@ function nodesOfType(graph, type) {
   );
 }
 
+function variableWidget(node) {
+  return node?.widgets?.find((widget) => widget?.name === NAME_WIDGET || widget?.name === "Constant") || null;
+}
+
+function storedVariableName(node) {
+  return String(node?.properties?.inteliwebVariableName || "").trim();
+}
+
 function nodeVariableName(node) {
-  return String(node?.widgets?.[0]?.value || "").trim();
+  const widgetValue = String(variableWidget(node)?.value ?? "").trim();
+  return widgetValue || storedVariableName(node);
+}
+
+function setVariableName(node, value, { allowEmpty = false, notify = false } = {}) {
+  const normalized = String(value ?? "").trim();
+  const previous = nodeVariableName(node);
+  if (!normalized && !allowEmpty && previous) return previous;
+
+  const widget = variableWidget(node);
+  if (widget) widget.value = normalized;
+  node.properties ||= {};
+  node.properties.inteliwebVariableName = normalized;
+  if (node.type === SET_TYPE || node.comfyClass === SET_TYPE) {
+    node.properties.previousName ||= previous;
+  }
+  if (notify && typeof widget?.callback === "function") widget.callback(normalized, node, widget);
+  return normalized;
+}
+
+function restoreVariableName(node, serializedData = null) {
+  const widget = variableWidget(node);
+  const candidates = [
+    String(widget?.value ?? "").trim(),
+    storedVariableName(node),
+    String(serializedData?.properties?.inteliwebVariableName || "").trim(),
+    String(serializedData?.widgets_values?.[0] || "").trim(),
+    String(node?.properties?.previousName || "").trim(),
+  ];
+  const restored = candidates.find(Boolean) || "";
+  if (restored) setVariableName(node, restored);
+  return restored;
 }
 
 function firstWiredInput(node) {
@@ -122,16 +165,11 @@ function firstWiredInput(node) {
 }
 
 function normalizeTypes(type) {
-  return String(type || "*")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
+  return String(type || "*").split(",").map((value) => value.trim()).filter(Boolean);
 }
 
 function typesAreCompatible(setType, targetType) {
-  if (!targetType || targetType === "*") return true;
-  if (!setType || setType === "*") return true;
-
+  if (!targetType || targetType === "*" || !setType || setType === "*") return true;
   const available = new Set(normalizeTypes(setType));
   return normalizeTypes(targetType).some((type) => available.has(type));
 }
@@ -139,42 +177,33 @@ function typesAreCompatible(setType, targetType) {
 function resolveLink(node, linkInfo) {
   if (!node?.graph || !linkInfo) return null;
   try {
-    if (typeof linkInfo.resolve === "function") {
-      return linkInfo.resolve(node.graph) || null;
-    }
+    if (typeof linkInfo.resolve === "function") return linkInfo.resolve(node.graph) || null;
   } catch {
-    // Older LiteGraph builds are handled by direct slot inspection below.
+    // Older LiteGraph builds are handled below.
   }
   return null;
 }
 
 function sourceTypeFromLink(node, linkInfo) {
-  if (!node?.graph || !linkInfo) return null;
-
   const resolved = resolveLink(node, linkInfo);
   const resolvedSlot = resolved?.subgraphInput ?? resolved?.output;
   if (resolvedSlot?.type) return String(resolvedSlot.type);
-
-  const source = node.graph.getNodeById?.(linkInfo.origin_id);
-  return source?.outputs?.[linkInfo.origin_slot]?.type || linkInfo.type || null;
+  const source = node?.graph?.getNodeById?.(linkInfo?.origin_id);
+  return source?.outputs?.[linkInfo?.origin_slot]?.type || linkInfo?.type || null;
 }
 
 function targetTypeFromLink(node, linkInfo) {
-  if (!node?.graph || !linkInfo) return null;
-
   const resolved = resolveLink(node, linkInfo);
   const resolvedSlot = resolved?.input ?? resolved?.subgraphOutput;
   if (resolvedSlot?.type) return String(resolvedSlot.type);
-
-  const target = node.graph.getNodeById?.(linkInfo.target_id);
-  return target?.inputs?.[linkInfo.target_slot]?.type || linkInfo.type || null;
+  const target = node?.graph?.getNodeById?.(linkInfo?.target_id);
+  return target?.inputs?.[linkInfo?.target_slot]?.type || linkInfo?.type || null;
 }
 
 function connectedTargetTypes(node) {
   const result = new Set();
   for (const linkId of node?.outputs?.[0]?.links || []) {
-    const link = getLink(node.graph, linkId);
-    const type = targetTypeFromLink(node, link);
+    const type = targetTypeFromLink(node, getLink(node.graph, linkId));
     if (type && type !== "*") result.add(type);
   }
   return [...result];
@@ -183,27 +212,18 @@ function connectedTargetTypes(node) {
 function setterType(setter) {
   const input = firstWiredInput(setter);
   if (input?.link != null && setter?.graph) {
-    const link = getLink(setter.graph, input.link);
-    const resolvedType = sourceTypeFromLink(setter, link);
-    if (resolvedType && resolvedType !== "*") return resolvedType;
+    const resolved = sourceTypeFromLink(setter, getLink(setter.graph, input.link));
+    if (resolved && resolved !== "*") return resolved;
   }
-
-  return (
-    input?.type ||
-    setter?.inputs?.[0]?.type ||
-    setter?.outputs?.[0]?.type ||
-    "*"
-  );
+  return input?.type || setter?.inputs?.[0]?.type || setter?.outputs?.[0]?.type || "*";
 }
 
 function findSetter(graph, name) {
   const wanted = String(name || "").trim();
   if (!wanted) return null;
-
   for (const candidateGraph of graphAncestors(graph)) {
     for (const node of nodesOfType(candidateGraph, SET_TYPE)) {
-      if (nodeVariableName(node) === wanted)
-        return { node, graph: candidateGraph };
+      if (nodeVariableName(node) === wanted) return { node, graph: candidateGraph };
     }
   }
   return null;
@@ -212,34 +232,21 @@ function findSetter(graph, name) {
 function visibleSetNames(graph, targetTypes = []) {
   const names = [];
   const seen = new Set();
-
-  // Nearest scope wins: current graph, then parent, then root.
   for (const candidateGraph of graphAncestors(graph)) {
     for (const setter of nodesOfType(candidateGraph, SET_TYPE)) {
       const name = nodeVariableName(setter);
       if (!name || seen.has(name)) continue;
-
-      // A local Set shadows a parent Set with the same name even when incompatible.
       seen.add(name);
       const type = setterType(setter);
-      if (
-        targetTypes.length &&
-        !targetTypes.every((target) => typesAreCompatible(type, target))
-      ) {
-        continue;
-      }
+      if (targetTypes.length && !targetTypes.every((target) => typesAreCompatible(type, target))) continue;
       names.push(name);
     }
   }
-
-  return names.sort((a, b) =>
-    a.localeCompare(b, undefined, { sensitivity: "base" }),
-  );
+  return names.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 }
 
 function getTypeColorMap() {
   if (cachedTypeColorMap) return cachedTypeColorMap;
-
   const palette = globalThis.LGraphCanvas?.node_colors || {};
   cachedTypeColorMap = {
     DEFAULT: palette.gray,
@@ -264,18 +271,14 @@ function getTypeColorMap() {
 
 function applyTypeColor(node, type) {
   if (!node) return;
-
   if (!readSetting("autoColor") || !type || type === "*") {
     node.color = null;
     node.bgcolor = null;
     return;
   }
-
   const primaryType = normalizeTypes(type)[0] || "DEFAULT";
-  const palette = globalThis.LGraphCanvas?.node_colors || {};
-  const colors = getTypeColorMap()[primaryType] || palette.gray;
+  const colors = getTypeColorMap()[primaryType] || globalThis.LGraphCanvas?.node_colors?.gray;
   if (!colors) return;
-
   node.color = colors.color ?? null;
   node.bgcolor = colors.bgcolor ?? null;
 }
@@ -283,109 +286,203 @@ function applyTypeColor(node, type) {
 function menuEntryColor(canvas, type) {
   const primaryType = normalizeTypes(type)[0] || "DEFAULT";
   const mapped = getTypeColorMap()[primaryType];
-  return (
-    canvas?.default_connection_color_byType?.[primaryType] ||
-    globalThis.LGraphCanvas?.link_type_colors?.[primaryType] ||
-    mapped?.groupcolor ||
-    mapped?.bgcolor ||
-    mapped?.color ||
-    "#888"
-  );
+  return canvas?.default_connection_color_byType?.[primaryType]
+    || globalThis.LGraphCanvas?.link_type_colors?.[primaryType]
+    || mapped?.groupcolor || mapped?.bgcolor || mapped?.color || "#888";
 }
 
 function gettersOwnedBy(setter) {
   if (!setter?.graph) return [];
   const name = nodeVariableName(setter);
   if (!name) return [];
-
   const result = [];
   for (const graph of allGraphs(setter.graph)) {
     for (const getter of nodesOfType(graph, GET_TYPE)) {
-      const resolved = findSetter(graph, nodeVariableName(getter));
-      if (resolved?.node === setter) result.push(getter);
+      if (findSetter(graph, nodeVariableName(getter))?.node === setter) result.push(getter);
     }
   }
   return result;
 }
 
-function remainingOutputTargetType(node) {
-  for (const linkId of node?.outputs?.[0]?.links || []) {
-    const link = getLink(node.graph, linkId);
-    const type = targetTypeFromLink(node, link);
-    if (type) return type;
-  }
-  return null;
-}
-
-function refreshAllGetCombos(graph) {
-  for (const candidateGraph of allGraphs(graph)) {
-    for (const getter of nodesOfType(candidateGraph, GET_TYPE)) {
-      getter._refreshComboOptions?.();
-    }
-  }
-  app.canvas?.setDirty?.(true, true);
-}
-
-function refreshAllNodeColors(graph) {
-  for (const candidateGraph of allGraphs(graph)) {
-    for (const setter of nodesOfType(candidateGraph, SET_TYPE)) {
-      applyTypeColor(setter, setterType(setter));
-    }
-    for (const getter of nodesOfType(candidateGraph, GET_TYPE)) {
-      applyTypeColor(getter, getter.outputs?.[0]?.type || "*");
-    }
-  }
-  app.canvas?.setDirty?.(true, true);
-}
-
 function updateGettersAfterSetRename(setter, previousName, newName) {
   if (!setter?.graph || !previousName || previousName === newName) return;
-
   for (const graph of allGraphs(setter.graph)) {
     if (!isGraphAncestor(setter.graph, graph)) continue;
-
     for (const getter of nodesOfType(graph, GET_TYPE)) {
       if (nodeVariableName(getter) !== previousName) continue;
-
-      // Do not steal a Get that is still owned by another Set with the old name.
       if (!findSetter(graph, previousName)) getter.setName?.(newName);
     }
   }
 }
 
-function reconcileSet(node) {
-  if (!node?.graph) return;
+function createSetNameWidget(node) {
+  return node.addWidget("text", NAME_WIDGET, storedVariableName(node), (value) => {
+    if (node.__inteliwebRepairing || node.__inteliwebRefreshingCombo) return;
+    setVariableName(node, value, { allowEmpty: true });
+    if (!node.graph || app.configuringGraph) return;
+    node.validateName?.(node.graph);
+    node.updateVariable?.();
+  });
+}
 
+function makeGetComboOptions(node) {
+  const options = {};
+  Object.defineProperty(options, "values", {
+    get: () => {
+      if (!node.graph) return [];
+      const current = nodeVariableName(node);
+      const targets = readSetting("filterGetOptionsByType") ? connectedTargetTypes(node) : [];
+      const names = visibleSetNames(node.graph, targets);
+      return !targets.length && current && !names.includes(current) ? [current, ...names] : names;
+    },
+    enumerable: true,
+    configurable: true,
+  });
+  return options;
+}
+
+function attachClassicComboMenu(node, widget, comboOptions) {
+  if (!widget || widget.__inteliwebClassicMenuAttached) return;
+  widget.__inteliwebClassicMenuAttached = true;
+  const originalOnClick = widget.onClick;
+  widget.onClick = (params) => {
+    if (LiteGraph.vueNodesMode) {
+      return typeof originalOnClick === "function" ? originalOnClick.call(widget, params) : undefined;
+    }
+    const { e, canvas } = params;
+    const x = e.canvasX - node.pos[0];
+    const width = widget.width || node.size[0];
+    if (x < 40) return widget.decrementValue?.(params);
+    if (x > width - 40) return widget.incrementValue?.(params);
+
+    const values = comboOptions.values;
+    if (!values.length) return;
+    const menu = new LiteGraph.ContextMenu(values, {
+      scale: Math.max(1, canvas.ds?.scale || 1),
+      event: e,
+      className: "dark",
+      callback: (value) => widget.setValue?.(value, params),
+    });
+    const entries = menu.root?.querySelectorAll?.(".litemenu-entry");
+    values.forEach((name, index) => {
+      const entry = entries?.[index];
+      if (!entry) return;
+      const setter = findSetter(node.graph, name)?.node;
+      entry.style.borderLeft = `4px solid ${menuEntryColor(canvas, setterType(setter))}`;
+      entry.style.paddingLeft = "8px";
+    });
+  };
+}
+
+function createGetNameWidget(node) {
+  const comboOptions = makeGetComboOptions(node);
+  const widget = node.addWidget("combo", NAME_WIDGET, storedVariableName(node), (value) => {
+    if (node.__inteliwebRepairing || node.__inteliwebRefreshingCombo) return;
+    setVariableName(node, value, { allowEmpty: true });
+    if (!app.configuringGraph) node.onRename?.();
+  }, comboOptions);
+  node.__inteliwebComboOptions = comboOptions;
+  attachClassicComboMenu(node, widget, comboOptions);
+  return widget;
+}
+
+function ensureSetIntegrity(node, serializedData = null) {
+  if (!node) return;
+  node.__inteliwebRepairing = true;
+  try {
+    node.properties ||= {};
+    node.properties["Node name for S&R"] = SET_TYPE;
+    node.properties.aux_id = PACKAGE_ID;
+    node.properties.previousName ||= "";
+    node.properties.inteliwebVariableName ||= "";
+    node.isVirtualNode = true;
+    node.serialize_widgets = true;
+    node.comfyClass = SET_TYPE;
+
+    let widget = variableWidget(node);
+    if (!widget || widget.type !== "text") {
+      if (widget) node.widgets.splice(node.widgets.indexOf(widget), 1);
+      widget = createSetNameWidget(node);
+    }
+    widget.name = NAME_WIDGET;
+
+    if (!node.inputs?.length) node.addInput("value", "*");
+    if (!node.outputs?.length) node.addOutput("*", "*");
+    restoreVariableName(node, serializedData);
+  } finally {
+    node.__inteliwebRepairing = false;
+  }
+}
+
+function ensureGetIntegrity(node, serializedData = null) {
+  if (!node) return;
+  node.__inteliwebRepairing = true;
+  try {
+    node.properties ||= {};
+    node.properties["Node name for S&R"] = GET_TYPE;
+    node.properties.aux_id = PACKAGE_ID;
+    node.properties.inteliwebVariableName ||= "";
+    node.isVirtualNode = true;
+    node.serialize_widgets = true;
+    node.comfyClass = GET_TYPE;
+    node.currentSetter ||= null;
+
+    let widget = variableWidget(node);
+    if (!widget || widget.type !== "combo") {
+      if (widget) node.widgets.splice(node.widgets.indexOf(widget), 1);
+      widget = createGetNameWidget(node);
+    } else {
+      const options = node.__inteliwebComboOptions || makeGetComboOptions(node);
+      node.__inteliwebComboOptions = options;
+      widget.options = options;
+      attachClassicComboMenu(node, widget, options);
+    }
+    widget.name = NAME_WIDGET;
+
+    if (!node.outputs?.length) node.addOutput("*", "*");
+    restoreVariableName(node, serializedData);
+  } finally {
+    node.__inteliwebRepairing = false;
+  }
+}
+
+function reconcileSetType(node) {
+  ensureSetIntegrity(node);
   const input = firstWiredInput(node);
   const link = input?.link != null ? getLink(node.graph, input.link) : null;
-  const type =
-    sourceTypeFromLink(node, link) ||
-    input?.type ||
-    node.inputs?.[0]?.type ||
-    node.outputs?.[0]?.type ||
-    "*";
-
+  const type = sourceTypeFromLink(node, link) || input?.type || node.inputs?.[0]?.type || node.outputs?.[0]?.type || "*";
   node.setAdoptedType?.(type);
-  node.properties ||= {};
-  node.properties.previousName = nodeVariableName(node);
-  node.properties.inteliwebVariableName = nodeVariableName(node);
-  node.refreshTitle?.();
+}
 
+function reconcileSetName(node) {
+  const current = nodeVariableName(node);
+  if (!current) return;
+  setVariableName(node, current);
+  node.properties.previousName = current;
+  node.refreshTitle?.();
+}
+
+function reconcileSet(node) {
+  if (!node?.graph) return;
+  ensureSetIntegrity(node);
+  reconcileSetType(node);
+  reconcileSetName(node);
   for (const getter of gettersOwnedBy(node)) reconcileGet(getter);
-  refreshAllGetCombos(node.graph);
 }
 
 function reconcileGet(node) {
   if (!node?.graph) return;
-
-  const result = findSetter(node.graph, nodeVariableName(node));
+  ensureGetIntegrity(node);
+  const name = nodeVariableName(node);
+  if (name) setVariableName(node, name);
+  const result = findSetter(node.graph, name);
   node.currentSetter = result?.node || null;
   node.setType?.(result?.node ? setterType(result.node) : "*");
   node.refreshTitle?.();
   node._refreshComboOptions?.();
 }
 
-function reconcileGraph(graph) {
+function reconcileGraphNow(graph) {
   if (!graph) return;
   for (const candidate of allGraphs(graph)) {
     for (const setter of nodesOfType(candidate, SET_TYPE)) reconcileSet(setter);
@@ -394,32 +491,72 @@ function reconcileGraph(graph) {
   app.canvas?.setDirty?.(true, true);
 }
 
-function registerSetNode() {
-  const LGraphNode = LiteGraph.LGraphNode;
+function scheduleGraphReconcile(graph) {
+  const root = rootGraph(graph);
+  if (!root || pendingGraphReconciles.has(root)) return;
+  const token = {};
+  pendingGraphReconciles.set(root, token);
+  queueMicrotask(() => {
+    if (pendingGraphReconciles.get(root) !== token) return;
+    pendingGraphReconciles.delete(root);
+    reconcileGraphNow(root);
+  });
+}
 
-  class SetInteliwebNode extends LGraphNode {
+function refreshAllGetCombos(graph) {
+  for (const candidate of allGraphs(graph)) {
+    for (const getter of nodesOfType(candidate, GET_TYPE)) getter._refreshComboOptions?.();
+  }
+  app.canvas?.setDirty?.(true, true);
+}
+
+function refreshAllNodeColors(graph) {
+  for (const candidate of allGraphs(graph)) {
+    for (const setter of nodesOfType(candidate, SET_TYPE)) applyTypeColor(setter, setterType(setter));
+    for (const getter of nodesOfType(candidate, GET_TYPE)) applyTypeColor(getter, getter.outputs?.[0]?.type || "*");
+  }
+  app.canvas?.setDirty?.(true, true);
+}
+
+function applyRegisteredNodeMetadata(nodeClass, metadata) {
+  if (!nodeClass) return;
+  nodeClass.category = CATEGORY;
+  nodeClass.title = metadata.displayName;
+  nodeClass.description = metadata.description;
+  nodeClass.search_aliases = [...metadata.searchAliases];
+}
+
+function applyVueNodeMetadata(nodeDefs) {
+  for (const nodeDef of nodeDefs || []) {
+    const metadata = nodeDef?.name === SET_TYPE
+      ? SET_METADATA
+      : nodeDef?.name === GET_TYPE
+        ? GET_METADATA
+        : null;
+    if (!metadata) continue;
+
+    nodeDef.display_name = metadata.displayName;
+    nodeDef.category = CATEGORY;
+    nodeDef.description = metadata.description;
+    nodeDef.search_aliases = [...metadata.searchAliases];
+  }
+}
+
+function registerSetNode() {
+  const existing = LiteGraph.registered_node_types?.[SET_TYPE];
+  if (existing?.__inteliwebImplementationVersion === IMPLEMENTATION_VERSION) {
+    applyRegisteredNodeMetadata(existing, SET_METADATA);
+    return;
+  }
+
+  class SetInteliwebNode extends LiteGraph.LGraphNode {
     static title = "Set (Inteliweb)";
     static category = CATEGORY;
+    static __inteliwebImplementationVersion = IMPLEMENTATION_VERSION;
 
     constructor(title) {
       super(title);
-      this.isVirtualNode = true;
-      this.serialize_widgets = true;
-      this.comfyClass = SET_TYPE;
-      this.properties ||= {};
-      this.properties.previousName ||= "";
-      this.properties.inteliwebVariableName ||= "";
-      this.properties["Node name for S&R"] = SET_TYPE;
-      this.properties.aux_id = PACKAGE_ID;
-
-      this.addWidget("text", "name", "", () => {
-        if (!this.graph || app.configuringGraph) return;
-        this.validateName(this.graph);
-        this.updateVariable();
-      });
-
-      this.addInput("value", "*");
-      this.addOutput("*", "*");
+      ensureSetIntegrity(this);
       this.refreshTitle();
     }
 
@@ -444,88 +581,59 @@ function registerSetNode() {
     }
 
     validateName(graph, sameGraphOnly = false) {
-      let value = nodeVariableName(this);
+      const widget = variableWidget(this);
+      let value = String(widget?.value || "").trim();
       if (!value) return false;
-
-      const existing = new Set();
+      const existingNames = new Set();
       const scope = sameGraphOnly ? [graph] : graphAncestors(graph);
       for (const candidateGraph of scope) {
         for (const node of nodesOfType(candidateGraph, SET_TYPE)) {
-          if (node !== this) existing.add(nodeVariableName(node));
+          if (node !== this) existingNames.add(nodeVariableName(node));
         }
       }
-
       const original = value;
       const base = this._justAdded ? value.replace(/_\d+$/, "") : value;
       let suffix = 1;
-      while (existing.has(value)) value = `${base}_${suffix++}`;
-
-      this.widgets[0].value = value;
+      while (existingNames.has(value)) value = `${base}_${suffix++}`;
+      setVariableName(this, value);
       return value !== original;
     }
 
     updateVariable() {
       if (!this.graph) return;
-
       const name = nodeVariableName(this);
-      const previousName = this.properties.previousName || "";
+      if (!name) {
+        this.refreshTitle();
+        return;
+      }
+      const previousName = String(this.properties.previousName || "").trim();
       const adoptedType = setterType(this);
       this.setAdoptedType(adoptedType);
-
       updateGettersAfterSetRename(this, previousName, name);
       this.properties.previousName = name;
-      this.properties.inteliwebVariableName = name;
+      setVariableName(this, name);
       this.refreshTitle();
-
       for (const getter of gettersOwnedBy(this)) getter.setType?.(adoptedType);
       refreshAllGetCombos(this.graph);
       app.canvas?.setDirty?.(true, true);
     }
 
     onConnectionsChange(slotType, slot, isConnect, linkInfo) {
-      // During ComfyUI multiClone(), a detached node is configured before its
-      // subgraph links exist. Preserve the concrete serialized type instead of
-      // replacing it with wildcard "*".
-      if (isConnect && (!this.graph || !linkInfo)) {
-        const preserved =
-          this.inputs?.[0]?.type || this.outputs?.[0]?.type || "*";
-        this.setAdoptedType(preserved);
-        return;
-      }
-
+      ensureSetIntegrity(this);
       if (app.configuringGraph) return;
-
       if (slotType === LiteGraph.INPUT) {
-        if (isConnect) {
-          this.setAdoptedType(
-            sourceTypeFromLink(this, linkInfo) ||
-              this.inputs?.[0]?.type ||
-              this.outputs?.[0]?.type ||
-              "*",
-          );
-        } else {
-          this.setAdoptedType(remainingOutputTargetType(this) || "*");
-        }
+        this.setAdoptedType(isConnect
+          ? sourceTypeFromLink(this, linkInfo) || this.inputs?.[0]?.type || "*"
+          : this.outputs?.[0]?.links?.length ? this.outputs[0].type : "*");
       } else if (slotType === LiteGraph.OUTPUT) {
         const inputType = setterType(this);
-        if (inputType && inputType !== "*") {
-          this.setAdoptedType(inputType);
-        } else if (isConnect) {
-          this.setAdoptedType(
-            targetTypeFromLink(this, linkInfo) ||
-              this.outputs?.[0]?.type ||
-              this.inputs?.[0]?.type ||
-              "*",
-          );
-        } else {
-          this.setAdoptedType(remainingOutputTargetType(this) || "*");
-        }
+        this.setAdoptedType(inputType !== "*"
+          ? inputType
+          : isConnect ? targetTypeFromLink(this, linkInfo) || "*" : "*");
       }
-
       this.updateVariable();
     }
 
-    // Passthrough output resolves directly to the real upstream source.
     getInputLink() {
       const input = firstWiredInput(this);
       return input?.link != null ? getLink(this.graph, input.link) : null;
@@ -533,31 +641,17 @@ function registerSetNode() {
 
     onAdded() {
       this._justAdded = true;
-      if (LiteGraph.vueNodesMode && this.graph && !app.configuringGraph) {
-        refreshAllGetCombos(this.graph);
-      }
+      ensureSetIntegrity(this);
+      if (LiteGraph.vueNodesMode && this.graph && !app.configuringGraph) refreshAllGetCombos(this.graph);
     }
 
     onRemoved() {
       const graph = this.graph;
-      const oldName = nodeVariableName(this);
-      if (!graph) return;
-
-      setTimeout(() => {
-        refreshAllGetCombos(graph);
-        for (const candidateGraph of allGraphs(graph)) {
-          for (const getter of nodesOfType(candidateGraph, GET_TYPE)) {
-            if (nodeVariableName(getter) === oldName) getter.onRename?.();
-          }
-        }
-      }, 0);
+      if (graph) setTimeout(() => scheduleGraphReconcile(graph), 0);
     }
 
-    onConfigure() {
-      const savedName = this.properties.inteliwebVariableName;
-      if (savedName && !nodeVariableName(this))
-        this.widgets[0].value = savedName;
-
+    onConfigure(serializedData) {
+      ensureSetIntegrity(this, serializedData);
       if (this._justAdded && this.graph && !app.configuringGraph) {
         const oldName = nodeVariableName(this);
         this.validateName(this.graph, true);
@@ -567,40 +661,40 @@ function registerSetNode() {
           setTimeout(() => pasteRenameMap.delete(oldName), 0);
         }
       }
-
-      const preservedType =
-        firstWiredInput(this)?.type ||
-        this.inputs?.[0]?.type ||
-        this.outputs?.[0]?.type ||
-        "*";
-      this.setAdoptedType(preservedType);
       this._justAdded = false;
-      this.properties.previousName = nodeVariableName(this);
-      this.properties.inteliwebVariableName = nodeVariableName(this);
-      this.refreshTitle();
-      queueMicrotask(() => reconcileSet(this));
+      reconcileSetType(this);
+      reconcileSetName(this);
+      scheduleGraphReconcile(this.graph);
+    }
+
+    onSerialize(data) {
+      ensureSetIntegrity(this);
+      const name = nodeVariableName(this);
+      data.properties ||= {};
+      if (name) {
+        data.properties.inteliwebVariableName = name;
+        data.properties.previousName = name;
+        data.widgets_values ||= [];
+        data.widgets_values[0] = name;
+      }
     }
 
     onGraphConfigured() {
-      queueMicrotask(() => reconcileSet(this));
+      ensureSetIntegrity(this);
+      scheduleGraphReconcile(this.graph);
     }
 
     onAfterGraphConfigured() {
-      setTimeout(() => reconcileSet(this), 0);
+      setTimeout(() => scheduleGraphReconcile(this.graph), 0);
     }
 
     clone() {
       const cloned = super.clone();
       if (!cloned) return cloned;
+      cloned.properties ||= {};
       cloned.properties.previousName = "";
-      if (cloned.inputs?.[0]) {
-        cloned.inputs[0].type = "*";
-        cloned.inputs[0].label = "*";
-      }
-      if (cloned.outputs?.[0]) {
-        cloned.outputs[0].type = "*";
-        cloned.outputs[0].name = "*";
-      }
+      if (cloned.inputs?.[0]) cloned.inputs[0].type = "*";
+      if (cloned.outputs?.[0]) cloned.outputs[0].type = "*";
       cloned.color = null;
       cloned.bgcolor = null;
       return cloned;
@@ -608,7 +702,6 @@ function registerSetNode() {
 
     getExtraMenuOptions(_, options) {
       const getters = gettersOwnedBy(this);
-
       options.unshift({
         content: "Add paired Get (Inteliweb)",
         callback: () => {
@@ -621,7 +714,6 @@ function registerSetNode() {
           app.canvas?.setDirty?.(true, true);
         },
       });
-
       options.unshift({
         content: `Select paired Gets (${getters.length})`,
         disabled: getters.length === 0,
@@ -635,112 +727,52 @@ function registerSetNode() {
   }
 
   LiteGraph.registerNodeType(SET_TYPE, SetInteliwebNode);
+  applyRegisteredNodeMetadata(SetInteliwebNode, SET_METADATA);
 }
 
 function registerGetNode() {
-  const LGraphNode = LiteGraph.LGraphNode;
+  const existing = LiteGraph.registered_node_types?.[GET_TYPE];
+  if (existing?.__inteliwebImplementationVersion === IMPLEMENTATION_VERSION) {
+    applyRegisteredNodeMetadata(existing, GET_METADATA);
+    return;
+  }
 
-  class GetInteliwebNode extends LGraphNode {
+  class GetInteliwebNode extends LiteGraph.LGraphNode {
     static title = "Get (Inteliweb)";
     static category = CATEGORY;
+    static __inteliwebImplementationVersion = IMPLEMENTATION_VERSION;
 
     constructor(title) {
       super(title);
-      this.isVirtualNode = true;
-      this.serialize_widgets = true;
-      this.comfyClass = GET_TYPE;
-      this.properties ||= {};
-      this.properties.inteliwebVariableName ||= "";
-      this.properties["Node name for S&R"] = GET_TYPE;
-      this.properties.aux_id = PACKAGE_ID;
-      this.currentSetter = null;
-
-      const comboOptions = {};
-      Object.defineProperty(comboOptions, "values", {
-        get: () => {
-          if (!this.graph) return [];
-
-          const current = nodeVariableName(this);
-          const targetTypes = readSetting("filterGetOptionsByType")
-            ? connectedTargetTypes(this)
-            : [];
-          const names = visibleSetNames(this.graph, targetTypes);
-
-          return !targetTypes.length && current && !names.includes(current)
-            ? [current, ...names]
-            : names;
-        },
-        enumerable: true,
-        configurable: true,
-      });
-
-      const widget = this.addWidget(
-        "combo",
-        "name",
-        "",
-        () => {
-          if (!app.configuringGraph) this.onRename();
-        },
-        comboOptions,
-      );
-
-      // Classic renderer needs an explicit menu when values use a dynamic getter.
-      const originalOnClick = widget.onClick;
-
-      widget.onClick = (params) => {
-        if (LiteGraph.vueNodesMode) {
-          return typeof originalOnClick === "function"
-            ? originalOnClick.call(widget, params)
-            : undefined;
-        }
-
-        const { e, canvas, node } = params;
-        const x = e.canvasX - node.pos[0];
-        const width = widget.width || node.size[0];
-        if (x < 40) return widget.decrementValue?.({ e, node, canvas });
-        if (x > width - 40) return widget.incrementValue?.({ e, node, canvas });
-
-        const values = comboOptions.values;
-        if (!values.length) return;
-        const menu = new LiteGraph.ContextMenu(values, {
-          scale: Math.max(1, canvas.ds?.scale || 1),
-          event: e,
-          className: "dark",
-          callback: (value) => widget.setValue?.(value, { e, node, canvas }),
-        });
-
-        const entries = menu.root?.querySelectorAll?.(".litemenu-entry");
-        values.forEach((name, index) => {
-          const entry = entries?.[index];
-          if (!entry) return;
-          const setter = findSetter(this.graph, name)?.node;
-          entry.style.borderLeft = `4px solid ${menuEntryColor(canvas, setterType(setter))}`;
-          entry.style.paddingLeft = "8px";
-        });
-      };
-
-      this._refreshComboOptions = () => {
-        const currentWidget = this.widgets?.[0];
-        if (!currentWidget) return;
-
-        const freshOptions = {};
-        Object.defineProperty(
-          freshOptions,
-          "values",
-          Object.getOwnPropertyDescriptor(comboOptions, "values"),
-        );
-        currentWidget.options = freshOptions;
-
-        // Nodes 2.0 re-extracts combo values when the widget is reinserted.
-        const index = this.widgets.indexOf(currentWidget);
-        if (index >= 0) {
-          this.widgets.splice(index, 1);
-          this.widgets.splice(index, 0, currentWidget);
-        }
-      };
-
-      this.addOutput("*", "*");
+      ensureGetIntegrity(this);
+      this._installRefreshCombo();
       this.refreshTitle();
+    }
+
+    _installRefreshCombo() {
+      this._refreshComboOptions = () => {
+        ensureGetIntegrity(this);
+        const widget = variableWidget(this);
+        if (!widget || this.__inteliwebRefreshingCombo) return;
+        const currentName = nodeVariableName(this);
+        this.__inteliwebRefreshingCombo = true;
+        try {
+          const options = makeGetComboOptions(this);
+          this.__inteliwebComboOptions = options;
+          widget.options = options;
+          attachClassicComboMenu(this, widget, options);
+          if (LiteGraph.vueNodesMode) {
+            const index = this.widgets.indexOf(widget);
+            if (index >= 0) {
+              this.widgets.splice(index, 1);
+              this.widgets.splice(index, 0, widget);
+            }
+          }
+          if (currentName) setVariableName(this, currentName);
+        } finally {
+          this.__inteliwebRefreshingCombo = false;
+        }
+      };
     }
 
     refreshTitle() {
@@ -749,9 +781,7 @@ function registerGetNode() {
     }
 
     setName(name) {
-      const value = String(name || "").trim();
-      this.widgets[0].value = value;
-      this.properties.inteliwebVariableName = value;
+      setVariableName(this, name, { allowEmpty: true });
       this.onRename();
     }
 
@@ -767,14 +797,12 @@ function registerGetNode() {
     }
 
     onRename() {
+      if (this.__inteliwebRefreshingCombo || this.__inteliwebRepairing) return;
       const name = nodeVariableName(this);
-      if (name) this.properties.inteliwebVariableName = name;
-
+      if (name) setVariableName(this, name);
       const result = findSetter(this.graph, name);
       this.currentSetter = result?.node || null;
-      if (result?.node) this.setType(setterType(result.node));
-      else this.setType("*");
-
+      this.setType(result?.node ? setterType(result.node) : "*");
       this.refreshTitle();
       this._refreshComboOptions?.();
       app.canvas?.setDirty?.(true, true);
@@ -790,17 +818,14 @@ function registerGetNode() {
     validateLinks() {
       const output = this.outputs?.[0];
       if (!this.graph || !output?.links || output.type === "*") return;
-
       for (const linkId of [...output.links]) {
-        const link = getLink(this.graph, linkId);
-        const targetType = targetTypeFromLink(this, link);
-        if (!targetType || targetType === "*") continue;
-        if (!typesAreCompatible(output.type, targetType))
+        const targetType = targetTypeFromLink(this, getLink(this.graph, linkId));
+        if (targetType && targetType !== "*" && !typesAreCompatible(output.type, targetType)) {
           this.graph.removeLink?.(linkId);
+        }
       }
     }
 
-    // Same-graph prompt resolution.
     getInputLink() {
       const result = findSetter(this.graph, nodeVariableName(this));
       if (!result || result.graph !== this.graph) return null;
@@ -808,61 +833,61 @@ function registerGetNode() {
       return input?.link != null ? getLink(result.graph, input.link) : null;
     }
 
-    // Subgraph-aware prompt resolution available in modern ComfyUI.
     resolveVirtualOutput() {
       const result = findSetter(this.graph, nodeVariableName(this));
       if (!result || result.graph === this.graph) return undefined;
-
       const input = firstWiredInput(result.node);
       if (input?.link == null) return undefined;
       const link = getLink(result.graph, input.link);
       if (!link) return undefined;
-
       const resolved = resolveLink(result.node, link);
-      const source =
-        resolved?.outputNode || result.graph.getNodeById?.(link.origin_id);
-      const slot = resolved?.output
-        ? source?.outputs?.indexOf?.(resolved.output)
-        : link.origin_slot;
-      return source
-        ? { node: source, slot: slot ?? link.origin_slot }
-        : undefined;
+      const source = resolved?.outputNode || result.graph.getNodeById?.(link.origin_id);
+      const slot = resolved?.output ? source?.outputs?.indexOf?.(resolved.output) : link.origin_slot;
+      return source ? { node: source, slot: slot ?? link.origin_slot } : undefined;
     }
 
     onAdded() {
       this._justAdded = true;
+      ensureGetIntegrity(this);
+      this._installRefreshCombo();
     }
 
-    onConfigure() {
-      const savedName = this.properties.inteliwebVariableName;
-      if (savedName && !nodeVariableName(this))
-        this.widgets[0].value = savedName;
-
+    onConfigure(serializedData) {
+      ensureGetIntegrity(this, serializedData);
+      this._installRefreshCombo();
       if (this._justAdded && !app.configuringGraph) {
         const renamed = pasteRenameMap.get(nodeVariableName(this));
-        if (renamed) this.widgets[0].value = renamed;
+        if (renamed) setVariableName(this, renamed);
       }
-
-      this.properties.inteliwebVariableName = nodeVariableName(this);
       this._justAdded = false;
-      queueMicrotask(() => reconcileGet(this));
+      scheduleGraphReconcile(this.graph);
+    }
+
+    onSerialize(data) {
+      ensureGetIntegrity(this);
+      const name = nodeVariableName(this);
+      data.properties ||= {};
+      if (name) {
+        data.properties.inteliwebVariableName = name;
+        data.widgets_values ||= [];
+        data.widgets_values[0] = name;
+      }
     }
 
     onGraphConfigured() {
-      queueMicrotask(() => reconcileGet(this));
+      ensureGetIntegrity(this);
+      this._installRefreshCombo();
+      scheduleGraphReconcile(this.graph);
     }
 
     onAfterGraphConfigured() {
-      setTimeout(() => reconcileGet(this), 0);
+      setTimeout(() => scheduleGraphReconcile(this.graph), 0);
     }
 
     clone() {
       const cloned = super.clone();
       if (!cloned) return cloned;
-      if (cloned.outputs?.[0]) {
-        cloned.outputs[0].type = "*";
-        cloned.outputs[0].name = "*";
-      }
+      if (cloned.outputs?.[0]) cloned.outputs[0].type = "*";
       cloned.color = null;
       cloned.bgcolor = null;
       return cloned;
@@ -871,7 +896,6 @@ function registerGetNode() {
     getExtraMenuOptions(_, options) {
       const result = findSetter(this.graph, nodeVariableName(this));
       if (!result?.node) return;
-
       options.unshift({
         content: "Jump to paired Set (Inteliweb)",
         callback: () => {
@@ -895,36 +919,30 @@ function registerGetNode() {
   }
 
   LiteGraph.registerNodeType(GET_TYPE, GetInteliwebNode);
+  applyRegisteredNodeMetadata(GetInteliwebNode, GET_METADATA);
 }
 
 function installSubgraphConvertedListener() {
   const canvasElement = app.canvas?.canvas;
   if (!canvasElement || canvasElement._inteliwebSetGetSubgraphListener) return;
   canvasElement._inteliwebSetGetSubgraphListener = true;
-
   canvasElement.addEventListener("subgraph-converted", (event) => {
     const subgraph = event?.detail?.subgraphNode?.subgraph;
-    queueMicrotask(() => reconcileGraph(subgraph || app.graph));
-    setTimeout(() => reconcileGraph(subgraph || app.graph), 0);
+    scheduleGraphReconcile(subgraph || app.graph);
+    setTimeout(() => scheduleGraphReconcile(subgraph || app.graph), 0);
   });
 }
 
 app.registerExtension({
   name: "Inteliweb.SetGet",
-
   settings: [
     {
       id: `${SETTING_PREFIX}filterGetOptionsByType`,
       name: "Filter Get node options by type",
       type: "boolean",
       defaultValue: defaults.filterGetOptionsByType,
-      tooltip:
-        "When a Get node is connected, only shows Set variables compatible with the destination input type.",
-      category: [
-        "Inteliweb",
-        "Set & Get Nodes",
-        "Filter Get node options by type",
-      ],
+      tooltip: "When a Get node is connected, only shows Set variables compatible with the destination input type.",
+      category: ["Inteliweb", "Set & Get Nodes", "Filter Get node options by type"],
       onChange: () => refreshAllGetCombos(app.graph),
     },
     {
@@ -932,12 +950,15 @@ app.registerExtension({
       name: "Auto-color nodes",
       type: "boolean",
       defaultValue: defaults.autoColor,
-      tooltip:
-        "Automatically colors Set and Get nodes according to the stored ComfyUI data type.",
+      tooltip: "Automatically colors Set and Get nodes according to the stored ComfyUI data type.",
       category: ["Inteliweb", "Set & Get Nodes", "Auto-color nodes"],
       onChange: () => refreshAllNodeColors(app.graph),
     },
   ],
+
+  beforeRegisterVueAppNodeDefs(nodeDefs) {
+    applyVueNodeMetadata(nodeDefs);
+  },
 
   registerCustomNodes() {
     registerSetNode();
@@ -946,17 +967,34 @@ app.registerExtension({
 
   nodeCreated(node) {
     if (node?.type === SET_TYPE || node?.comfyClass === SET_TYPE) {
-      queueMicrotask(() => reconcileSet(node));
+      ensureSetIntegrity(node);
+      scheduleGraphReconcile(node.graph || app.graph);
     } else if (node?.type === GET_TYPE || node?.comfyClass === GET_TYPE) {
-      queueMicrotask(() => reconcileGet(node));
+      ensureGetIntegrity(node);
+      node._installRefreshCombo?.();
+      scheduleGraphReconcile(node.graph || app.graph);
     }
   },
 
+  loadedGraphNode(node) {
+    if (node?.type === SET_TYPE || node?.comfyClass === SET_TYPE) ensureSetIntegrity(node);
+    else if (node?.type === GET_TYPE || node?.comfyClass === GET_TYPE) ensureGetIntegrity(node);
+  },
+
   setup() {
+    applyRegisteredNodeMetadata(LiteGraph.registered_node_types?.[SET_TYPE], SET_METADATA);
+    applyRegisteredNodeMetadata(LiteGraph.registered_node_types?.[GET_TYPE], GET_METADATA);
     installSubgraphConvertedListener();
     setTimeout(() => {
+      applyRegisteredNodeMetadata(LiteGraph.registered_node_types?.[SET_TYPE], SET_METADATA);
+      applyRegisteredNodeMetadata(LiteGraph.registered_node_types?.[GET_TYPE], GET_METADATA);
       installSubgraphConvertedListener();
-      reconcileGraph(app.graph);
+      scheduleGraphReconcile(app.graph);
     }, 0);
+  },
+
+  afterConfigureGraph() {
+    scheduleGraphReconcile(app.graph);
+    setTimeout(() => scheduleGraphReconcile(app.graph), 0);
   },
 });

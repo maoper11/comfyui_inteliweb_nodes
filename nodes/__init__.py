@@ -8,12 +8,10 @@ from .prompt_list import InteliwebPromptList
 from .purge_vram import InteliwebPurgeVRAM
 from .replace_text_multi import InteliwebReplaceTextMulti
 from .seed import InteliwebSeed
-from .set_get import GetInteliwebRegistration, SetInteliwebRegistration
 from .string_index_selector import InteliwebStringIndexSelector
 from .system_check import InteliwebSystemCheck
 
 __all__ = [
-    "GetInteliwebRegistration",
     "InteliwebImageCompare",
     "InteliwebInputSwitch",
     "InteliwebLabel",
@@ -24,5 +22,4 @@ __all__ = [
     "InteliwebSeed",
     "InteliwebStringIndexSelector",
     "InteliwebSystemCheck",
-    "SetInteliwebRegistration",
 ]
