@@ -28,6 +28,7 @@ const DEFAULT_STATE = Object.freeze({
 });
 
 let cachedLoras = null;
+let cachedLoraLookup = null;
 let pendingLoras = null;
 let activePicker = null;
 
@@ -37,14 +38,20 @@ function isVueNodes() {
 
 function portablePath(value) {
   return String(value ?? "")
+    .trim()
     .replaceAll("\\", "/")
     .replace(/^\/+/, "")
     .replace(/\/{2,}/g, "/");
 }
 
-function finiteNumber(value, fallback = 1) {
+function normalizeStrength(value, fallback = 1) {
   const number = Number(value);
-  return Number.isFinite(number) ? Math.max(-100, Math.min(100, number)) : fallback;
+  const finite = Number.isFinite(number) ? number : fallback;
+  return Math.max(-100, Math.min(100, Math.round(finite * 100) / 100));
+}
+
+function formatStrength(value, fallback = 1) {
+  return normalizeStrength(value, fallback).toFixed(2);
 }
 
 function cloneDefaultState() {
@@ -64,7 +71,7 @@ function parseState(raw) {
       loras: parsed.loras
         .filter((row) => row && typeof row === "object")
         .map((row) => {
-          const strength = finiteNumber(row.strength ?? row.strength_model, 1);
+          const strength = normalizeStrength(row.strength ?? row.strength_model, 1);
           return {
             on: row.on !== false,
             name: portablePath(row.name),
@@ -84,7 +91,7 @@ function serializeState(state) {
     version: 1,
     separate_strengths: false,
     loras: (state?.loras || []).map((row) => {
-      const strength = finiteNumber(row.strength ?? row.strength_model, 1);
+      const strength = normalizeStrength(row.strength ?? row.strength_model, 1);
       return {
         on: row.on !== false,
         name: portablePath(row.name),
@@ -107,24 +114,147 @@ function readNodeState(node) {
 }
 
 function writeNodeState(node) {
-  const serialized = serializeState(readNodeState(node));
+  const state = readNodeState(node);
   node.properties ||= {};
-  node.properties[STATE_PROP] = serialized;
-  node.__inteliwebLoraState = parseState(serialized);
+  node.properties[STATE_PROP] = serializeState(state);
   node.graph?.setDirtyCanvas?.(true, true);
-  return node.__inteliwebLoraState;
+  return state;
+}
+
+function basename(path) {
+  const portable = portablePath(path);
+  return portable.slice(portable.lastIndexOf("/") + 1);
+}
+
+function addLookupValue(map, key, value) {
+  if (!key) return;
+  const existing = map.get(key);
+  if (existing === undefined) {
+    map.set(key, value);
+  } else if (Array.isArray(existing)) {
+    if (!existing.includes(value)) existing.push(value);
+  } else if (existing !== value) {
+    map.set(key, [existing, value]);
+  }
+}
+
+function lookupMatches(value) {
+  if (value === undefined) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function buildLoraLookup(names) {
+  const exactPaths = new Map();
+  const casefoldPaths = new Map();
+  const basenames = new Map();
+
+  for (const original of names || []) {
+    const actualName = portablePath(original);
+    if (!actualName) continue;
+    addLookupValue(exactPaths, actualName, actualName);
+    addLookupValue(casefoldPaths, actualName.toLowerCase(), actualName);
+    addLookupValue(basenames, basename(actualName).toLowerCase(), actualName);
+  }
+
+  return { exactPaths, casefoldPaths, basenames };
+}
+
+function updateLoraCache(data) {
+  cachedLoras = [...new Set((Array.isArray(data) ? data : []).map(portablePath).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  cachedLoraLookup = buildLoraLookup(cachedLoras);
+}
+
+function uniqueResolution(matches, requestedName, matchType) {
+  if (matches.length === 1) {
+    return {
+      status: "resolved",
+      requestedName,
+      actualName: matches[0],
+      matchType,
+    };
+  }
+  if (matches.length > 1) {
+    return {
+      status: "ambiguous",
+      requestedName,
+      matches,
+    };
+  }
+  return null;
+}
+
+function resolveLoraStatus(requestedName) {
+  const requested = portablePath(requestedName);
+  if (!cachedLoraLookup) return { status: "loading", requestedName: requested };
+  if (!requested) return { status: "missing", requestedName: requested };
+
+  const exact = lookupMatches(cachedLoraLookup.exactPaths.get(requested));
+  if (exact.length === 1) {
+    return {
+      status: "available",
+      requestedName: requested,
+      actualName: exact[0],
+    };
+  }
+  if (exact.length > 1) {
+    return { status: "ambiguous", requestedName: requested, matches: exact };
+  }
+
+  const folded = uniqueResolution(
+    lookupMatches(cachedLoraLookup.casefoldPaths.get(requested.toLowerCase())),
+    requested,
+    "case-insensitive",
+  );
+  if (folded) return folded;
+
+  const byFilename = uniqueResolution(
+    lookupMatches(cachedLoraLookup.basenames.get(basename(requested).toLowerCase())),
+    requested,
+    "filename",
+  );
+  if (byFilename) return byFilename;
+
+  return { status: "missing", requestedName: requested };
+}
+
+function statusLabel(resolution) {
+  if (resolution.status === "missing") {
+    return `⚠ Missing: ${resolution.requestedName || "Select a LoRA…"}`;
+  }
+  if (resolution.status === "ambiguous") {
+    return `⚠ Ambiguous: ${resolution.requestedName || "Select a LoRA…"}`;
+  }
+  return resolution.actualName || resolution.requestedName || "Select a LoRA…";
+}
+
+function statusTitle(resolution) {
+  if (resolution.status === "resolved") {
+    return `Saved as: ${resolution.requestedName}\nResolved as: ${resolution.actualName}`;
+  }
+  if (resolution.status === "missing") {
+    return `Missing LoRA: ${resolution.requestedName || "No filename saved"}`;
+  }
+  if (resolution.status === "ambiguous") {
+    const matches = resolution.matches.slice(0, 8).join("\n");
+    const suffix = resolution.matches.length > 8 ? "\n…" : "";
+    return `Ambiguous LoRA: ${resolution.requestedName}\nMatches:\n${matches}${suffix}`;
+  }
+  return resolution.actualName || resolution.requestedName || "Select a LoRA";
+}
+
+function isWarningResolution(resolution) {
+  return resolution.status === "missing" || resolution.status === "ambiguous";
 }
 
 async function fetchLoras(force = false) {
+  if (pendingLoras) return pendingLoras;
   if (!force && Array.isArray(cachedLoras)) return cachedLoras;
-  if (!force && pendingLoras) return pendingLoras;
 
   pendingLoras = (async () => {
     const response = await api.fetchApi("/models/loras");
     if (!response.ok) throw new Error(`Unable to load LoRA list (${response.status})`);
-    const data = await response.json();
-    cachedLoras = [...new Set((Array.isArray(data) ? data : []).map(portablePath).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+    updateLoraCache(await response.json());
     return cachedLoras;
   })();
 
@@ -191,7 +321,7 @@ function injectStyles() {
 }
 .inteliweb-lora-row {
   display: grid;
-  grid-template-columns: 30px minmax(24px, 1fr) 58px 24px;
+  grid-template-columns: 30px minmax(24px, 1fr) 76px 24px;
   gap: 3px;
   align-items: center;
   width: 100%;
@@ -301,10 +431,14 @@ function injectStyles() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.inteliweb-lora-picker-value.missing { color: #ffcc80; }
+.inteliweb-lora-picker-value.missing,
+.inteliweb-lora-picker-value.warning,
+.inteliweb-lora-option.warning {
+  color: #ffcc80;
+}
 .inteliweb-lora-strength {
   display: grid;
-  grid-template-columns: 14px minmax(20px, 1fr) 14px;
+  grid-template-columns: 14px minmax(44px, 1fr) 14px;
   width: 100%;
   min-width: 0;
   height: 25px;
@@ -327,9 +461,11 @@ function injectStyles() {
   min-width: 0;
   border: 0;
   outline: 0;
+  padding: 0 1px;
   background: transparent;
   color: #f0f0f0;
   text-align: center;
+  font-variant-numeric: tabular-nums;
   appearance: textfield;
   -moz-appearance: textfield;
 }
@@ -439,18 +575,32 @@ function positionPicker(trigger, panel) {
   panel.style.top = `${Math.round(top)}px`;
 }
 
+function createPickerOption({ name, label = name, title = name, selected = false, warning = false, onClick }) {
+  const option = document.createElement("button");
+  option.type = "button";
+  option.className = `inteliweb-lora-option${selected ? " selected" : ""}${warning ? " warning" : ""}`;
+  option.textContent = label;
+  option.title = title;
+  option.addEventListener("click", onClick);
+  return option;
+}
+
 function makePicker(current, onChange) {
   const currentName = portablePath(current);
+  const resolution = resolveLoraStatus(currentName);
+  const warning = isWarningResolution(resolution);
+  const selectedActualName = resolution.actualName || currentName;
+
   const wrapper = document.createElement("div");
   const trigger = document.createElement("button");
   trigger.type = "button";
   trigger.className = "inteliweb-lora-picker-trigger";
   trigger.setAttribute("aria-expanded", "false");
-  trigger.title = currentName || "Select a LoRA";
+  trigger.title = statusTitle(resolution);
 
   const value = document.createElement("span");
-  value.className = "inteliweb-lora-picker-value";
-  value.textContent = currentName || "Select a LoRA…";
+  value.className = `inteliweb-lora-picker-value${warning ? " missing" : ""}${resolution.status === "ambiguous" ? " warning" : ""}`;
+  value.textContent = statusLabel(resolution);
 
   const caret = document.createElement("span");
   caret.textContent = "▼";
@@ -484,34 +634,46 @@ function makePicker(current, onChange) {
     trigger.setAttribute("aria-expanded", "true");
 
     const render = () => {
-      const terms = search.value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+      const terms = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
       const all = Array.isArray(cachedLoras) ? cachedLoras : [];
       const names = terms.length
-        ? all.filter((name) => terms.every((term) => name.toLocaleLowerCase().includes(term)))
+        ? all.filter((name) => terms.every((term) => name.toLowerCase().includes(term)))
         : all;
+      const warningLabel = statusLabel(resolution);
+      const showWarning = warning && (
+        !terms.length || terms.every((term) => warningLabel.toLowerCase().includes(term))
+      );
 
-      count.textContent = `${names.length}/${all.length}`;
+      count.textContent = `${names.length + (showWarning ? 1 : 0)}/${all.length + (warning ? 1 : 0)}`;
       options.replaceChildren();
 
-      if (!names.length) {
+      if (showWarning) {
+        options.appendChild(createPickerOption({
+          name: currentName,
+          label: warningLabel,
+          title: statusTitle(resolution),
+          selected: true,
+          warning: true,
+          onClick: () => closePicker(true),
+        }));
+      }
+
+      for (const name of names) {
+        options.appendChild(createPickerOption({
+          name,
+          selected: !warning && name === selectedActualName,
+          onClick: () => {
+            closePicker();
+            onChange(name);
+          },
+        }));
+      }
+
+      if (!options.childElementCount) {
         const empty = document.createElement("div");
         empty.className = "inteliweb-lora-no-results";
         empty.textContent = "No matching LoRAs.";
         options.appendChild(empty);
-        return;
-      }
-
-      for (const name of names) {
-        const option = document.createElement("button");
-        option.type = "button";
-        option.className = `inteliweb-lora-option${name === currentName ? " selected" : ""}`;
-        option.textContent = name;
-        option.title = name;
-        option.addEventListener("click", () => {
-          closePicker();
-          onChange(name);
-        });
-        options.appendChild(option);
       }
     };
 
@@ -557,21 +719,48 @@ function makeStrength(value, onChange) {
   input.min = "-100";
   input.max = "100";
   input.step = "0.05";
-  input.value = String(finiteNumber(value, 1));
+
+  let lastValid = normalizeStrength(value, 1);
+  input.value = formatStrength(lastValid);
+
+  const persist = (next, format = false) => {
+    const text = String(next ?? "").trim();
+    const number = Number(text);
+    if (!text || !Number.isFinite(number)) {
+      if (format) input.value = formatStrength(lastValid);
+      return false;
+    }
+
+    lastValid = normalizeStrength(number, lastValid);
+    onChange(lastValid);
+    if (format) input.value = formatStrength(lastValid);
+    return true;
+  };
+
+  const step = (amount) => {
+    const current = Number(input.value);
+    persist((Number.isFinite(current) ? current : lastValid) + amount, true);
+  };
 
   const right = document.createElement("button");
   right.type = "button";
   right.textContent = "▶";
 
-  const commit = (next) => {
-    const normalized = finiteNumber(next, 1);
-    input.value = String(Number(normalized.toFixed(6)));
-    onChange(normalized);
-  };
+  left.addEventListener("click", () => step(-0.05));
+  right.addEventListener("click", () => step(0.05));
+  input.addEventListener("input", () => persist(input.value));
+  input.addEventListener("change", () => persist(input.value, true));
+  input.addEventListener("blur", () => persist(input.value, true));
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      persist(input.value, true);
+      input.blur();
+    } else if (event.key === "Escape") {
+      input.value = formatStrength(lastValid);
+      input.blur();
+    }
+  });
 
-  left.addEventListener("click", () => commit(Number(input.value) - 0.05));
-  right.addEventListener("click", () => commit(Number(input.value) + 0.05));
-  input.addEventListener("change", () => commit(input.value));
   wrapper.append(left, input, right);
   return wrapper;
 }
