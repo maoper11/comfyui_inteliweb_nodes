@@ -5,7 +5,7 @@ const GET_TYPE = "GetInteliweb";
 const CATEGORY = "Inteliweb/Utils";
 const PACKAGE_ID = "maoper11/comfyui_inteliweb_nodes";
 const SETTING_PREFIX = "Inteliweb.SetGet.";
-const IMPLEMENTATION_VERSION = 3;
+const IMPLEMENTATION_VERSION = 4;
 const NAME_WIDGET = "name";
 
 const SET_METADATA = Object.freeze({
@@ -26,7 +26,8 @@ const defaults = {
 };
 
 const pasteRenameMap = new Map();
-const pendingGraphReconciles = new WeakMap();
+const graphIndexCache = new WeakMap();
+const pendingInitialReconciles = new WeakMap();
 let cachedTypeColorMap = null;
 
 function readSetting(name) {
@@ -50,71 +51,22 @@ function rootGraph(graph) {
   return graph?.rootGraph || graph || null;
 }
 
-function directChildGraphs(graph) {
-  const result = [];
-  for (const node of graph?._nodes || graph?.nodes || []) {
-    if (node?.subgraph && !result.includes(node.subgraph)) result.push(node.subgraph);
-  }
-  return result;
+function graphNodes(graph) {
+  return graph?._nodes || graph?.nodes || [];
 }
 
-function allGraphs(graph) {
-  const root = rootGraph(graph);
-  if (!root) return [];
-
-  const result = [];
-  const queue = [root];
-  const seen = new Set();
-  while (queue.length) {
-    const current = queue.shift();
-    if (!current || seen.has(current)) continue;
-    seen.add(current);
-    result.push(current);
-
-    for (const child of directChildGraphs(current)) queue.push(child);
-    const registered = current._subgraphs || current.subgraphs;
-    if (registered?.values) {
-      for (const child of registered.values()) queue.push(child);
-    }
-  }
-  return result;
+function isSetNode(node) {
+  return node?.type === SET_TYPE || node?.comfyClass === SET_TYPE;
 }
 
-function parentGraphOf(graph) {
-  const root = rootGraph(graph);
-  if (!graph || !root || graph === root) return null;
-  for (const candidate of allGraphs(root)) {
-    for (const node of candidate?._nodes || candidate?.nodes || []) {
-      if (node?.subgraph === graph) return candidate;
-    }
-  }
-  return root;
-}
-
-function graphAncestors(graph) {
-  const result = [];
-  const seen = new Set();
-  let current = graph;
-  while (current && !seen.has(current)) {
-    seen.add(current);
-    result.push(current);
-    current = parentGraphOf(current);
-  }
-  return result;
-}
-
-function isGraphAncestor(ancestor, graph) {
-  return graphAncestors(graph).includes(ancestor);
-}
-
-function nodesOfType(graph, type) {
-  return (graph?._nodes || graph?.nodes || []).filter(
-    (node) => node?.type === type || node?.comfyClass === type,
-  );
+function isGetNode(node) {
+  return node?.type === GET_TYPE || node?.comfyClass === GET_TYPE;
 }
 
 function variableWidget(node) {
-  return node?.widgets?.find((widget) => widget?.name === NAME_WIDGET || widget?.name === "Constant") || null;
+  return node?.widgets?.find(
+    (widget) => widget?.name === NAME_WIDGET || widget?.name === "Constant",
+  ) || null;
 }
 
 function storedVariableName(node) {
@@ -135,9 +87,7 @@ function setVariableName(node, value, { allowEmpty = false, notify = false } = {
   if (widget) widget.value = normalized;
   node.properties ||= {};
   node.properties.inteliwebVariableName = normalized;
-  if (node.type === SET_TYPE || node.comfyClass === SET_TYPE) {
-    node.properties.previousName ||= previous;
-  }
+  if (isSetNode(node)) node.properties.previousName ||= previous;
   if (notify && typeof widget?.callback === "function") widget.callback(normalized, node, widget);
   return normalized;
 }
@@ -165,7 +115,10 @@ function firstWiredInput(node) {
 }
 
 function normalizeTypes(type) {
-  return String(type || "*").split(",").map((value) => value.trim()).filter(Boolean);
+  return String(type || "*")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
 
 function typesAreCompatible(setType, targetType) {
@@ -218,31 +171,191 @@ function setterType(setter) {
   return input?.type || setter?.inputs?.[0]?.type || setter?.outputs?.[0]?.type || "*";
 }
 
-function findSetter(graph, name) {
-  const wanted = String(name || "").trim();
-  if (!wanted) return null;
-  for (const candidateGraph of graphAncestors(graph)) {
-    for (const node of nodesOfType(candidateGraph, SET_TYPE)) {
-      if (nodeVariableName(node) === wanted) return { node, graph: candidateGraph };
+function collectGraphStructure(graph) {
+  const root = rootGraph(graph);
+  if (!root) {
+    return {
+      root: null,
+      graphs: [],
+      parentByGraph: new Map(),
+      childrenByGraph: new Map(),
+    };
+  }
+
+  const graphs = [];
+  const seen = new Set();
+  const parentByGraph = new Map();
+  const childrenByGraph = new Map();
+  const queue = [root];
+
+  const addChild = (parent, child) => {
+    if (!parent || !child || child === parent) return;
+    if (!parentByGraph.has(child)) parentByGraph.set(child, parent);
+    let children = childrenByGraph.get(parent);
+    if (!children) childrenByGraph.set(parent, (children = []));
+    if (!children.includes(child)) children.push(child);
+    if (!seen.has(child)) queue.push(child);
+  };
+
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || seen.has(current)) continue;
+    seen.add(current);
+    graphs.push(current);
+
+    for (const node of graphNodes(current)) {
+      const child = node?.subgraph || node?._graph;
+      if (child && child !== current) addChild(current, child);
+    }
+
+    const registered = current._subgraphs || current.subgraphs;
+    if (registered?.values) {
+      for (const child of registered.values()) {
+        if (!parentByGraph.has(child)) addChild(current === root ? root : current, child);
+      }
     }
   }
-  return null;
+
+  for (const candidate of graphs) {
+    if (candidate !== root && !parentByGraph.has(candidate)) parentByGraph.set(candidate, root);
+  }
+
+  return { root, graphs, parentByGraph, childrenByGraph };
 }
 
-function visibleSetNames(graph, targetTypes = []) {
-  const names = [];
+function buildGraphIndex(graph) {
+  const structure = collectGraphStructure(graph);
+  const setsByGraph = new Map();
+  const getsByGraph = new Map();
+  const allSets = [];
+  const allGets = [];
+
+  for (const candidate of structure.graphs) {
+    const namedSets = new Map();
+    const getters = [];
+    for (const node of graphNodes(candidate)) {
+      if (isSetNode(node)) {
+        allSets.push(node);
+        const name = nodeVariableName(node);
+        if (name && !namedSets.has(name)) namedSets.set(name, node);
+      } else if (isGetNode(node)) {
+        allGets.push(node);
+        getters.push(node);
+      }
+    }
+    setsByGraph.set(candidate, namedSets);
+    getsByGraph.set(candidate, getters);
+  }
+
+  const ancestorsByGraph = new Map();
+  const ancestorsOf = (candidate) => {
+    if (ancestorsByGraph.has(candidate)) return ancestorsByGraph.get(candidate);
+    const result = [];
+    const seen = new Set();
+    let current = candidate;
+    while (current && !seen.has(current)) {
+      seen.add(current);
+      result.push(current);
+      current = structure.parentByGraph.get(current) || null;
+    }
+    if (structure.root && !result.includes(structure.root)) result.push(structure.root);
+    ancestorsByGraph.set(candidate, result);
+    return result;
+  };
+
+  const resolveSetter = (candidateGraph, name) => {
+    const wanted = String(name || "").trim();
+    if (!wanted) return null;
+    for (const scopeGraph of ancestorsOf(candidateGraph)) {
+      const setter = setsByGraph.get(scopeGraph)?.get(wanted);
+      if (setter) return { node: setter, graph: scopeGraph };
+    }
+    return null;
+  };
+
+  const gettersBySetter = new Map();
+  for (const getter of allGets) {
+    const setter = resolveSetter(getter.graph, nodeVariableName(getter))?.node;
+    if (!setter) continue;
+    let getters = gettersBySetter.get(setter);
+    if (!getters) gettersBySetter.set(setter, (getters = []));
+    getters.push(getter);
+  }
+
+  return {
+    ...structure,
+    setsByGraph,
+    getsByGraph,
+    allSets,
+    allGets,
+    ancestorsByGraph,
+    optionNamesByGraph: new WeakMap(),
+    resolveSetter,
+    ancestorsOf,
+    gettersBySetter,
+  };
+}
+
+function getGraphIndex(graph, { rebuild = false } = {}) {
+  const root = rootGraph(graph);
+  if (!root) return buildGraphIndex(null);
+  if (!rebuild) {
+    const cached = graphIndexCache.get(root);
+    if (cached) return cached;
+  }
+  const index = buildGraphIndex(root);
+  graphIndexCache.set(root, index);
+  return index;
+}
+
+function invalidateGraphIndex(graph) {
+  const root = rootGraph(graph);
+  if (root) graphIndexCache.delete(root);
+}
+
+function descendantGraphs(graph, index = getGraphIndex(graph)) {
+  if (!graph) return [];
+  const result = [];
   const seen = new Set();
-  for (const candidateGraph of graphAncestors(graph)) {
-    for (const setter of nodesOfType(candidateGraph, SET_TYPE)) {
-      const name = nodeVariableName(setter);
-      if (!name || seen.has(name)) continue;
-      seen.add(name);
+  const queue = [graph];
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || seen.has(current)) continue;
+    seen.add(current);
+    result.push(current);
+    for (const child of index.childrenByGraph.get(current) || []) queue.push(child);
+  }
+  return result;
+}
+
+function findSetter(graph, name, index = getGraphIndex(graph)) {
+  return index.resolveSetter(graph, name);
+}
+
+function gettersOwnedBy(setter, index = getGraphIndex(setter?.graph)) {
+  return setter ? index.gettersBySetter.get(setter) || [] : [];
+}
+
+function visibleSetEntries(graph, targetTypes = [], index = getGraphIndex(graph)) {
+  let graphCache = index.optionNamesByGraph.get(graph);
+  if (!graphCache) index.optionNamesByGraph.set(graph, (graphCache = new Map()));
+  const typeKey = [...targetTypes].sort().join(",") || "*";
+  if (graphCache.has(typeKey)) return graphCache.get(typeKey);
+
+  const entries = [];
+  const seenNames = new Set();
+  for (const candidateGraph of index.ancestorsOf(graph)) {
+    for (const [name, setter] of index.setsByGraph.get(candidateGraph) || []) {
+      if (!name || seenNames.has(name)) continue;
+      seenNames.add(name);
       const type = setterType(setter);
       if (targetTypes.length && !targetTypes.every((target) => typesAreCompatible(type, target))) continue;
-      names.push(name);
+      entries.push({ name, setter });
     }
   }
-  return names.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  entries.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  graphCache.set(typeKey, entries);
+  return entries;
 }
 
 function getTypeColorMap() {
@@ -291,28 +404,57 @@ function menuEntryColor(canvas, type) {
     || mapped?.groupcolor || mapped?.bgcolor || mapped?.color || "#888";
 }
 
-function gettersOwnedBy(setter) {
-  if (!setter?.graph) return [];
-  const name = nodeVariableName(setter);
-  if (!name) return [];
-  const result = [];
-  for (const graph of allGraphs(setter.graph)) {
-    for (const getter of nodesOfType(graph, GET_TYPE)) {
-      if (findSetter(graph, nodeVariableName(getter))?.node === setter) result.push(getter);
-    }
-  }
-  return result;
+function getOptionValues(node, index = getGraphIndex(node?.graph)) {
+  if (!node?.graph) return [];
+  const current = nodeVariableName(node);
+  const targets = readSetting("filterGetOptionsByType") ? connectedTargetTypes(node) : [];
+  const names = visibleSetEntries(node.graph, targets, index).map((entry) => entry.name);
+  return !targets.length && current && !names.includes(current) ? [current, ...names] : names;
 }
 
-function updateGettersAfterSetRename(setter, previousName, newName) {
-  if (!setter?.graph || !previousName || previousName === newName) return;
-  for (const graph of allGraphs(setter.graph)) {
-    if (!isGraphAncestor(setter.graph, graph)) continue;
-    for (const getter of nodesOfType(graph, GET_TYPE)) {
-      if (nodeVariableName(getter) !== previousName) continue;
-      if (!findSetter(graph, previousName)) getter.setName?.(newName);
+function makeGetComboOptions(node) {
+  const options = { __inteliwebOptimizedOptions: true };
+  Object.defineProperty(options, "values", {
+    get: () => node.__inteliwebOptionValues || getOptionValues(node),
+    enumerable: true,
+    configurable: true,
+  });
+  return options;
+}
+
+function attachClassicComboMenu(node, widget) {
+  if (!widget || widget.__inteliwebClassicMenuAttached) return;
+  widget.__inteliwebClassicMenuAttached = true;
+  const originalOnClick = widget.onClick;
+  widget.onClick = (params) => {
+    if (LiteGraph.vueNodesMode) {
+      return typeof originalOnClick === "function" ? originalOnClick.call(widget, params) : undefined;
     }
-  }
+
+    const { e, canvas } = params;
+    const x = e.canvasX - node.pos[0];
+    const width = widget.width || node.size[0];
+    if (x < 40) return widget.decrementValue?.(params);
+    if (x > width - 40) return widget.incrementValue?.(params);
+
+    const index = getGraphIndex(node.graph);
+    const values = getOptionValues(node, index);
+    if (!values.length) return;
+    const menu = new LiteGraph.ContextMenu(values, {
+      scale: Math.max(1, canvas.ds?.scale || 1),
+      event: e,
+      className: "dark",
+      callback: (value) => widget.setValue?.(value, params),
+    });
+    const entries = menu.root?.querySelectorAll?.(".litemenu-entry");
+    values.forEach((name, optionIndex) => {
+      const entry = entries?.[optionIndex];
+      if (!entry) return;
+      const setter = findSetter(node.graph, name, index)?.node;
+      entry.style.borderLeft = `4px solid ${menuEntryColor(canvas, setterType(setter))}`;
+      entry.style.paddingLeft = "8px";
+    });
+  };
 }
 
 function createSetNameWidget(node) {
@@ -325,64 +467,15 @@ function createSetNameWidget(node) {
   });
 }
 
-function makeGetComboOptions(node) {
-  const options = {};
-  Object.defineProperty(options, "values", {
-    get: () => {
-      if (!node.graph) return [];
-      const current = nodeVariableName(node);
-      const targets = readSetting("filterGetOptionsByType") ? connectedTargetTypes(node) : [];
-      const names = visibleSetNames(node.graph, targets);
-      return !targets.length && current && !names.includes(current) ? [current, ...names] : names;
-    },
-    enumerable: true,
-    configurable: true,
-  });
-  return options;
-}
-
-function attachClassicComboMenu(node, widget, comboOptions) {
-  if (!widget || widget.__inteliwebClassicMenuAttached) return;
-  widget.__inteliwebClassicMenuAttached = true;
-  const originalOnClick = widget.onClick;
-  widget.onClick = (params) => {
-    if (LiteGraph.vueNodesMode) {
-      return typeof originalOnClick === "function" ? originalOnClick.call(widget, params) : undefined;
-    }
-    const { e, canvas } = params;
-    const x = e.canvasX - node.pos[0];
-    const width = widget.width || node.size[0];
-    if (x < 40) return widget.decrementValue?.(params);
-    if (x > width - 40) return widget.incrementValue?.(params);
-
-    const values = comboOptions.values;
-    if (!values.length) return;
-    const menu = new LiteGraph.ContextMenu(values, {
-      scale: Math.max(1, canvas.ds?.scale || 1),
-      event: e,
-      className: "dark",
-      callback: (value) => widget.setValue?.(value, params),
-    });
-    const entries = menu.root?.querySelectorAll?.(".litemenu-entry");
-    values.forEach((name, index) => {
-      const entry = entries?.[index];
-      if (!entry) return;
-      const setter = findSetter(node.graph, name)?.node;
-      entry.style.borderLeft = `4px solid ${menuEntryColor(canvas, setterType(setter))}`;
-      entry.style.paddingLeft = "8px";
-    });
-  };
-}
-
 function createGetNameWidget(node) {
-  const comboOptions = makeGetComboOptions(node);
+  const options = makeGetComboOptions(node);
   const widget = node.addWidget("combo", NAME_WIDGET, storedVariableName(node), (value) => {
     if (node.__inteliwebRepairing || node.__inteliwebRefreshingCombo) return;
     setVariableName(node, value, { allowEmpty: true });
     if (!app.configuringGraph) node.onRename?.();
-  }, comboOptions);
-  node.__inteliwebComboOptions = comboOptions;
-  attachClassicComboMenu(node, widget, comboOptions);
+  }, options);
+  node.__inteliwebComboOptions = options;
+  attachClassicComboMenu(node, widget);
   return widget;
 }
 
@@ -432,10 +525,9 @@ function ensureGetIntegrity(node, serializedData = null) {
       if (widget) node.widgets.splice(node.widgets.indexOf(widget), 1);
       widget = createGetNameWidget(node);
     } else {
-      const options = node.__inteliwebComboOptions || makeGetComboOptions(node);
-      node.__inteliwebComboOptions = options;
-      widget.options = options;
-      attachClassicComboMenu(node, widget, options);
+      if (!widget.options?.__inteliwebOptimizedOptions) widget.options = makeGetComboOptions(node);
+      node.__inteliwebComboOptions = widget.options;
+      attachClassicComboMenu(node, widget);
     }
     widget.name = NAME_WIDGET;
 
@@ -446,76 +538,134 @@ function ensureGetIntegrity(node, serializedData = null) {
   }
 }
 
-function reconcileSetType(node) {
+function applySetType(node, type) {
+  const adopted = type || "*";
+  if (node.inputs?.[0]) {
+    node.inputs[0].type = adopted;
+    node.inputs[0].name = "value";
+    node.inputs[0].label = adopted;
+  }
+  if (node.outputs?.[0]) {
+    node.outputs[0].type = adopted;
+    node.outputs[0].name = adopted;
+    node.outputs[0].label = adopted;
+  }
+  applyTypeColor(node, adopted);
+}
+
+function reconcileSetLocal(node) {
   ensureSetIntegrity(node);
   const input = firstWiredInput(node);
   const link = input?.link != null ? getLink(node.graph, input.link) : null;
-  const type = sourceTypeFromLink(node, link) || input?.type || node.inputs?.[0]?.type || node.outputs?.[0]?.type || "*";
-  node.setAdoptedType?.(type);
-}
-
-function reconcileSetName(node) {
-  const current = nodeVariableName(node);
-  if (!current) return;
-  setVariableName(node, current);
-  node.properties.previousName = current;
+  const type = sourceTypeFromLink(node, link)
+    || input?.type
+    || node.inputs?.[0]?.type
+    || node.outputs?.[0]?.type
+    || "*";
+  applySetType(node, type);
+  const name = nodeVariableName(node);
+  if (name) setVariableName(node, name);
   node.refreshTitle?.();
 }
 
-function reconcileSet(node) {
-  if (!node?.graph) return;
-  ensureSetIntegrity(node);
-  reconcileSetType(node);
-  reconcileSetName(node);
-  for (const getter of gettersOwnedBy(node)) reconcileGet(getter);
-}
-
-function reconcileGet(node) {
-  if (!node?.graph) return;
+function reconcileGetLocal(node, index, { refreshOptions = true, validateLinks = true } = {}) {
   ensureGetIntegrity(node);
   const name = nodeVariableName(node);
   if (name) setVariableName(node, name);
-  const result = findSetter(node.graph, name);
+  const result = findSetter(node.graph, name, index);
   node.currentSetter = result?.node || null;
-  node.setType?.(result?.node ? setterType(result.node) : "*");
+  node.setType?.(result?.node ? setterType(result.node) : "*", { validateLinks });
   node.refreshTitle?.();
-  node._refreshComboOptions?.();
+  if (refreshOptions) node._refreshComboOptions?.(false, index);
 }
 
-function reconcileGraphNow(graph) {
-  if (!graph) return;
-  for (const candidate of allGraphs(graph)) {
-    for (const setter of nodesOfType(candidate, SET_TYPE)) reconcileSet(setter);
-    for (const getter of nodesOfType(candidate, GET_TYPE)) reconcileGet(getter);
+function resolvePreviousOwner(index, graph, previousName, renamedSetter) {
+  if (!graph || !previousName || !renamedSetter) return null;
+  for (const scopeGraph of index.ancestorsOf(graph)) {
+    const namedSetter = index.setsByGraph.get(scopeGraph)?.get(previousName);
+    if (namedSetter) return namedSetter;
+    if (scopeGraph === renamedSetter.graph) return renamedSetter;
   }
-  app.canvas?.setDirty?.(true, true);
+  return null;
 }
 
-function scheduleGraphReconcile(graph) {
-  const root = rootGraph(graph);
-  if (!root || pendingGraphReconciles.has(root)) return;
-  const token = {};
-  pendingGraphReconciles.set(root, token);
-  queueMicrotask(() => {
-    if (pendingGraphReconciles.get(root) !== token) return;
-    pendingGraphReconciles.delete(root);
-    reconcileGraphNow(root);
-  });
+function refreshGetCombosInGraphs(graphs, index = getGraphIndex(graphs?.[0])) {
+  for (const graph of graphs || []) {
+    for (const getter of index.getsByGraph.get(graph) || []) getter._refreshComboOptions?.(false, index);
+  }
+}
+
+function refreshGetCombosForScope(graph, index = getGraphIndex(graph)) {
+  refreshGetCombosInGraphs(descendantGraphs(graph, index), index);
+}
+
+function propagateSetRename(setter, previousName, newName, oldIndex) {
+  if (!setter?.graph || !previousName || previousName === newName) return [];
+  const updated = [];
+  for (const graph of descendantGraphs(setter.graph, oldIndex)) {
+    for (const getter of oldIndex.getsByGraph.get(graph) || []) {
+      if (nodeVariableName(getter) !== previousName) continue;
+      if (resolvePreviousOwner(oldIndex, graph, previousName, setter) !== setter) continue;
+      setVariableName(getter, newName, { allowEmpty: true });
+      getter.currentSetter = setter;
+      getter.setType?.(setterType(setter));
+      getter.refreshTitle?.();
+      updated.push(getter);
+    }
+  }
+  return updated;
 }
 
 function refreshAllGetCombos(graph) {
-  for (const candidate of allGraphs(graph)) {
-    for (const getter of nodesOfType(candidate, GET_TYPE)) getter._refreshComboOptions?.();
-  }
+  invalidateGraphIndex(graph);
+  const index = getGraphIndex(graph);
+  for (const getter of index.allGets) getter._refreshComboOptions?.(true, index);
   app.canvas?.setDirty?.(true, true);
 }
 
 function refreshAllNodeColors(graph) {
-  for (const candidate of allGraphs(graph)) {
-    for (const setter of nodesOfType(candidate, SET_TYPE)) applyTypeColor(setter, setterType(setter));
-    for (const getter of nodesOfType(candidate, GET_TYPE)) applyTypeColor(getter, getter.outputs?.[0]?.type || "*");
-  }
+  const index = getGraphIndex(graph, { rebuild: true });
+  for (const setter of index.allSets) applyTypeColor(setter, setterType(setter));
+  for (const getter of index.allGets) applyTypeColor(getter, getter.outputs?.[0]?.type || "*");
   app.canvas?.setDirty?.(true, true);
+}
+
+function reconcileLoadedWorkflow(graph) {
+  const structure = collectGraphStructure(graph);
+  if (!structure.root) return;
+
+  // Local repair first. No relationship lookup or widget rebuilding occurs here.
+  for (const candidate of structure.graphs) {
+    for (const node of graphNodes(candidate)) {
+      if (isSetNode(node)) ensureSetIntegrity(node);
+      else if (isGetNode(node)) ensureGetIntegrity(node);
+    }
+  }
+
+  invalidateGraphIndex(structure.root);
+  const index = getGraphIndex(structure.root);
+
+  for (const setter of index.allSets) reconcileSetLocal(setter);
+  for (const getter of index.allGets) {
+    reconcileGetLocal(getter, index, { refreshOptions: false, validateLinks: false });
+    getter._primeComboOptions?.(index);
+  }
+  for (const getter of index.allGets) getter.validateLinks?.();
+
+  app.canvas?.setDirty?.(true, true);
+}
+
+function scheduleInitialReconcile(graph) {
+  const root = rootGraph(graph);
+  if (!root) return;
+  const previous = pendingInitialReconciles.get(root);
+  if (previous) cancelAnimationFrame(previous);
+  const frame = requestAnimationFrame(() => {
+    if (pendingInitialReconciles.get(root) !== frame) return;
+    pendingInitialReconciles.delete(root);
+    reconcileLoadedWorkflow(root);
+  });
+  pendingInitialReconciles.set(root, frame);
 }
 
 function applyRegisteredNodeMetadata(nodeClass, metadata) {
@@ -534,7 +684,6 @@ function applyVueNodeMetadata(nodeDefs) {
         ? GET_METADATA
         : null;
     if (!metadata) continue;
-
     nodeDef.display_name = metadata.displayName;
     nodeDef.category = CATEGORY;
     nodeDef.description = metadata.description;
@@ -566,31 +715,23 @@ function registerSetNode() {
     }
 
     setAdoptedType(type) {
-      const adopted = type || "*";
-      if (this.inputs?.[0]) {
-        this.inputs[0].type = adopted;
-        this.inputs[0].name = "value";
-        this.inputs[0].label = adopted;
-      }
-      if (this.outputs?.[0]) {
-        this.outputs[0].type = adopted;
-        this.outputs[0].name = adopted;
-        this.outputs[0].label = adopted;
-      }
-      applyTypeColor(this, adopted);
+      applySetType(this, type);
     }
 
     validateName(graph, sameGraphOnly = false) {
       const widget = variableWidget(this);
       let value = String(widget?.value || "").trim();
       if (!value) return false;
+
+      const index = getGraphIndex(graph);
       const existingNames = new Set();
-      const scope = sameGraphOnly ? [graph] : graphAncestors(graph);
-      for (const candidateGraph of scope) {
-        for (const node of nodesOfType(candidateGraph, SET_TYPE)) {
-          if (node !== this) existingNames.add(nodeVariableName(node));
+      const scopeGraphs = sameGraphOnly ? [graph] : index.ancestorsOf(graph);
+      for (const candidateGraph of scopeGraphs) {
+        for (const [name, node] of index.setsByGraph.get(candidateGraph) || []) {
+          if (node !== this) existingNames.add(name);
         }
       }
+
       const original = value;
       const base = this._justAdded ? value.replace(/_\d+$/, "") : value;
       let suffix = 1;
@@ -606,32 +747,50 @@ function registerSetNode() {
         this.refreshTitle();
         return;
       }
+
       const previousName = String(this.properties.previousName || "").trim();
+      const oldIndex = getGraphIndex(this.graph);
       const adoptedType = setterType(this);
       this.setAdoptedType(adoptedType);
-      updateGettersAfterSetRename(this, previousName, name);
+      propagateSetRename(this, previousName, name, oldIndex);
       this.properties.previousName = name;
       setVariableName(this, name);
       this.refreshTitle();
-      for (const getter of gettersOwnedBy(this)) getter.setType?.(adoptedType);
-      refreshAllGetCombos(this.graph);
+
+      invalidateGraphIndex(this.graph);
+      const newIndex = getGraphIndex(this.graph);
+      for (const getter of gettersOwnedBy(this, newIndex)) {
+        getter.currentSetter = this;
+        getter.setType?.(adoptedType);
+        getter.refreshTitle?.();
+      }
+      refreshGetCombosForScope(this.graph, newIndex);
       app.canvas?.setDirty?.(true, true);
     }
 
     onConnectionsChange(slotType, slot, isConnect, linkInfo) {
       ensureSetIntegrity(this);
       if (app.configuringGraph) return;
+
+      let adoptedType = setterType(this);
       if (slotType === LiteGraph.INPUT) {
-        this.setAdoptedType(isConnect
+        adoptedType = isConnect
           ? sourceTypeFromLink(this, linkInfo) || this.inputs?.[0]?.type || "*"
-          : this.outputs?.[0]?.links?.length ? this.outputs[0].type : "*");
-      } else if (slotType === LiteGraph.OUTPUT) {
-        const inputType = setterType(this);
-        this.setAdoptedType(inputType !== "*"
-          ? inputType
-          : isConnect ? targetTypeFromLink(this, linkInfo) || "*" : "*");
+          : this.outputs?.[0]?.links?.length ? this.outputs[0].type : "*";
+      } else if (slotType === LiteGraph.OUTPUT && adoptedType === "*") {
+        adoptedType = isConnect ? targetTypeFromLink(this, linkInfo) || "*" : "*";
       }
-      this.updateVariable();
+      this.setAdoptedType(adoptedType);
+
+      invalidateGraphIndex(this.graph);
+      const index = getGraphIndex(this.graph);
+      for (const getter of gettersOwnedBy(this, index)) {
+        getter.currentSetter = this;
+        getter.setType?.(adoptedType);
+        getter.refreshTitle?.();
+        getter._refreshComboOptions?.(false, index);
+      }
+      app.canvas?.setDirty?.(true, true);
     }
 
     getInputLink() {
@@ -642,12 +801,21 @@ function registerSetNode() {
     onAdded() {
       this._justAdded = true;
       ensureSetIntegrity(this);
-      if (LiteGraph.vueNodesMode && this.graph && !app.configuringGraph) refreshAllGetCombos(this.graph);
+      if (!this.graph || app.configuringGraph) return;
+      invalidateGraphIndex(this.graph);
+      const index = getGraphIndex(this.graph);
+      refreshGetCombosForScope(this.graph, index);
     }
 
     onRemoved() {
       const graph = this.graph;
-      if (graph) setTimeout(() => scheduleGraphReconcile(graph), 0);
+      if (!graph) return;
+      setTimeout(() => {
+        invalidateGraphIndex(graph);
+        const index = getGraphIndex(graph);
+        refreshGetCombosForScope(graph, index);
+        app.canvas?.setDirty?.(true, true);
+      }, 0);
     }
 
     onConfigure(serializedData) {
@@ -662,9 +830,7 @@ function registerSetNode() {
         }
       }
       this._justAdded = false;
-      reconcileSetType(this);
-      reconcileSetName(this);
-      scheduleGraphReconcile(this.graph);
+      reconcileSetLocal(this);
     }
 
     onSerialize(data) {
@@ -677,15 +843,6 @@ function registerSetNode() {
         data.widgets_values ||= [];
         data.widgets_values[0] = name;
       }
-    }
-
-    onGraphConfigured() {
-      ensureSetIntegrity(this);
-      scheduleGraphReconcile(this.graph);
-    }
-
-    onAfterGraphConfigured() {
-      setTimeout(() => scheduleGraphReconcile(this.graph), 0);
     }
 
     clone() {
@@ -701,7 +858,8 @@ function registerSetNode() {
     }
 
     getExtraMenuOptions(_, options) {
-      const getters = gettersOwnedBy(this);
+      const index = getGraphIndex(this.graph);
+      const getters = gettersOwnedBy(this, index);
       options.unshift({
         content: "Add paired Get (Inteliweb)",
         callback: () => {
@@ -750,28 +908,43 @@ function registerGetNode() {
     }
 
     _installRefreshCombo() {
-      this._refreshComboOptions = () => {
+      this._primeComboOptions = (index = getGraphIndex(this.graph)) => {
+        const values = getOptionValues(this, index);
+        this.__inteliwebOptionValues = values;
+        this.__inteliwebOptionsSignature = values.join("\u0000");
+      };
+
+      this._refreshComboOptions = (force = false, index = getGraphIndex(this.graph)) => {
         ensureGetIntegrity(this);
         const widget = variableWidget(this);
-        if (!widget || this.__inteliwebRefreshingCombo) return;
+        if (!widget || this.__inteliwebRefreshingCombo) return false;
+
+        const values = getOptionValues(this, index);
+        const signature = values.join("\u0000");
+        if (!force && signature === this.__inteliwebOptionsSignature) return false;
+
         const currentName = nodeVariableName(this);
         this.__inteliwebRefreshingCombo = true;
         try {
+          this.__inteliwebOptionValues = values;
+          this.__inteliwebOptionsSignature = signature;
           const options = makeGetComboOptions(this);
           this.__inteliwebComboOptions = options;
           widget.options = options;
-          attachClassicComboMenu(this, widget, options);
+          attachClassicComboMenu(this, widget);
+
           if (LiteGraph.vueNodesMode) {
-            const index = this.widgets.indexOf(widget);
-            if (index >= 0) {
-              this.widgets.splice(index, 1);
-              this.widgets.splice(index, 0, widget);
+            const widgetIndex = this.widgets.indexOf(widget);
+            if (widgetIndex >= 0) {
+              this.widgets.splice(widgetIndex, 1);
+              this.widgets.splice(widgetIndex, 0, widget);
             }
           }
           if (currentName) setVariableName(this, currentName);
         } finally {
           this.__inteliwebRefreshingCombo = false;
         }
+        return true;
       };
     }
 
@@ -785,7 +958,7 @@ function registerGetNode() {
       this.onRename();
     }
 
-    setType(type) {
+    setType(type, { validateLinks = true } = {}) {
       const adopted = type || "*";
       if (this.outputs?.[0]) {
         this.outputs[0].type = adopted;
@@ -793,24 +966,23 @@ function registerGetNode() {
         this.outputs[0].label = adopted;
       }
       applyTypeColor(this, adopted);
-      this.validateLinks();
+      if (validateLinks) this.validateLinks();
     }
 
     onRename() {
       if (this.__inteliwebRefreshingCombo || this.__inteliwebRepairing) return;
       const name = nodeVariableName(this);
       if (name) setVariableName(this, name);
-      const result = findSetter(this.graph, name);
-      this.currentSetter = result?.node || null;
-      this.setType(result?.node ? setterType(result.node) : "*");
-      this.refreshTitle();
-      this._refreshComboOptions?.();
+      invalidateGraphIndex(this.graph);
+      const index = getGraphIndex(this.graph);
+      reconcileGetLocal(this, index, { refreshOptions: true, validateLinks: true });
       app.canvas?.setDirty?.(true, true);
     }
 
     onConnectionsChange() {
       if (app.configuringGraph) return;
-      this._refreshComboOptions?.();
+      const index = getGraphIndex(this.graph);
+      this._refreshComboOptions?.(false, index);
       this.validateLinks();
       app.canvas?.setDirty?.(true, true);
     }
@@ -827,14 +999,16 @@ function registerGetNode() {
     }
 
     getInputLink() {
-      const result = findSetter(this.graph, nodeVariableName(this));
+      const index = getGraphIndex(this.graph);
+      const result = findSetter(this.graph, nodeVariableName(this), index);
       if (!result || result.graph !== this.graph) return null;
       const input = firstWiredInput(result.node);
       return input?.link != null ? getLink(result.graph, input.link) : null;
     }
 
     resolveVirtualOutput() {
-      const result = findSetter(this.graph, nodeVariableName(this));
+      const index = getGraphIndex(this.graph);
+      const result = findSetter(this.graph, nodeVariableName(this), index);
       if (!result || result.graph === this.graph) return undefined;
       const input = firstWiredInput(result.node);
       if (input?.link == null) return undefined;
@@ -850,6 +1024,18 @@ function registerGetNode() {
       this._justAdded = true;
       ensureGetIntegrity(this);
       this._installRefreshCombo();
+      if (!this.graph || app.configuringGraph) return;
+      queueMicrotask(() => {
+        invalidateGraphIndex(this.graph);
+        const index = getGraphIndex(this.graph);
+        reconcileGetLocal(this, index);
+        app.canvas?.setDirty?.(true, true);
+      });
+    }
+
+    onRemoved() {
+      const graph = this.graph;
+      if (graph) setTimeout(() => invalidateGraphIndex(graph), 0);
     }
 
     onConfigure(serializedData) {
@@ -860,7 +1046,10 @@ function registerGetNode() {
         if (renamed) setVariableName(this, renamed);
       }
       this._justAdded = false;
-      scheduleGraphReconcile(this.graph);
+      if (!app.configuringGraph && this.graph) {
+        invalidateGraphIndex(this.graph);
+        reconcileGetLocal(this, getGraphIndex(this.graph));
+      }
     }
 
     onSerialize(data) {
@@ -872,16 +1061,6 @@ function registerGetNode() {
         data.widgets_values ||= [];
         data.widgets_values[0] = name;
       }
-    }
-
-    onGraphConfigured() {
-      ensureGetIntegrity(this);
-      this._installRefreshCombo();
-      scheduleGraphReconcile(this.graph);
-    }
-
-    onAfterGraphConfigured() {
-      setTimeout(() => scheduleGraphReconcile(this.graph), 0);
     }
 
     clone() {
@@ -928,8 +1107,8 @@ function installSubgraphConvertedListener() {
   canvasElement._inteliwebSetGetSubgraphListener = true;
   canvasElement.addEventListener("subgraph-converted", (event) => {
     const subgraph = event?.detail?.subgraphNode?.subgraph;
-    scheduleGraphReconcile(subgraph || app.graph);
-    setTimeout(() => scheduleGraphReconcile(subgraph || app.graph), 0);
+    invalidateGraphIndex(subgraph || app.graph);
+    scheduleInitialReconcile(subgraph || app.graph);
   });
 }
 
@@ -966,35 +1145,29 @@ app.registerExtension({
   },
 
   nodeCreated(node) {
-    if (node?.type === SET_TYPE || node?.comfyClass === SET_TYPE) {
-      ensureSetIntegrity(node);
-      scheduleGraphReconcile(node.graph || app.graph);
-    } else if (node?.type === GET_TYPE || node?.comfyClass === GET_TYPE) {
+    if (isSetNode(node)) ensureSetIntegrity(node);
+    else if (isGetNode(node)) {
       ensureGetIntegrity(node);
       node._installRefreshCombo?.();
-      scheduleGraphReconcile(node.graph || app.graph);
     }
   },
 
   loadedGraphNode(node) {
-    if (node?.type === SET_TYPE || node?.comfyClass === SET_TYPE) ensureSetIntegrity(node);
-    else if (node?.type === GET_TYPE || node?.comfyClass === GET_TYPE) ensureGetIntegrity(node);
+    if (isSetNode(node)) ensureSetIntegrity(node);
+    else if (isGetNode(node)) {
+      ensureGetIntegrity(node);
+      node._installRefreshCombo?.();
+    }
   },
 
   setup() {
     applyRegisteredNodeMetadata(LiteGraph.registered_node_types?.[SET_TYPE], SET_METADATA);
     applyRegisteredNodeMetadata(LiteGraph.registered_node_types?.[GET_TYPE], GET_METADATA);
     installSubgraphConvertedListener();
-    setTimeout(() => {
-      applyRegisteredNodeMetadata(LiteGraph.registered_node_types?.[SET_TYPE], SET_METADATA);
-      applyRegisteredNodeMetadata(LiteGraph.registered_node_types?.[GET_TYPE], GET_METADATA);
-      installSubgraphConvertedListener();
-      scheduleGraphReconcile(app.graph);
-    }, 0);
   },
 
   afterConfigureGraph() {
-    scheduleGraphReconcile(app.graph);
-    setTimeout(() => scheduleGraphReconcile(app.graph), 0);
+    installSubgraphConvertedListener();
+    scheduleInitialReconcile(app.graph);
   },
 });
