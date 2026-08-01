@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.20.2-blue" alt="version 0.20.2" />
+  <img src="https://img.shields.io/badge/version-0.20.3-blue" alt="version 0.20.3" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -11,6 +11,15 @@
 </p>
 
 > Utilidades de Inteliweb AI para controlar semillas, organizar conexiones, comparar imágenes, cargar LoRAs, documentar workflows, monitorear recursos, liberar memoria, enrutar entradas y construir prompts dentro de ComfyUI.
+
+## Cambios en v0.20.3
+
+- **Load LoRA Stack** conserva correctamente los pesos y estados habilitado/deshabilitado al editar valores, usar switches individuales, **Toggle all** o el menú contextual.
+- Los valores de fuerza se muestran con dos decimales y se guardan mientras se editan, sin reconstrucciones innecesarias del DOM.
+- El selector advierte cuando una LoRA está ausente o su nombre es ambiguo, pero conserva la referencia original del workflow hasta que el usuario seleccione otro archivo.
+- Las rutas pueden resolverse por coincidencia exacta, diferencias de mayúsculas/minúsculas o nombre de archivo único, manteniendo compatibilidad entre Windows y Linux.
+- Al pulsar `R` o **Refresh node definitions**, el listado y las advertencias se actualizan sin perder pesos ni estados.
+- La lógica de estado, controles numéricos y advertencias fue consolidada en `web/LoraStack_Inteliweb.js`.
 
 ## Cambios en v0.20.2
 
@@ -62,7 +71,7 @@
 - System Check comparte la misma fuente de RAM y VRAM que Resource Monitor.
 - Validado en RunPod, Vast AI y Windows Pinokio.
 
-## Instalación de v0.20.2 — rama principal `main`
+## Instalación de v0.20.3 — rama principal `main`
 
 ### ComfyUI Manager
 
@@ -185,9 +194,14 @@ Aplica varias LoRAs secuencialmente sobre un modelo.
 
 - Botón **Add LoRA** para agregar filas dinámicas.
 - Cada LoRA puede activarse, desactivarse, reordenarse o eliminarse mediante su menú contextual.
-- Control compacto de fuerza compartida para `MODEL` y `CLIP`, con flechas laterales.
+- Control compacto de fuerza compartida para `MODEL` y `CLIP`, con flechas laterales y valores visibles con dos decimales.
+- Los cambios numéricos se guardan mientras se editan y no interfieren con los switches individuales ni con **Toggle all**.
+- El selector muestra `⚠ Missing` cuando el archivo no existe y `⚠ Ambiguous` cuando varias LoRAs comparten el mismo nombre de archivo.
+- Las referencias ausentes permanecen guardadas y visibles hasta que el usuario selecciona manualmente otra LoRA.
 - La entrada `CLIP` es opcional para cargas que solo modifican el modelo.
 - Las rutas se guardan con `/` y se resuelven de forma portable entre Windows y Linux.
+- Las rutas pueden resolverse por coincidencia exacta, diferencias de mayúsculas/minúsculas o nombre de archivo único.
+- El listado y las advertencias se actualizan al pulsar `R` o **Refresh node definitions**.
 - El nodo calcula correctamente su altura incluso cuando se carga inicialmente fuera del área visible.
 - Salidas `MODEL` y `CLIP` después de aplicar las LoRAs habilitadas en orden.
 - ID interno: `InteliwebLoraStack`.
