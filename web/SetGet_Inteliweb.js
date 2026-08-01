@@ -2,11 +2,23 @@ import { app } from "../../scripts/app.js";
 
 const SET_TYPE = "SetInteliweb";
 const GET_TYPE = "GetInteliweb";
-const CATEGORY = "Inteliweb/Logic";
+const CATEGORY = "Inteliweb/Utils";
 const PACKAGE_ID = "maoper11/comfyui_inteliweb_nodes";
 const SETTING_PREFIX = "Inteliweb.SetGet.";
-const IMPLEMENTATION_VERSION = 2;
+const IMPLEMENTATION_VERSION = 3;
 const NAME_WIDGET = "name";
+
+const SET_METADATA = Object.freeze({
+  displayName: "Set (Inteliweb)",
+  description: "Stores a connected value under a variable name so it can be retrieved elsewhere with Get (Inteliweb).",
+  searchAliases: ["set node", "set variable", "named variable", "wireless connection"],
+});
+
+const GET_METADATA = Object.freeze({
+  displayName: "Get (Inteliweb)",
+  description: "Retrieves a value stored by Set (Inteliweb) without drawing a long connection across the workflow.",
+  searchAliases: ["get node", "get variable", "named variable", "wireless connection"],
+});
 
 const defaults = {
   filterGetOptionsByType: true,
@@ -506,9 +518,36 @@ function refreshAllNodeColors(graph) {
   app.canvas?.setDirty?.(true, true);
 }
 
+function applyRegisteredNodeMetadata(nodeClass, metadata) {
+  if (!nodeClass) return;
+  nodeClass.category = CATEGORY;
+  nodeClass.title = metadata.displayName;
+  nodeClass.description = metadata.description;
+  nodeClass.search_aliases = [...metadata.searchAliases];
+}
+
+function applyVueNodeMetadata(nodeDefs) {
+  for (const nodeDef of nodeDefs || []) {
+    const metadata = nodeDef?.name === SET_TYPE
+      ? SET_METADATA
+      : nodeDef?.name === GET_TYPE
+        ? GET_METADATA
+        : null;
+    if (!metadata) continue;
+
+    nodeDef.display_name = metadata.displayName;
+    nodeDef.category = CATEGORY;
+    nodeDef.description = metadata.description;
+    nodeDef.search_aliases = [...metadata.searchAliases];
+  }
+}
+
 function registerSetNode() {
   const existing = LiteGraph.registered_node_types?.[SET_TYPE];
-  if (existing?.__inteliwebImplementationVersion === IMPLEMENTATION_VERSION) return;
+  if (existing?.__inteliwebImplementationVersion === IMPLEMENTATION_VERSION) {
+    applyRegisteredNodeMetadata(existing, SET_METADATA);
+    return;
+  }
 
   class SetInteliwebNode extends LiteGraph.LGraphNode {
     static title = "Set (Inteliweb)";
@@ -688,11 +727,15 @@ function registerSetNode() {
   }
 
   LiteGraph.registerNodeType(SET_TYPE, SetInteliwebNode);
+  applyRegisteredNodeMetadata(SetInteliwebNode, SET_METADATA);
 }
 
 function registerGetNode() {
   const existing = LiteGraph.registered_node_types?.[GET_TYPE];
-  if (existing?.__inteliwebImplementationVersion === IMPLEMENTATION_VERSION) return;
+  if (existing?.__inteliwebImplementationVersion === IMPLEMENTATION_VERSION) {
+    applyRegisteredNodeMetadata(existing, GET_METADATA);
+    return;
+  }
 
   class GetInteliwebNode extends LiteGraph.LGraphNode {
     static title = "Get (Inteliweb)";
@@ -876,6 +919,7 @@ function registerGetNode() {
   }
 
   LiteGraph.registerNodeType(GET_TYPE, GetInteliwebNode);
+  applyRegisteredNodeMetadata(GetInteliwebNode, GET_METADATA);
 }
 
 function installSubgraphConvertedListener() {
@@ -912,6 +956,10 @@ app.registerExtension({
     },
   ],
 
+  beforeRegisterVueAppNodeDefs(nodeDefs) {
+    applyVueNodeMetadata(nodeDefs);
+  },
+
   registerCustomNodes() {
     registerSetNode();
     registerGetNode();
@@ -934,8 +982,12 @@ app.registerExtension({
   },
 
   setup() {
+    applyRegisteredNodeMetadata(LiteGraph.registered_node_types?.[SET_TYPE], SET_METADATA);
+    applyRegisteredNodeMetadata(LiteGraph.registered_node_types?.[GET_TYPE], GET_METADATA);
     installSubgraphConvertedListener();
     setTimeout(() => {
+      applyRegisteredNodeMetadata(LiteGraph.registered_node_types?.[SET_TYPE], SET_METADATA);
+      applyRegisteredNodeMetadata(LiteGraph.registered_node_types?.[GET_TYPE], GET_METADATA);
       installSubgraphConvertedListener();
       scheduleGraphReconcile(app.graph);
     }, 0);
