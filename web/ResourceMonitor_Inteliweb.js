@@ -3,6 +3,12 @@ import { app } from "../../scripts/app.js";
 const MONITOR_ID = "inteliweb-resource-monitor";
 const STYLE_ID = "inteliweb-resource-monitor-style";
 const STORAGE_PREFIX = "inteliweb.resourceMonitor.";
+const MASTER_SETTING_ID = "Inteliweb.ResourceMonitor.enabled";
+
+let masterEnabled = true;
+let extensionReady = false;
+let mountObserver = null;
+let mountRetryTimer = null;
 
 const defaults = {
   enabled: true,
@@ -120,6 +126,64 @@ function ensureStyles() {
       padding: 5px 2px;
       gap: 10px;
     }
+    .iw-resource-popover .iw-toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 26px;
+      padding: 3px 2px;
+      gap: 12px;
+    }
+    .iw-resource-popover .iw-switch {
+      position: relative;
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0;
+      padding: 0;
+      cursor: pointer;
+    }
+    .iw-resource-popover .iw-switch input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .iw-resource-popover .iw-switch-track {
+      position: relative;
+      width: 32px;
+      height: 18px;
+      border: 1px solid #626875;
+      border-radius: 999px;
+      background: #383d48;
+      box-sizing: border-box;
+      transition: background .12s ease, border-color .12s ease;
+    }
+    .iw-resource-popover .iw-switch-track::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #b8bec9;
+      transition: transform .12s ease, background .12s ease;
+    }
+    .iw-resource-popover .iw-switch input:checked + .iw-switch-track {
+      border-color: #168bd2;
+      background: #168bd2;
+    }
+    .iw-resource-popover .iw-switch input:checked + .iw-switch-track::after {
+      transform: translateX(14px);
+      background: #fff;
+    }
+    .iw-resource-popover .iw-switch input:focus-visible + .iw-switch-track {
+      outline: 2px solid rgba(56, 189, 248, .7);
+      outline-offset: 2px;
+    }
     .iw-resource-popover select {
       min-width: 85px;
       background: #252a35;
@@ -175,10 +239,33 @@ function applyVisibility(root) {
   root.dataset.disabled = String(!readSetting("enabled"));
 }
 
+function makeSwitch(checked, label) {
+  const control = document.createElement("label");
+  control.className = "iw-switch";
+
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = checked;
+  input.setAttribute("aria-label", label);
+
+  const track = document.createElement("span");
+  track.className = "iw-switch-track";
+  control.append(input, track);
+  return { control, input };
+}
+
+function closeOpenPopovers() {
+  document.querySelectorAll(".iw-resource-popover").forEach((element) => {
+    if (typeof element.__inteliwebClose === "function") {
+      element.__inteliwebClose();
+    } else {
+      element.remove();
+    }
+  });
+}
+
 function createPopover(button, root, restart) {
-  document
-    .querySelectorAll(".iw-resource-popover")
-    .forEach((el) => el.remove());
+  closeOpenPopovers();
 
   const popover = document.createElement("div");
   popover.className = "iw-resource-popover";
@@ -202,6 +289,7 @@ function createPopover(button, root, restart) {
   const closeOnEscape = (event) => {
     if (event.key === "Escape") closePopover();
   };
+  popover.__inteliwebClose = closePopover;
 
   const toggles = [
     ["enabled", "Show monitor"],
@@ -214,16 +302,21 @@ function createPopover(button, root, restart) {
   ];
 
   for (const [key, label] of toggles) {
-    const row = document.createElement("label");
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = readSetting(key);
-    checkbox.addEventListener("change", () => {
-      writeSetting(key, checkbox.checked);
+    const row = document.createElement("div");
+    row.className = "iw-toggle-row";
+    const text = document.createElement("span");
+    text.textContent = label;
+    const toggle = makeSwitch(readSetting(key), label);
+    toggle.input.addEventListener("change", () => {
+      writeSetting(key, toggle.input.checked);
       applyVisibility(root);
-      if (key === "enabled" && !checkbox.checked) closePopover();
+      if (key === "enabled") {
+        if (toggle.input.checked) root.__inteliwebRestart?.();
+        else root.__inteliwebStop?.();
+      }
+      if (key === "enabled" && !toggle.input.checked) closePopover();
     });
-    row.append(label, checkbox);
+    row.append(text, toggle.control);
     popover.appendChild(row);
   }
 
@@ -250,6 +343,7 @@ function createPopover(button, root, restart) {
   popover.style.left = `${Math.max(8, rect.right - popover.offsetWidth)}px`;
 
   setTimeout(() => {
+    if (closed) return;
     window.addEventListener("pointerdown", closeIfOutside, true);
     window.addEventListener("mousedown", closeIfOutside, true);
     window.addEventListener("blur", closePopover);
@@ -258,6 +352,7 @@ function createPopover(button, root, restart) {
 }
 
 function createMonitor() {
+  if (!masterEnabled) return null;
   const existing = document.getElementById(MONITOR_ID);
   if (existing) return existing;
 
@@ -281,6 +376,7 @@ function createMonitor() {
   restore.addEventListener("click", () => {
     writeSetting("enabled", true);
     applyVisibility(root);
+    root.__inteliwebRestart?.();
   });
   root.appendChild(restore);
 
@@ -292,10 +388,15 @@ function createMonitor() {
   root.appendChild(settings);
 
   let timer = null;
+  let activeRequest = null;
   const poll = async () => {
+    if (!masterEnabled || !readSetting("enabled") || activeRequest) return;
+    const controller = new AbortController();
+    activeRequest = controller;
     try {
       const response = await fetch("/inteliweb/resource_monitor", {
         cache: "no-store",
+        signal: controller.signal,
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
@@ -359,13 +460,24 @@ function createMonitor() {
       }
       root.title = "";
     } catch (error) {
+      if (error?.name === "AbortError") return;
       root.title = `Inteliweb Resource Monitor: ${error.message}`;
       console.warn("[Inteliweb] Resource Monitor polling failed:", error);
+    } finally {
+      if (activeRequest === controller) activeRequest = null;
     }
   };
 
+  const stop = () => {
+    if (timer !== null) clearInterval(timer);
+    timer = null;
+    activeRequest?.abort();
+    activeRequest = null;
+  };
+
   const restart = () => {
-    if (timer) clearInterval(timer);
+    stop();
+    if (!masterEnabled || !readSetting("enabled")) return;
     poll();
     timer = setInterval(poll, Math.max(0.5, readSetting("interval")) * 1000);
   };
@@ -373,7 +485,7 @@ function createMonitor() {
   settings.addEventListener("click", () =>
     createPopover(settings, root, restart),
   );
-  root.__inteliwebStop = () => timer && clearInterval(timer);
+  root.__inteliwebStop = stop;
   root.__inteliwebRestart = restart;
   applyVisibility(root);
   restart();
@@ -408,10 +520,12 @@ function findToolbarAnchor() {
 }
 
 function mountMonitor() {
+  if (!masterEnabled) return false;
   ensureStyles();
   const anchor = findToolbarAnchor();
   if (!anchor) return false;
   const monitor = createMonitor();
+  if (!monitor) return false;
   if (
     monitor.parentElement !== anchor.parent ||
     monitor.nextSibling !== anchor.before
@@ -421,11 +535,29 @@ function mountMonitor() {
   return true;
 }
 
+function stopMounting() {
+  mountObserver?.disconnect();
+  mountObserver = null;
+  if (mountRetryTimer !== null) clearInterval(mountRetryTimer);
+  mountRetryTimer = null;
+}
+
+function removeMonitor() {
+  stopMounting();
+  closeOpenPopovers();
+  const monitor = document.getElementById(MONITOR_ID);
+  monitor?.__inteliwebStop?.();
+  monitor?.remove();
+}
+
 function startMounting() {
+  if (!masterEnabled || mountObserver || mountRetryTimer !== null) return;
   let attempts = 0;
   const tryMount = () => {
+    if (!masterEnabled) return false;
     attempts += 1;
     if (mountMonitor()) {
+      stopMounting();
       console.info(
         "[Inteliweb] Resource Monitor mounted in the ComfyUI top bar.",
       );
@@ -436,15 +568,14 @@ function startMounting() {
 
   if (tryMount()) return;
 
-  const observer = new MutationObserver(() => {
-    if (tryMount()) observer.disconnect();
+  mountObserver = new MutationObserver(() => {
+    tryMount();
   });
-  observer.observe(document.body, { childList: true, subtree: true });
+  mountObserver.observe(document.body, { childList: true, subtree: true });
 
-  const retryTimer = setInterval(() => {
+  mountRetryTimer = setInterval(() => {
     if (tryMount() || attempts >= 60) {
-      clearInterval(retryTimer);
-      observer.disconnect();
+      stopMounting();
       if (!document.getElementById(MONITOR_ID)) {
         console.warn(
           "[Inteliweb] Resource Monitor could not find a top-bar anchor.",
@@ -454,9 +585,31 @@ function startMounting() {
   }, 500);
 }
 
+function applyMasterSetting(value) {
+  masterEnabled = value !== false;
+  if (!extensionReady) return;
+  if (masterEnabled) startMounting();
+  else removeMonitor();
+}
+
 app.registerExtension({
   name: "inteliweb.resource.monitor",
+  settings: [
+    {
+      id: MASTER_SETTING_ID,
+      name: "Enable Resource Monitor",
+      type: "boolean",
+      defaultValue: true,
+      tooltip: "Show the Inteliweb Resource Monitor in the top bar and collect its metrics.",
+      category: ["Inteliweb", "Resource Monitor", "Enable Resource Monitor"],
+      onChange: (value) => applyMasterSetting(value),
+    },
+  ],
   setup() {
-    startMounting();
+    const savedValue = app.extensionManager?.setting?.get?.(MASTER_SETTING_ID)
+      ?? app.ui?.settings?.getSettingValue?.(MASTER_SETTING_ID);
+    if (savedValue !== undefined) masterEnabled = savedValue !== false;
+    extensionReady = true;
+    applyMasterSetting(masterEnabled);
   },
 });

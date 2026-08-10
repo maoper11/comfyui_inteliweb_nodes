@@ -288,6 +288,10 @@ Incluye botones para ejecutar el diagnóstico, liberar memoria y copiar la infor
 
 Monitor compacto integrado en la barra superior de ComfyUI.
 
+- Puede desactivarse por completo desde `Settings → Inteliweb → Resource Monitor` cuando otra extensión ya proporciona telemetría.
+- Al desactivarlo se retira de la barra superior y se detienen las consultas de métricas; puede reactivarse sin recargar ComfyUI.
+- Su panel rápido usa switches para mostrar u ocultar métricas individuales y ajustar el intervalo de actualización.
+
 Muestra en tiempo real:
 
 - Disco, CPU y RAM.
