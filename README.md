@@ -169,9 +169,11 @@ Compara dos imágenes directamente dentro del workflow.
 
 - Entradas opcionales `image_a` e `image_b`.
 - Modos **Left Right**, **Up Down**, **Toggle** y **Side by Side**.
+- La barra usa iconos compactos; en Nodes 2.0 muestran su descripción al pasar el cursor.
+- El fondo del visor deja visible el color configurado para todo el cuerpo del nodo.
 - Las vistas divididas permiten mover el separador para revisar diferencias con precisión.
 - Conserva el estado de visualización y las últimas previews del nodo.
-- Compatible con Classic y Nodes 2.0.
+- Compatible con Classic y Nodes 2.0, incluso al cambiar de renderizador durante la sesión.
 - ID interno: `InteliwebImageCompare`.
 - Categoría: `Inteliweb/Image`.
 

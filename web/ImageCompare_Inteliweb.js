@@ -2,24 +2,35 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
 const NODE_CLASS = "InteliwebImageCompare";
+const DOM_WIDGET_NAME = "inteliweb_compare";
+const NODE_PATCH_FLAG = "__inteliwebImageComparePatched";
+const VUE_NODES_SETTING_ID = "Comfy.VueNodes.Enabled";
+const MODE_WATCH_FALLBACK_INTERVAL_MS = 1000;
+const MODE_SETTLE_DELAY_MS = 180;
 const MODES = Object.freeze([
-  ["left_right", "Left Right"],
-  ["up_down", "Up Down"],
-  ["toggle", "Toggle"],
-  ["side_by_side", "Side by Side"],
+  ["left_right", "↔", "Left / right"],
+  ["up_down", "↕", "Up / down"],
+  ["toggle", "⇄", "Toggle A / B"],
+  ["side_by_side", "▥", "Side by side"],
 ]);
 
 const HEADER_HEIGHT = 38;
 const CLASSIC_TOP_OFFSET = 50;
 const MIN_WIDTH = 360;
+const MIN_CONTENT_WIDTH = MIN_WIDTH - 20;
 const MIN_HEIGHT = 300;
 const BUTTON_GAP = 4;
 const STATE_VERSION = 3;
 const PREVIEW_STATE_VERSION = 1;
 const STYLE_ID = "inteliweb-image-compare-css";
+let rendererSyncGeneration = 0;
 
 function isNodes2() {
   return Boolean(window.LiteGraph?.vueNodesMode);
+}
+
+function isImageCompare(node) {
+  return node?.comfyClass === NODE_CLASS || node?.type === NODE_CLASS;
 }
 
 function clamp(value, min, max) {
@@ -47,6 +58,10 @@ function injectStyles() {
 }
 .lg-node:has(.inteliweb-image-compare) .lg-node-widgets {
   row-gap: 0 !important;
+}
+.inteliweb-image-compare,
+.inteliweb-image-compare canvas {
+  background: transparent !important;
 }
 `;
   document.head.appendChild(style);
@@ -210,8 +225,9 @@ function buttonRects(width, classic = false) {
   const rightPad = 8;
   const available = width - leftPad - rightPad - BUTTON_GAP * (MODES.length - 1);
   const buttonWidth = Math.max(54, available / MODES.length);
-  return MODES.map(([key, label], index) => ({
+  return MODES.map(([key, icon, label], index) => ({
     key,
+    icon,
     label,
     x: leftPad + index * (buttonWidth + BUTTON_GAP),
     y: top + 7,
@@ -228,16 +244,16 @@ function drawToolbar(ctx, node, width, classic = false) {
   const state = ensureState(node);
   const top = rendererTop(classic);
   ctx.save();
-  ctx.fillStyle = "#242424";
+  ctx.fillStyle = "rgba(0, 0, 0, .26)";
   ctx.fillRect(0, top, width, HEADER_HEIGHT);
-  ctx.font = "600 11px system-ui, -apple-system, 'Segoe UI', sans-serif";
+  ctx.font = "600 17px system-ui, -apple-system, 'Segoe UI Symbol', sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
   for (const rect of buttonRects(width, classic)) {
     const active = state.compare_mode === rect.key;
-    ctx.fillStyle = active ? "#1c1c1c" : "#343434";
-    ctx.strokeStyle = active ? "#707070" : "#505050";
+    ctx.fillStyle = active ? "rgba(0, 0, 0, .52)" : "rgba(0, 0, 0, .24)";
+    ctx.strokeStyle = active ? "rgba(255, 255, 255, .7)" : "rgba(255, 255, 255, .28)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(rect.x, rect.y, rect.width, rect.height, 5);
@@ -245,7 +261,7 @@ function drawToolbar(ctx, node, width, classic = false) {
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = active ? "#ffffff" : "#dddddd";
-    ctx.fillText(rect.label, rect.x + rect.width / 2, rect.y + rect.height / 2);
+    ctx.fillText(rect.icon, rect.x + rect.width / 2, rect.y + rect.height / 2);
   }
   ctx.restore();
 }
@@ -279,11 +295,9 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
   ctx.save();
   if (clearCanvas) ctx.clearRect(0, 0, width, height);
   drawToolbar(ctx, node, width, classic);
-  ctx.fillStyle = "#111111";
-  ctx.fillRect(imageArea.x, imageArea.y, imageArea.width, imageArea.height);
 
   if (!images.a && !images.b) {
-    ctx.fillStyle = "#777777";
+    ctx.fillStyle = "rgba(255, 255, 255, .58)";
     ctx.font = "12px system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -307,7 +321,7 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
     const right = { x: half + gap, y: imageArea.y, width: half, height: imageArea.height };
     drawContained(ctx, images.a, left);
     drawContained(ctx, images.b, right);
-    ctx.fillStyle = "#555555";
+    ctx.fillStyle = "rgba(255, 255, 255, .35)";
     ctx.fillRect(half, imageArea.y, gap, imageArea.height);
     drawBadge(ctx, "A", 8, imageArea.y + 8);
     drawBadge(ctx, "B", half + gap + 8, imageArea.y + 8);
@@ -435,16 +449,58 @@ function installClassic(nodeType) {
   };
 }
 
+function removeNodes2Widget(node) {
+  const elements = new Set();
+  const mounted = node.__inteliwebCompareDom;
+  mounted?.observer?.disconnect();
+  if (mounted?.root) elements.add(mounted.root);
+
+  for (let index = (node.widgets?.length || 0) - 1; index >= 0; index -= 1) {
+    const widget = node.widgets[index];
+    if (widget?.name !== DOM_WIDGET_NAME) continue;
+    for (const element of [widget.element, widget.inputEl, widget.el]) {
+      if (element) elements.add(element);
+    }
+    widget.onRemove?.();
+    node.widgets.splice(index, 1);
+  }
+
+  for (const element of elements) {
+    const wrapper = element?.closest?.(".lg-node-widget");
+    element?.remove?.();
+    wrapper?.remove?.();
+  }
+
+  node.__inteliwebCompareDom = null;
+  node.__inteliwebCompareRender = null;
+}
+
 function createNodes2Widget(node) {
-  if (!node.addDOMWidget || node.__inteliwebCompareDom) return;
+  if (!node.addDOMWidget) return false;
+
+  const existingWidgets = (node.widgets || []).filter(
+    (widget) => widget?.name === DOM_WIDGET_NAME,
+  );
+  if (existingWidgets.length === 1 && node.__inteliwebCompareDom?.root) {
+    const widget = existingWidgets[0];
+    widget.options ||= {};
+    widget.options.canvasOnly = false;
+    node.__inteliwebCompareRender?.();
+    return true;
+  }
+
+  removeNodes2Widget(node);
 
   const root = document.createElement("div");
   root.className = "inteliweb-image-compare";
   root.style.cssText =
     "position:relative;width:100%;height:100%;min-height:180px;overflow:hidden;box-sizing:border-box;";
+  root.setAttribute("role", "group");
+  root.setAttribute("aria-label", "Image comparison viewer");
 
   const canvas = document.createElement("canvas");
   canvas.style.cssText = "display:block;width:100%;height:100%;cursor:default;";
+  canvas.title = "Image comparison viewer";
   root.appendChild(canvas);
 
   const widgetHeight = () => Math.max(180, (node.size?.[1] || MIN_HEIGHT) - 86);
@@ -494,18 +550,23 @@ function createNodes2Widget(node) {
 
   canvas.addEventListener("pointermove", (event) => {
     const [x, y, width, height] = localPoint(event);
-    if (handlePointerMove(node, x, y, width, height)) {
+    const toolbarButton = buttonRects(width).find((rect) =>
+      pointInRect(x, y, rect),
+    );
+    if (toolbarButton) {
+      canvas.style.cursor = "pointer";
+      canvas.title = toolbarButton.label;
+    } else if (handlePointerMove(node, x, y, width, height)) {
       canvas.style.cursor = ensureState(node).compare_mode === "up_down" ? "ns-resize" : "ew-resize";
+      canvas.title = "Drag to move the comparison divider";
     } else {
-      canvas.style.cursor = y < HEADER_HEIGHT || ensureState(node).compare_mode === "toggle" ? "pointer" : "default";
+      const toggleArea = y >= HEADER_HEIGHT && ensureState(node).compare_mode === "toggle";
+      canvas.style.cursor = toggleArea ? "pointer" : "default";
+      canvas.title = toggleArea ? "Click to toggle image A / B" : "Image comparison viewer";
     }
   });
 
-  const observer = new ResizeObserver(render);
-  observer.observe(root);
-  node.__inteliwebCompareDom = { root, canvas, observer };
-
-  node.addDOMWidget("inteliweb_compare", "inteliweb_compare", root, {
+  const widget = node.addDOMWidget(DOM_WIDGET_NAME, "INTELIWEB_IMAGE_COMPARE", root, {
     serialize: false,
     hideOnZoom: false,
     margin: 0,
@@ -514,44 +575,135 @@ function createNodes2Widget(node) {
     getHeight: widgetHeight,
     afterResize: () => requestAnimationFrame(render),
   });
+  if (!widget) {
+    root.remove();
+    node.__inteliwebCompareRender = null;
+    return false;
+  }
+
+  widget.options ||= {};
+  widget.options.canvasOnly = false;
+  widget.options.margin = 0;
+  widget.computeLayoutSize = () => ({
+    minHeight: widgetHeight(),
+    maxHeight: widgetHeight(),
+    minWidth: MIN_CONTENT_WIDTH,
+  });
+
+  const observer = globalThis.ResizeObserver ? new ResizeObserver(render) : null;
+  observer?.observe(root);
+  node.__inteliwebCompareDom = { root, canvas, observer, widget };
 
   requestAnimationFrame(render);
+  return true;
+}
+
+function prepareNode(node, nodes2 = isNodes2()) {
+  if (!isImageCompare(node)) return;
+  injectStyles();
+  ensureState(node);
+  hidePreviewStateWidget(node);
+
+  const minimumHeight = nodes2 ? MIN_HEIGHT : MIN_HEIGHT + CLASSIC_TOP_OFFSET;
+  node.size ||= [MIN_WIDTH, minimumHeight];
+  node.size[0] = Math.max(Number(node.size[0]) || 0, MIN_WIDTH);
+  node.size[1] = Math.max(Number(node.size[1]) || 0, minimumHeight);
+
+  if (nodes2) createNodes2Widget(node);
+  else removeNodes2Widget(node);
+
+  requestAnimationFrame(() => {
+    if (!isImageCompare(node)) return;
+    hidePreviewStateWidget(node);
+    restorePreviewState(node);
+    node.__inteliwebCompareRender?.();
+    markDirty(node);
+  });
+}
+
+function walkGraph(graph, callback, visited = new WeakSet()) {
+  if (!graph || visited.has(graph)) return;
+  visited.add(graph);
+  for (const node of graph._nodes || graph.nodes || []) {
+    if (!node) continue;
+    callback(node);
+    const innerGraph = node.subgraph || node._graph;
+    if (innerGraph && innerGraph !== graph) walkGraph(innerGraph, callback, visited);
+  }
+}
+
+function syncRendererMode(nodes2 = isNodes2()) {
+  walkGraph(app.graph, (node) => {
+    if (!isImageCompare(node)) return;
+    const widgets = (node.widgets || []).filter(
+      (widget) => widget?.name === DOM_WIDGET_NAME,
+    );
+    const rendererReady = nodes2
+      ? widgets.length === 1 && Boolean(node.__inteliwebCompareDom?.root)
+      : widgets.length === 0 && !node.__inteliwebCompareDom;
+    if (!rendererReady) prepareNode(node, nodes2);
+  });
+}
+
+function scheduleRendererSync(nodes2 = isNodes2()) {
+  const generation = ++rendererSyncGeneration;
+  const run = () => {
+    if (generation !== rendererSyncGeneration || isNodes2() !== nodes2) return;
+    syncRendererMode(nodes2);
+  };
+  queueMicrotask(run);
+  requestAnimationFrame(() => requestAnimationFrame(run));
+  window.setTimeout(run, MODE_SETTLE_DELAY_MS);
+}
+
+function installModeWatcher() {
+  if (window.__inteliwebImageCompareModeWatcher) return;
+  window.__inteliwebImageCompareModeWatcher = true;
+  let lastMode = isNodes2();
+  scheduleRendererSync(lastMode);
+
+  const syncChangedMode = () => {
+    const currentMode = isNodes2();
+    if (currentMode === lastMode) return;
+    lastMode = currentMode;
+    scheduleRendererSync(currentMode);
+  };
+
+  const settings = app.ui?.settings;
+  if (typeof settings?.addEventListener === "function") {
+    settings.addEventListener(`${VUE_NODES_SETTING_ID}.change`, () => {
+      requestAnimationFrame(syncChangedMode);
+    });
+    return;
+  }
+  window.setInterval(syncChangedMode, MODE_WATCH_FALLBACK_INTERVAL_MS);
 }
 
 app.registerExtension({
   name: "Inteliweb.ImageCompare",
-  async beforeRegisterNodeDef(nodeType, nodeData) {
-    if (nodeData.name !== NODE_CLASS) return;
+
+  setup() {
     injectStyles();
+    installModeWatcher();
+  },
+
+  beforeRegisterNodeDef(nodeType, nodeData) {
+    if (nodeData?.name !== NODE_CLASS || nodeType.prototype[NODE_PATCH_FLAG]) return;
+    nodeType.prototype[NODE_PATCH_FLAG] = true;
     installClassic(nodeType);
 
     const originalCreated = nodeType.prototype.onNodeCreated;
-    nodeType.prototype.onNodeCreated = function () {
-      originalCreated?.apply(this, arguments);
-      ensureState(this);
-      hidePreviewStateWidget(this);
-      const minimumHeight = isNodes2() ? MIN_HEIGHT : MIN_HEIGHT + CLASSIC_TOP_OFFSET;
-      this.size = [
-        Math.max(this.size?.[0] || 0, MIN_WIDTH),
-        Math.max(this.size?.[1] || 0, minimumHeight),
-      ];
-      if (isNodes2()) createNodes2Widget(this);
-      requestAnimationFrame(() => {
-        hidePreviewStateWidget(this);
-        restorePreviewState(this);
-      });
+    nodeType.prototype.onNodeCreated = function (...args) {
+      const result = originalCreated?.apply(this, args);
+      queueMicrotask(() => prepareNode(this));
+      return result;
     };
 
     const originalConfigure = nodeType.prototype.onConfigure;
-    nodeType.prototype.onConfigure = function () {
-      originalConfigure?.apply(this, arguments);
-      ensureState(this);
-      hidePreviewStateWidget(this);
-      if (isNodes2()) createNodes2Widget(this);
-      requestAnimationFrame(() => {
-        hidePreviewStateWidget(this);
-        restorePreviewState(this);
-      });
+    nodeType.prototype.onConfigure = function (...args) {
+      const result = originalConfigure?.apply(this, args);
+      queueMicrotask(() => prepareNode(this));
+      return result;
     };
 
     const originalExecuted = nodeType.prototype.onExecuted;
@@ -561,12 +713,24 @@ app.registerExtension({
     };
 
     const originalRemoved = nodeType.prototype.onRemoved;
-    nodeType.prototype.onRemoved = function () {
+    nodeType.prototype.onRemoved = function (...args) {
       this.__inteliwebCompareGeneration = (this.__inteliwebCompareGeneration || 0) + 1;
-      this.__inteliwebCompareDom?.observer?.disconnect();
-      this.__inteliwebCompareDom = null;
-      this.__inteliwebCompareRender = null;
-      originalRemoved?.apply(this, arguments);
+      removeNodes2Widget(this);
+      return originalRemoved?.apply(this, args);
     };
+  },
+
+  nodeCreated(node) {
+    if (!isImageCompare(node)) return;
+    queueMicrotask(() => prepareNode(node));
+  },
+
+  loadedGraphNode(node) {
+    if (!isImageCompare(node)) return;
+    queueMicrotask(() => prepareNode(node));
+  },
+
+  afterConfigureGraph() {
+    scheduleRendererSync(isNodes2());
   },
 });
