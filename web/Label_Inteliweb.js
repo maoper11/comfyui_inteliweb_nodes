@@ -5,7 +5,8 @@ const DOM_WIDGET_NAME = "label_dom";
 const NODE_PATCH_FLAG = "__inteliwebLabelNodePatched";
 const FONT_SIZE_MIN = 8;
 const FONT_SIZE_MAX = 500;
-const MODE_WATCH_INTERVAL_MS = 150;
+const VUE_NODES_SETTING_ID = "Comfy.VueNodes.Enabled";
+const MODE_WATCH_FALLBACK_INTERVAL_MS = 1000;
 const MODE_SETTLE_DELAY_MS = 180;
 
 const DEFAULTS = Object.freeze({
@@ -49,6 +50,7 @@ const FONT_STACKS = Object.freeze({
 });
 
 let rendererSyncGeneration = 0;
+let measurementContext = null;
 
 function isLabel(node) {
   return node?.comfyClass === NODE_CLASS || node?.type === NODE_CLASS;
@@ -103,9 +105,27 @@ function fontString(config) {
   return `${config.fontStyle} ${config.fontWeight} ${config.fontSize}px ${fontStack(config.fontFamily)}`;
 }
 
+function measurementSignature(config) {
+  return JSON.stringify([
+    config.text,
+    config.fontSize,
+    config.fontFamily,
+    config.fontWeight,
+    config.fontStyle,
+    config.padding,
+    config.lineHeight,
+  ]);
+}
+
+function renderSignature(config) {
+  return JSON.stringify(config);
+}
+
 function measureLabel(config) {
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
+  if (!measurementContext) {
+    measurementContext = document.createElement("canvas").getContext("2d");
+  }
+  const context = measurementContext;
   context.font = fontString(config);
   const lines = (config.text || " ").split("\n");
   const lineHeightPx = config.fontSize * config.lineHeight;
@@ -119,21 +139,37 @@ function measureLabel(config) {
   };
 }
 
-function markNodeDirty(node) {
-  node.setDirtyCanvas?.(true, true);
-  node.graph?.setDirtyCanvas?.(true, true);
+function getLabelMeasurement(node, config) {
+  const signature = measurementSignature(config);
+  if (node.__inteliwebLabelMeasureSignature === signature && node.__inteliwebLabelMeasure) {
+    return node.__inteliwebLabelMeasure;
+  }
+
+  const measured = measureLabel(config);
+  node.__inteliwebLabelMeasureSignature = signature;
+  node.__inteliwebLabelMeasure = measured;
+  return measured;
 }
 
-function resizeToContent(node) {
-  const measured = measureLabel(readConfig(node));
-  node.__inteliwebLabelMeasure = measured;
-  if (node.size) {
-    node.size[0] = measured.width;
-    node.size[1] = measured.height;
-  } else {
-    node.size = [measured.width, measured.height];
+function markNodeDirty(node) {
+  if (typeof node.setDirtyCanvas === "function") node.setDirtyCanvas(true, true);
+  else node.graph?.setDirtyCanvas?.(true, true);
+}
+
+function resizeToContent(node, config = readConfig(node)) {
+  const measured = getLabelMeasurement(node, config);
+  const sizeChanged = !node.size
+    || node.size[0] !== measured.width
+    || node.size[1] !== measured.height;
+  if (sizeChanged) {
+    if (node.size) {
+      node.size[0] = measured.width;
+      node.size[1] = measured.height;
+    } else {
+      node.size = [measured.width, measured.height];
+    }
+    markNodeDirty(node);
   }
-  markNodeDirty(node);
   return measured;
 }
 
@@ -163,8 +199,23 @@ function renderCanvasLabel(context, config, measured) {
   context.restore();
 }
 
+function renderCanvasSelection(context, node, measured) {
+  if (!node.is_selected) return;
+  context.save();
+  context.globalAlpha = 1;
+  context.shadowColor = "transparent";
+  context.strokeStyle = window.LiteGraph?.NODE_BOX_OUTLINE_COLOR || "#ffffff";
+  context.lineWidth = 2;
+  context.beginPath();
+  if (context.roundRect) context.roundRect(-2, -2, measured.width + 4, measured.height + 4, 4);
+  else context.rect(-2, -2, measured.width + 4, measured.height + 4);
+  context.stroke();
+  context.restore();
+}
+
 function injectCss() {
   if (document.getElementById("inteliweb-label-css")) return;
+  const titleHeight = Number(window.LiteGraph?.NODE_TITLE_HEIGHT) || 30;
   const style = document.createElement("style");
   style.id = "inteliweb-label-css";
   style.textContent = `
@@ -182,6 +233,7 @@ function injectCss() {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
+  margin-top: ${titleHeight}px !important;
   min-width: 0 !important;
   min-height: 0 !important;
 }
@@ -371,12 +423,14 @@ function injectCss() {
   document.head.appendChild(style);
 }
 
-function applyDomStyle(node) {
+function applyDomStyle(node, config = readConfig(node)) {
   const element = node.__inteliwebLabelElement;
   if (!element) return;
 
-  const config = readConfig(node);
-  const measured = resizeToContent(node);
+  const measured = resizeToContent(node, config);
+  const signature = renderSignature(config);
+  if (node.__inteliwebLabelDomStyleSignature === signature) return;
+
   element.textContent = config.text || " ";
   Object.assign(element.style, {
     display: "inline-block",
@@ -394,6 +448,7 @@ function applyDomStyle(node) {
     background: config.backgroundColor,
     borderRadius: `${config.borderRadius}px`,
   });
+  node.__inteliwebLabelDomStyleSignature = signature;
 }
 
 function removeDomWidgetArtifacts(node) {
@@ -412,21 +467,23 @@ function removeDomWidgetArtifacts(node) {
 
   for (const element of elements) {
     const wrapper = element?.closest?.(".lg-node-widget");
+    element.__inteliwebLabelNode = null;
     element?.remove?.();
     wrapper?.remove?.();
   }
 
   node.__inteliwebLabelElement = null;
   node.__inteliwebLabelWidget = null;
+  node.__inteliwebLabelDomStyleSignature = null;
 }
 
-function mountVueLabel(node) {
+function mountVueLabel(node, config) {
   injectCss();
 
   const widgets = (node.widgets || []).filter((widget) => widget?.name === DOM_WIDGET_NAME);
   if (widgets.length === 1 && node.__inteliwebLabelElement) {
     node.__inteliwebLabelWidget = widgets[0];
-    applyDomStyle(node);
+    applyDomStyle(node, config);
     return;
   }
 
@@ -434,6 +491,7 @@ function mountVueLabel(node) {
 
   const element = document.createElement("div");
   element.className = "inteliweb-label-dom";
+  element.__inteliwebLabelNode = node;
 
   const widget = node.addDOMWidget?.(DOM_WIDGET_NAME, "INTELIWEB_LABEL", element, {
     serialize: false,
@@ -445,7 +503,7 @@ function mountVueLabel(node) {
   node.__inteliwebLabelElement = element;
   node.__inteliwebLabelWidget = widget || null;
   if (widget?.options) widget.options.canvasOnly = false;
-  applyDomStyle(node);
+  applyDomStyle(node, config);
 }
 
 function unmountVueLabel(node) {
@@ -453,37 +511,36 @@ function unmountVueLabel(node) {
 }
 
 function prepareBaseNode(node, resize = true) {
-  ensureProperties(node);
+  const config = readConfig(node);
   node.flags = node.flags || {};
-  node.flags.no_title = true;
-  node.resizable = false;
-  node.color = "rgba(0,0,0,0)";
-  node.bgcolor = "rgba(0,0,0,0)";
-  node.badges = [];
+  if (!node.flags.no_title) node.flags.no_title = true;
+  if (node.resizable !== false) node.resizable = false;
+  if (node.color !== "rgba(0,0,0,0)") node.color = "rgba(0,0,0,0)";
+  if (node.bgcolor !== "rgba(0,0,0,0)") node.bgcolor = "rgba(0,0,0,0)";
+  if (!node.badges || node.badges.length) node.badges = [];
   if (node.inputs?.length) node.inputs.length = 0;
   if (node.outputs?.length) node.outputs.length = 0;
-  if (resize || !node.__inteliwebLabelMeasure) resizeToContent(node);
+  node.__inteliwebLabelConfig = config;
+  if (resize || !node.__inteliwebLabelMeasure) resizeToContent(node, config);
+  return config;
 }
 
 function syncLabelRenderer(node, vueMode = isVueNodes(), resize = true) {
   if (!isLabel(node)) return;
 
-  const generation = (node.__inteliwebLabelRendererGeneration || 0) + 1;
-  node.__inteliwebLabelRendererGeneration = generation;
-  node.__inteliwebLabelRendererMode = "transition";
-  prepareBaseNode(node, resize);
+  const targetMode = vueMode ? "vue" : "classic";
+  const modeChanged = node.__inteliwebLabelRendererMode !== targetMode;
+  const config = prepareBaseNode(node, resize);
 
   if (vueMode) {
-    mountVueLabel(node);
-    if (node.__inteliwebLabelRendererGeneration !== generation) return;
-    node.__inteliwebLabelRendererMode = "vue";
-  } else {
+    mountVueLabel(node, config);
+  } else if (modeChanged || node.__inteliwebLabelElement
+    || node.widgets?.some((widget) => widget?.name === DOM_WIDGET_NAME)) {
     unmountVueLabel(node);
-    if (node.__inteliwebLabelRendererGeneration !== generation) return;
-    node.__inteliwebLabelRendererMode = "classic";
   }
 
-  markNodeDirty(node);
+  node.__inteliwebLabelRendererMode = targetMode;
+  if (modeChanged) markNodeDirty(node);
 }
 
 function styleInput(input) {
@@ -836,8 +893,7 @@ function openEditor(node) {
       opacity: Number(opacity.value),
       lineHeight: Number(lineHeight.value) || DEFAULTS.lineHeight,
     };
-    resizeToContent(node);
-    if (node.__inteliwebLabelRendererMode === "vue") applyDomStyle(node);
+    syncLabelRenderer(node, isVueNodes(), true);
     markNodeDirty(node);
     close();
   });
@@ -866,25 +922,12 @@ function installClassicDrawHook() {
       return originalDrawNode.apply(this, arguments);
     }
 
-    const config = readConfig(node);
-    const measured = node.__inteliwebLabelMeasure || resizeToContent(node);
-    node.badges = [];
-
-    const originalFill = context.fill;
-    const originalFillText = context.fillText;
-    context.fill = function () {};
-    context.fillText = function () {};
-
-    let result;
-    try {
-      result = originalDrawNode.apply(this, arguments);
-    } finally {
-      context.fill = originalFill;
-      context.fillText = originalFillText;
-    }
-
+    this.current_node = node;
+    const config = node.__inteliwebLabelConfig || readConfig(node);
+    const measured = node.__inteliwebLabelMeasure || resizeToContent(node, config);
     renderCanvasLabel(context, config, measured);
-    return result;
+    renderCanvasSelection(context, node, measured);
+    return undefined;
   };
 }
 
@@ -901,7 +944,14 @@ function walkGraph(graph, callback, visited = new WeakSet()) {
 
 function syncRendererMode(vueMode = isVueNodes()) {
   walkGraph(app.graph, (node) => {
-    if (isLabel(node)) syncLabelRenderer(node, vueMode, true);
+    if (!isLabel(node)) return;
+    const targetMode = vueMode ? "vue" : "classic";
+    const domWidgets = (node.widgets || []).filter((widget) => widget?.name === DOM_WIDGET_NAME);
+    const rendererIsReady = node.__inteliwebLabelRendererMode === targetMode
+      && (vueMode
+        ? domWidgets.length === 1 && Boolean(node.__inteliwebLabelElement)
+        : domWidgets.length === 0 && !node.__inteliwebLabelElement);
+    if (!rendererIsReady) syncLabelRenderer(node, vueMode, true);
   });
 }
 
@@ -923,12 +973,23 @@ function installModeWatcher() {
   let lastMode = isVueNodes();
   scheduleRendererSync(lastMode);
 
-  window.setInterval(() => {
+  const syncChangedMode = () => {
     const currentMode = isVueNodes();
     if (currentMode === lastMode) return;
     lastMode = currentMode;
     scheduleRendererSync(currentMode);
-  }, MODE_WATCH_INTERVAL_MS);
+  };
+
+  const settings = app.ui?.settings;
+  if (typeof settings?.addEventListener === "function") {
+    settings.addEventListener(`${VUE_NODES_SETTING_ID}.change`, () => {
+      requestAnimationFrame(syncChangedMode);
+    });
+    return;
+  }
+
+  // Compatibility fallback for older frontends without setting change events.
+  window.setInterval(syncChangedMode, MODE_WATCH_FALLBACK_INTERVAL_MS);
 }
 
 app.registerExtension({
@@ -965,7 +1026,8 @@ app.registerExtension({
     };
 
     nodeType.prototype.computeSize = function (out) {
-      const measured = this.__inteliwebLabelMeasure || measureLabel(readConfig(this));
+      const config = readConfig(this);
+      const measured = getLabelMeasurement(this, config);
       if (out) {
         out[0] = measured.width;
         out[1] = measured.height;
@@ -1009,20 +1071,11 @@ if (!window.__inteliwebLabelDblClickInstalled) {
   window.__inteliwebLabelDblClickInstalled = true;
   document.addEventListener("dblclick", (event) => {
     if (!isVueNodes()) return;
-    walkGraph(app.graph, (node) => {
-      if (event.__inteliwebLabelHandled || !isLabel(node)) return;
-      const element = node.__inteliwebLabelElement;
-      if (!element?.isConnected) return;
-      const rect = element.getBoundingClientRect();
-      if (
-        event.clientX >= rect.left
-        && event.clientX <= rect.right
-        && event.clientY >= rect.top
-        && event.clientY <= rect.bottom
-      ) {
-        event.__inteliwebLabelHandled = true;
-        openEditor(node);
-      }
-    });
+    const container = event.target?.closest?.(".lg-node");
+    const element = container?.querySelector?.(".inteliweb-label-dom");
+    const node = element?.__inteliwebLabelNode;
+    if (!isLabel(node) || !element.isConnected) return;
+    event.__inteliwebLabelHandled = true;
+    openEditor(node);
   }, true);
 }
