@@ -31,9 +31,20 @@ let cachedLoras = null;
 let cachedLoraLookup = null;
 let pendingLoras = null;
 let activePicker = null;
+let loraCacheRevision = 0;
 
 function isVueNodes() {
   return Boolean(globalThis.LiteGraph?.vueNodesMode);
+}
+
+function syncBypassAppearance(node) {
+  const root = node?.__inteliwebLoraRoot;
+  if (!root) return;
+  const bypassMode = globalThis.LiteGraph?.BYPASS ?? 4;
+  const bypassed = !isVueNodes() && node.mode === bypassMode;
+  if (node.__inteliwebLoraBypassed === bypassed) return;
+  node.__inteliwebLoraBypassed = bypassed;
+  root.classList.toggle("bypassed", bypassed);
 }
 
 function portablePath(value) {
@@ -163,6 +174,7 @@ function updateLoraCache(data) {
   cachedLoras = [...new Set((Array.isArray(data) ? data : []).map(portablePath).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   cachedLoraLookup = buildLoraLookup(cachedLoras);
+  loraCacheRevision += 1;
 }
 
 function uniqueResolution(matches, requestedName, matchType) {
@@ -286,6 +298,25 @@ function injectStyles() {
   font: 12px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   color: #e8e8e8;
 }
+.inteliweb-lora-stack .inteliweb-lora-header,
+.inteliweb-lora-stack .inteliweb-lora-rows {
+  transition: opacity .12s ease, filter .12s ease;
+}
+.inteliweb-lora-stack.bypassed .inteliweb-lora-header,
+.inteliweb-lora-stack.bypassed .inteliweb-lora-rows {
+  opacity: .48;
+  filter: saturate(.55);
+}
+.inteliweb-lora-stack.bypassed .inteliweb-lora-row {
+  opacity: 1;
+}
+.lg-node .inteliweb-lora-stack.bypassed .inteliweb-lora-header,
+.lg-node .inteliweb-lora-stack.bypassed .inteliweb-lora-rows {
+  opacity: 1;
+  filter: none;
+}
+.lg-node .inteliweb-lora-stack.bypassed .inteliweb-lora-row.disabled { opacity: .55; }
+.lg-node .inteliweb-lora-stack.bypassed .inteliweb-lora-row.unavailable { opacity: .62; }
 .inteliweb-lora-stack * { box-sizing: border-box; }
 .inteliweb-lora-header {
   display: grid;
@@ -333,6 +364,7 @@ function injectStyles() {
 }
 .inteliweb-lora-row > * { min-width: 0; }
 .inteliweb-lora-row.disabled { opacity: .55; }
+.inteliweb-lora-row.unavailable { opacity: .62; }
 .inteliweb-lora-empty {
   width: 100%;
   min-width: ${MIN_CONTENT_WIDTH}px;
@@ -585,9 +617,9 @@ function createPickerOption({ name, label = name, title = name, selected = false
   return option;
 }
 
-function makePicker(current, onChange) {
+function makePicker(current, onChange, knownResolution = null) {
   const currentName = portablePath(current);
-  const resolution = resolveLoraStatus(currentName);
+  const resolution = knownResolution || resolveLoraStatus(currentName);
   const warning = isWarningResolution(resolution);
   const selectedActualName = resolution.actualName || currentName;
 
@@ -820,7 +852,9 @@ function applyMinimums(node) {
 function fitNodeToContent(node) {
   if (!node) return false;
 
+  const previousWidth = Number(node.size?.[0]) || 0;
   applyMinimums(node);
+  const widthChanged = Math.abs((Number(node.size?.[0]) || 0) - previousWidth) > 1;
   const root = node.__inteliwebLoraRoot;
   const uiHeight = Math.max(measuredRootHeight(root), estimatedRootHeight(node));
   node.__inteliwebLoraUiHeight = uiHeight;
@@ -844,11 +878,14 @@ function fitNodeToContent(node) {
   node.__inteliwebLoraDesiredHeight = desiredHeight;
 
   const width = Math.max(MIN_NODE_WIDTH, Number(node.size?.[0]) || DEFAULT_NODE_WIDTH);
-  if (Math.abs((Number(node.size?.[1]) || 0) - desiredHeight) > 1) {
+  const heightChanged = Math.abs((Number(node.size?.[1]) || 0) - desiredHeight) > 1;
+  if (heightChanged) {
     node.setSize?.([width, desiredHeight]);
   }
-  node.setDirtyCanvas?.(true, true);
-  return true;
+  if (widthChanged || heightChanged) {
+    node.setDirtyCanvas?.(true, true);
+  }
+  return widthChanged || heightChanged;
 }
 
 function scheduleFit(node) {
@@ -896,11 +933,16 @@ function installHeightObservers(node) {
 
 function renderNode(node) {
   const root = node.__inteliwebLoraRoot;
-  if (!root) return;
+  if (!root) return false;
+  syncBypassAppearance(node);
+
+  const state = readNodeState(node);
+  const signature = `${serializeState(state)}|${loraCacheRevision}`;
+  if (node.__inteliwebLoraRenderSignature === signature) return false;
+
   if (activePicker?.trigger && root.contains(activePicker.trigger)) closePicker();
 
   applyMinimums(node);
-  const state = readNodeState(node);
   root.replaceChildren();
 
   const header = document.createElement("div");
@@ -932,15 +974,17 @@ function renderNode(node) {
   }
 
   state.loras.forEach((row, index) => {
+    const resolution = resolveLoraStatus(row.name);
+    const unavailable = isWarningResolution(resolution);
     const rowElement = document.createElement("div");
-    rowElement.className = `inteliweb-lora-row${row.on === false ? " disabled" : ""}`;
+    rowElement.className = `inteliweb-lora-row${row.on === false ? " disabled" : ""}${unavailable ? " unavailable" : ""}`;
 
     const enabled = makeSwitch(row.on !== false, "", true);
     const picker = makePicker(row.name, (name) => {
       row.name = portablePath(name);
       writeNodeState(node);
       renderNode(node);
-    });
+    }, resolution);
     const strength = makeStrength(row.strength, (next) => {
       row.strength = next;
       row.strength_model = next;
@@ -1032,10 +1076,30 @@ function renderNode(node) {
     }
   });
 
+  node.__inteliwebLoraRenderSignature = signature;
   scheduleFit(node);
+  return true;
+}
+
+function preloadLorasForNode(node) {
+  if (Array.isArray(cachedLoras) || node.__inteliwebLoraPreloadPromise) return;
+
+  const request = fetchLoras();
+  node.__inteliwebLoraPreloadPromise = request;
+  request
+    .then(() => {
+      if (!node.__inteliwebLoraRemoved) renderNode(node);
+    })
+    .catch((error) => console.warn("[Inteliweb LoRA Stack] Unable to preload LoRAs:", error))
+    .finally(() => {
+      if (node.__inteliwebLoraPreloadPromise === request) {
+        node.__inteliwebLoraPreloadPromise = null;
+      }
+    });
 }
 
 function prepareNode(node) {
+  node.__inteliwebLoraRemoved = false;
   injectStyles();
   readNodeState(node);
 
@@ -1074,10 +1138,18 @@ function prepareNode(node) {
   installHeightObservers(node);
   renderNode(node);
   scheduleFitRetries(node);
+  preloadLorasForNode(node);
+}
 
-  fetchLoras()
-    .then(() => renderNode(node))
-    .catch((error) => console.warn("[Inteliweb LoRA Stack] Unable to preload LoRAs:", error));
+function schedulePrepareNode(node) {
+  if (!node) return;
+  node.__inteliwebLoraRemoved = false;
+  if (node.__inteliwebLoraPrepareScheduled) return;
+  node.__inteliwebLoraPrepareScheduled = true;
+  queueMicrotask(() => {
+    node.__inteliwebLoraPrepareScheduled = false;
+    if (!node.__inteliwebLoraRemoved) prepareNode(node);
+  });
 }
 
 function walkGraph(graph, callback, visited = new WeakSet()) {
@@ -1154,7 +1226,8 @@ app.registerExtension({
         ? originalConfigure.apply(this, args)
         : undefined;
       this.__inteliwebLoraState = null;
-      queueMicrotask(() => prepareNode(this));
+      this.__inteliwebLoraRenderSignature = null;
+      schedulePrepareNode(this);
       return result;
     };
 
@@ -1176,6 +1249,7 @@ app.registerExtension({
 
     const originalDrawForeground = nodeType.prototype.onDrawForeground;
     nodeType.prototype.onDrawForeground = function (...args) {
+      syncBypassAppearance(this);
       if (!isVueNodes()) {
         applyMinimums(this);
         const desired = Number(this.__inteliwebLoraDesiredHeight);
@@ -1190,6 +1264,7 @@ app.registerExtension({
 
     const originalRemoved = nodeType.prototype.onRemoved;
     nodeType.prototype.onRemoved = function (...args) {
+      this.__inteliwebLoraRemoved = true;
       cancelAnimationFrame(this.__inteliwebLoraFitFrame || 0);
       clearFitRetries(this);
       this.__inteliwebLoraMutationObserver?.disconnect();
@@ -1199,6 +1274,8 @@ app.registerExtension({
       this.__inteliwebLoraResizeObserver = null;
       this.__inteliwebLoraIntersectionObserver = null;
       this.__inteliwebLoraHeightObserversInstalled = false;
+      this.__inteliwebLoraPrepareScheduled = false;
+      this.__inteliwebLoraRenderSignature = null;
       if (activePicker?.trigger && this.__inteliwebLoraRoot?.contains(activePicker.trigger)) closePicker();
       return typeof originalRemoved === "function"
         ? originalRemoved.apply(this, args)
@@ -1208,21 +1285,18 @@ app.registerExtension({
 
   nodeCreated(node) {
     if (node.comfyClass !== NODE_CLASS) return;
-    queueMicrotask(() => prepareNode(node));
+    schedulePrepareNode(node);
   },
 
   loadedGraphNode(node) {
     if (node.comfyClass !== NODE_CLASS) return;
-    queueMicrotask(() => prepareNode(node));
+    schedulePrepareNode(node);
   },
 
   afterConfigureGraph() {
     walkGraph(app.graph, (node) => {
       if (node.comfyClass !== NODE_CLASS && node.type !== NODE_CLASS) return;
-      queueMicrotask(() => {
-        prepareNode(node);
-        scheduleFitRetries(node);
-      });
+      schedulePrepareNode(node);
     });
   },
 });

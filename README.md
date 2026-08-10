@@ -199,6 +199,7 @@ Aplica varias LoRAs secuencialmente sobre un modelo.
 - Control compacto de fuerza compartida para `MODEL` y `CLIP`, con flechas laterales y valores visibles con dos decimales.
 - Los cambios numéricos se guardan mientras se editan y no interfieren con los switches individuales ni con **Toggle all**.
 - El selector muestra `⚠ Missing` cuando el archivo no existe y `⚠ Ambiguous` cuando varias LoRAs comparten el mismo nombre de archivo.
+- Las filas ausentes o ambiguas se atenúan; el contenido también refleja visualmente el bypass en Classic, mientras Nodes 2.0 conserva su atenuación nativa.
 - Las referencias ausentes permanecen guardadas y visibles hasta que el usuario selecciona manualmente otra LoRA.
 - La entrada `CLIP` es opcional para cargas que solo modifican el modelo.
 - Las rutas se guardan con `/` y se resuelven de forma portable entre Windows y Linux.
