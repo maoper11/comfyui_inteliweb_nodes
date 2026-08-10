@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.20.3-blue" alt="version 0.20.3" />
+  <img src="https://img.shields.io/badge/version-0.20.4-blue" alt="version 0.20.4" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -11,6 +11,14 @@
 </p>
 
 > Utilidades de Inteliweb AI para controlar semillas, organizar conexiones, comparar imágenes, cargar LoRAs, documentar workflows, monitorear recursos, liberar memoria, enrutar entradas y construir prompts dentro de ComfyUI.
+
+## Cambios en v0.20.4
+
+- **Label** conserva su posición al cambiar entre Classic y Nodes 2.0 y evita renderizados innecesarios cuando hay muchas etiquetas.
+- **Resource Monitor** usa switches compactos y puede desactivarse por completo desde `Settings → Inteliweb → Resource Monitor`, deteniendo también sus consultas de métricas.
+- **Image Compare** adopta el color del cuerpo del nodo, reemplaza los modos por iconos compactos y vuelve a funcionar en Nodes 2.0.
+- **Load LoRA Stack** atenúa las filas ausentes o ambiguas y refleja el bypass en Classic sin duplicar la atenuación nativa de Nodes 2.0.
+- Reducidas las reconstrucciones DOM y preparaciones duplicadas de **Load LoRA Stack** sin retirar los observadores ni los reintentos que estabilizan su altura.
 
 ## Cambios en v0.20.3
 
@@ -71,7 +79,7 @@
 - System Check comparte la misma fuente de RAM y VRAM que Resource Monitor.
 - Validado en RunPod, Vast AI y Windows Pinokio.
 
-## Instalación de v0.20.3 — rama principal `main`
+## Instalación de v0.20.4 — rama principal `main`
 
 ### ComfyUI Manager
 
