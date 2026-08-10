@@ -22,6 +22,8 @@ const MIN_HEIGHT = 300;
 const BUTTON_GAP = 4;
 const STATE_VERSION = 3;
 const PREVIEW_STATE_VERSION = 1;
+const PREVIEW_STATE_PROPERTY = "inteliweb_image_compare_preview";
+const LEGACY_PREVIEW_STATE_WIDGET = "preview_state";
 const STYLE_ID = "inteliweb-image-compare-css";
 let rendererSyncGeneration = 0;
 
@@ -91,26 +93,7 @@ function ensureState(node) {
 }
 
 function previewStateWidget(node) {
-  return node.widgets?.find((widget) => widget.name === "preview_state");
-}
-
-function hidePreviewStateWidget(node) {
-  const widget = previewStateWidget(node);
-  if (!widget) return;
-
-  widget.__inteliwebHidden = true;
-  widget.type = "hidden";
-  widget.hidden = true;
-  widget.draw = () => {};
-  widget.computeSize = () => [0, 0];
-  widget.options = { ...(widget.options || {}), hidden: true };
-
-  for (const element of [widget.element, widget.inputEl, widget.el]) {
-    if (!element) continue;
-    if (element.style) element.style.display = "none";
-    const row = element.closest?.(".lg-node-widget");
-    if (row?.style) row.style.setProperty("display", "none", "important");
-  }
+  return node.widgets?.find((widget) => widget.name === LEGACY_PREVIEW_STATE_WIDGET);
 }
 
 function cleanPreviewDescriptor(data, slot) {
@@ -137,21 +120,58 @@ function parsePreviewState(raw) {
 }
 
 function readPreviewState(node) {
-  return parsePreviewState(previewStateWidget(node)?.value);
+  node.properties ||= {};
+  const state = parsePreviewState(node.properties[PREVIEW_STATE_PROPERTY]);
+  node.properties[PREVIEW_STATE_PROPERTY] = JSON.stringify(state);
+  return state;
 }
 
 function writePreviewState(node, bySlot) {
-  const widget = previewStateWidget(node);
-  if (!widget) return;
-
-  const serialized = JSON.stringify({
+  node.properties ||= {};
+  node.properties[PREVIEW_STATE_PROPERTY] = JSON.stringify({
     version: PREVIEW_STATE_VERSION,
     a: cleanPreviewDescriptor(bySlot.a, "a"),
     b: cleanPreviewDescriptor(bySlot.b, "b"),
   });
-  widget.value = serialized;
-  widget.callback?.(serialized, node, widget);
   node.graph?.setDirtyCanvas?.(true, true);
+}
+
+function migratePreviewState(node, serializedNode) {
+  node.properties ||= {};
+  if (node.properties[PREVIEW_STATE_PROPERTY] != null) {
+    node.properties[PREVIEW_STATE_PROPERTY] = JSON.stringify(
+      parsePreviewState(node.properties[PREVIEW_STATE_PROPERTY]),
+    );
+    return;
+  }
+
+  const legacyValue = previewStateWidget(node)?.value ?? serializedNode?.widgets_values?.[0];
+  node.properties[PREVIEW_STATE_PROPERTY] = JSON.stringify(parsePreviewState(legacyValue));
+}
+
+function removeLegacyPreviewStateArtifacts(node) {
+  const elements = new Set();
+  for (let index = (node.widgets?.length || 0) - 1; index >= 0; index -= 1) {
+    const widget = node.widgets[index];
+    if (widget?.name !== LEGACY_PREVIEW_STATE_WIDGET) continue;
+    for (const element of [widget.element, widget.inputEl, widget.el]) {
+      if (element) elements.add(element);
+    }
+    widget.onRemove?.();
+    node.widgets.splice(index, 1);
+  }
+
+  for (const element of elements) {
+    const wrapper = element?.closest?.(".lg-node-widget");
+    element?.remove?.();
+    wrapper?.remove?.();
+  }
+
+  for (let index = (node.inputs?.length || 0) - 1; index >= 0; index -= 1) {
+    if (node.inputs[index]?.name !== LEGACY_PREVIEW_STATE_WIDGET) continue;
+    if (typeof node.removeInput === "function") node.removeInput(index);
+    else node.inputs.splice(index, 1);
+  }
 }
 
 function imageUrl(data) {
@@ -188,7 +208,6 @@ async function loadPreviewDescriptors(node, bySlot) {
 }
 
 function restorePreviewState(node) {
-  hidePreviewStateWidget(node);
   const saved = readPreviewState(node);
   const key = JSON.stringify(saved);
   if (node.__inteliwebCompareRestoreKey === key) return;
@@ -431,6 +450,7 @@ function installClassic(nodeType) {
   nodeType.prototype.onDrawForeground = function (ctx) {
     originalDraw?.apply(this, arguments);
     if (isNodes2()) return;
+    applyMinimums(this, false);
     drawComparer(ctx, this, this.size[0], this.size[1], { clearCanvas: false, classic: true });
   };
 
@@ -598,23 +618,36 @@ function createNodes2Widget(node) {
   return true;
 }
 
-function prepareNode(node, nodes2 = isNodes2()) {
+function minimumHeight(nodes2 = isNodes2()) {
+  return nodes2 ? MIN_HEIGHT : MIN_HEIGHT + CLASSIC_TOP_OFFSET;
+}
+
+function applyMinimums(node, nodes2 = isNodes2()) {
+  const minHeight = minimumHeight(nodes2);
+  node.min_size ||= [MIN_WIDTH, minHeight];
+  node.min_size[0] = MIN_WIDTH;
+  node.min_size[1] = minHeight;
+
+  node.size ||= [MIN_WIDTH, minHeight];
+  node.size[0] = Math.max(Number(node.size[0]) || 0, MIN_WIDTH);
+  node.size[1] = Math.max(Number(node.size[1]) || 0, minHeight);
+}
+
+function prepareNode(node, nodes2 = isNodes2(), serializedNode) {
   if (!isImageCompare(node)) return;
   injectStyles();
   ensureState(node);
-  hidePreviewStateWidget(node);
-
-  const minimumHeight = nodes2 ? MIN_HEIGHT : MIN_HEIGHT + CLASSIC_TOP_OFFSET;
-  node.size ||= [MIN_WIDTH, minimumHeight];
-  node.size[0] = Math.max(Number(node.size[0]) || 0, MIN_WIDTH);
-  node.size[1] = Math.max(Number(node.size[1]) || 0, minimumHeight);
+  migratePreviewState(node, serializedNode);
+  removeLegacyPreviewStateArtifacts(node);
+  applyMinimums(node, nodes2);
 
   if (nodes2) createNodes2Widget(node);
   else removeNodes2Widget(node);
 
   requestAnimationFrame(() => {
     if (!isImageCompare(node)) return;
-    hidePreviewStateWidget(node);
+    removeLegacyPreviewStateArtifacts(node);
+    applyMinimums(node, isNodes2());
     restorePreviewState(node);
     node.__inteliwebCompareRender?.();
     markDirty(node);
@@ -702,7 +735,22 @@ app.registerExtension({
     const originalConfigure = nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure = function (...args) {
       const result = originalConfigure?.apply(this, args);
-      queueMicrotask(() => prepareNode(this));
+      migratePreviewState(this, args[0]);
+      removeLegacyPreviewStateArtifacts(this);
+      queueMicrotask(() => prepareNode(this, isNodes2(), args[0]));
+      return result;
+    };
+
+    const originalResize = nodeType.prototype.onResize;
+    nodeType.prototype.onResize = function (size, ...args) {
+      const minHeight = minimumHeight(isNodes2());
+      if (Array.isArray(size)) {
+        size[0] = Math.max(MIN_WIDTH, Number(size[0]) || MIN_WIDTH);
+        size[1] = Math.max(minHeight, Number(size[1]) || minHeight);
+      }
+      const result = originalResize?.call(this, size, ...args);
+      applyMinimums(this, isNodes2());
+      this.__inteliwebCompareRender?.();
       return result;
     };
 

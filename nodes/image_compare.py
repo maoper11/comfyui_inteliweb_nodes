@@ -35,20 +35,15 @@ class InteliwebImageCompare:
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            "required": {
-                "preview_state": (
-                    "STRING",
-                    {
-                        "default": _DEFAULT_PREVIEW_STATE,
-                        "multiline": True,
-                        "dynamicPrompts": False,
-                        "tooltip": "Serialized preview state managed by the Inteliweb frontend.",
-                    },
-                ),
-            },
             "optional": {
                 "image_a": ("IMAGE", {"tooltip": "First image to compare."}),
                 "image_b": ("IMAGE", {"tooltip": "Second image to compare."}),
+            },
+            "hidden": {
+                "preview_state": (
+                    "STRING",
+                    {"default": _DEFAULT_PREVIEW_STATE},
+                ),
             },
         }
 
