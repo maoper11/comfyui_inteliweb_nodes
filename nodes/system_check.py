@@ -208,7 +208,7 @@ def _collect(status: dict[str, Any] | None = None):
 
     packages = {
         "xformers": ("xformers",),
-        "triton": ("triton",),
+        "triton": ("triton", "triton-windows"),
         "SageAttention": ("sageattention", "sage-attention"),
         "FlashAttention": ("flash-attn", "flash_attn", "FlashAttention"),
         "numpy": ("numpy",),
