@@ -7,14 +7,8 @@
     {
       "id": 70,
       "type": "KSampler",
-      "pos": [
-        902.2802139165873,
-        737.7247561498318
-      ],
-      "size": [
-        315,
-        341.3125
-      ],
+      "pos": [902.2802139165873, 737.7247561498318],
+      "size": [315, 341.3125],
       "flags": {},
       "order": 34,
       "mode": 0,
@@ -53,9 +47,7 @@
           "name": "LATENT",
           "type": "LATENT",
           "slot_index": 0,
-          "links": [
-            73
-          ]
+          "links": [73]
         }
       ],
       "properties": {
@@ -70,27 +62,13 @@
         "secondTabOffset": 80,
         "secondTabWidth": 65
       },
-      "widgets_values": [
-        42,
-        "fixed",
-        8,
-        1,
-        "res_multistep",
-        "simple",
-        1
-      ]
+      "widgets_values": [42, "fixed", 8, 1, "res_multistep", "simple", 1]
     },
     {
       "id": 71,
       "type": "CLIPTextEncode",
-      "pos": [
-        412.280404651451,
-        937.7248705907499
-      ],
-      "size": [
-        405.46875,
-        140
-      ],
+      "pos": [412.280404651451, 937.7248705907499],
+      "size": [405.46875, 140],
       "flags": {},
       "order": 20,
       "mode": 0,
@@ -105,9 +83,7 @@
         {
           "name": "CONDITIONING",
           "type": "CONDITIONING",
-          "links": [
-            82
-          ]
+          "links": [82]
         }
       ],
       "properties": {
@@ -129,14 +105,8 @@
     {
       "id": 67,
       "type": "CLIPTextEncode",
-      "pos": [
-        412.280404651451,
-        707.7248705907498
-      ],
-      "size": [
-        410,
-        160
-      ],
+      "pos": [412.280404651451, 707.7248705907498],
+      "size": [410, 160],
       "flags": {},
       "order": 33,
       "mode": 0,
@@ -159,9 +129,7 @@
         {
           "name": "CONDITIONING",
           "type": "CONDITIONING",
-          "links": [
-            76
-          ]
+          "links": [76]
         }
       ],
       "properties": {
@@ -183,14 +151,8 @@
     {
       "id": 65,
       "type": "VAEDecode",
-      "pos": [
-        1262.2802139165874,
-        737.7247561498318
-      ],
-      "size": [
-        225,
-        96
-      ],
+      "pos": [1262.2802139165874, 737.7247561498318],
+      "size": [225, 96],
       "flags": {},
       "order": 35,
       "mode": 0,
@@ -211,9 +173,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "slot_index": 0,
-          "links": [
-            108
-          ]
+          "links": [108]
         }
       ],
       "properties": {
@@ -233,14 +193,8 @@
     {
       "id": 63,
       "type": "VAELoader",
-      "pos": [
-        914.3802139165875,
-        1202.424679855886
-      ],
-      "size": [
-        320,
-        106.65625
-      ],
+      "pos": [914.3802139165875, 1202.424679855886],
+      "size": [320, 106.65625],
       "flags": {},
       "order": 0,
       "mode": 0,
@@ -249,9 +203,7 @@
         {
           "name": "VAE",
           "type": "VAE",
-          "links": [
-            74
-          ]
+          "links": [74]
         }
       ],
       "properties": {
@@ -273,21 +225,13 @@
         "secondTabOffset": 80,
         "secondTabWidth": 65
       },
-      "widgets_values": [
-        "ae.safetensors"
-      ]
+      "widgets_values": ["ae.safetensors"]
     },
     {
       "id": 89,
       "type": "SetInteliweb",
-      "pos": [
-        -272.62832393051394,
-        620.7432105721492
-      ],
-      "size": [
-        210,
-        60
-      ],
+      "pos": [-272.62832393051394, 620.7432105721492],
+      "size": [210, 60],
       "flags": {},
       "order": 28,
       "mode": 0,
@@ -309,71 +253,20 @@
       ],
       "title": "Set: clip",
       "properties": {
-        "previousName": "clip",
-        "inteliwebVariableName": "clip",
         "Node name for S&R": "SetInteliweb",
-        "aux_id": "maoper11/comfyui_inteliweb_nodes"
+        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "previousName": "clip",
+        "inteliwebVariableName": "clip"
       },
-      "widgets_values": [
-        "clip"
-      ],
+      "widgets_values": ["clip"],
       "color": "#432",
       "bgcolor": "#653"
     },
     {
-      "id": 88,
-      "type": "SetInteliweb",
-      "pos": [
-        -275.0324239305128,
-        452.4376105721491
-      ],
-      "size": [
-        210,
-        60
-      ],
-      "flags": {},
-      "order": 27,
-      "mode": 0,
-      "inputs": [
-        {
-          "label": "MODEL",
-          "name": "value",
-          "type": "MODEL",
-          "link": 100
-        }
-      ],
-      "outputs": [
-        {
-          "label": "MODEL",
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": null
-        }
-      ],
-      "title": "Set: model",
-      "properties": {
-        "previousName": "model",
-        "inteliwebVariableName": "model",
-        "Node name for S&R": "SetInteliweb",
-        "aux_id": "maoper11/comfyui_inteliweb_nodes"
-      },
-      "widgets_values": [
-        "model"
-      ],
-      "color": "#223",
-      "bgcolor": "#335"
-    },
-    {
       "id": 91,
       "type": "GetInteliweb",
-      "pos": [
-        80.22837606948582,
-        628.5840105721489
-      ],
-      "size": [
-        210,
-        60
-      ],
+      "pos": [80.22837606948582, 628.5840105721489],
+      "size": [210, 60],
       "flags": {},
       "order": 1,
       "mode": 0,
@@ -383,35 +276,24 @@
           "label": "CLIP",
           "name": "CLIP",
           "type": "CLIP",
-          "links": [
-            103,
-            104
-          ]
+          "links": [103, 104]
         }
       ],
       "title": "Get: clip",
       "properties": {
-        "inteliwebVariableName": "clip",
         "Node name for S&R": "GetInteliweb",
-        "aux_id": "maoper11/comfyui_inteliweb_nodes"
+        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "inteliwebVariableName": "clip"
       },
-      "widgets_values": [
-        "clip"
-      ],
+      "widgets_values": ["clip"],
       "color": "#432",
       "bgcolor": "#653"
     },
     {
       "id": 84,
       "type": "CustomCombo",
-      "pos": [
-        -1541.2718238776265,
-        1328.1513770043805
-      ],
-      "size": [
-        270,
-        174
-      ],
+      "pos": [-1541.2718238776265, 1328.1513770043805],
+      "size": [270, 174],
       "flags": {},
       "order": 2,
       "mode": 0,
@@ -425,9 +307,7 @@
         {
           "name": "INDEX",
           "type": "INT",
-          "links": [
-            90
-          ]
+          "links": [90]
         }
       ],
       "properties": {
@@ -435,26 +315,13 @@
         "ver": "0.28.0",
         "Node name for S&R": "CustomCombo"
       },
-      "widgets_values": [
-        "dog",
-        1,
-        "cat",
-        "dog",
-        "bunny",
-        ""
-      ]
+      "widgets_values": ["dog", 1, "cat", "dog", "bunny", ""]
     },
     {
       "id": 85,
       "type": "ComfyMathExpression",
-      "pos": [
-        -1199.2314602412634,
-        1313.0001951861982
-      ],
-      "size": [
-        400,
-        200
-      ],
+      "pos": [-1199.2314602412634, 1313.0001951861982],
+      "size": [400, 200],
       "flags": {
         "collapsed": false
       },
@@ -484,9 +351,7 @@
         {
           "name": "INT",
           "type": "INT",
-          "links": [
-            91
-          ]
+          "links": [91]
         },
         {
           "name": "BOOL",
@@ -499,21 +364,13 @@
         "ver": "0.28.0",
         "Node name for S&R": "ComfyMathExpression"
       },
-      "widgets_values": [
-        "a + 1"
-      ]
+      "widgets_values": ["a + 1"]
     },
     {
       "id": 73,
       "type": "LoadImage",
-      "pos": [
-        2450.945841715028,
-        325.9689796049944
-      ],
-      "size": [
-        282.798828125,
-        314
-      ],
+      "pos": [2450.945841715028, 325.9689796049944],
+      "size": [282.798828125, 314],
       "flags": {},
       "order": 3,
       "mode": 0,
@@ -522,9 +379,7 @@
         {
           "name": "IMAGE",
           "type": "IMAGE",
-          "links": [
-            83
-          ]
+          "links": [83]
         },
         {
           "name": "MASK",
@@ -537,22 +392,13 @@
         "ver": "0.28.0",
         "Node name for S&R": "LoadImage"
       },
-      "widgets_values": [
-        "example.png",
-        "image"
-      ]
+      "widgets_values": ["example.png", "image"]
     },
     {
       "id": 68,
       "type": "EmptySD3LatentImage",
-      "pos": [
-        441.15525279842376,
-        1159.5980924437763
-      ],
-      "size": [
-        260,
-        168
-      ],
+      "pos": [441.15525279842376, 1159.5980924437763],
+      "size": [260, 168],
       "flags": {},
       "order": 4,
       "mode": 0,
@@ -562,9 +408,7 @@
           "name": "LATENT",
           "type": "LATENT",
           "slot_index": 0,
-          "links": [
-            78
-          ]
+          "links": [78]
         }
       ],
       "properties": {
@@ -579,23 +423,13 @@
         "secondTabOffset": 80,
         "secondTabWidth": 65
       },
-      "widgets_values": [
-        1024,
-        1024,
-        1
-      ]
+      "widgets_values": [1024, 1024, 1]
     },
     {
       "id": 66,
       "type": "UNETLoader",
-      "pos": [
-        -1555.118891551957,
-        367.88387179592314
-      ],
-      "size": [
-        380,
-        134.65625
-      ],
+      "pos": [-1555.118891551957, 367.88387179592314],
+      "size": [380, 134.65625],
       "flags": {},
       "order": 5,
       "mode": 0,
@@ -604,9 +438,7 @@
         {
           "name": "MODEL",
           "type": "MODEL",
-          "links": [
-            98
-          ]
+          "links": [98]
         }
       ],
       "properties": {
@@ -628,22 +460,13 @@
         "secondTabOffset": 80,
         "secondTabWidth": 65
       },
-      "widgets_values": [
-        "z_image_turbo_bf16.safetensors",
-        "default"
-      ]
+      "widgets_values": ["z_image_turbo_bf16.safetensors", "default"]
     },
     {
       "id": 62,
       "type": "CLIPLoader",
-      "pos": [
-        -1553.9036848852895,
-        580.36722059075
-      ],
-      "size": [
-        375.43121999999994,
-        162.8704600000001
-      ],
+      "pos": [-1553.9036848852895, 580.36722059075],
+      "size": [375.43121999999994, 162.8704600000001],
       "flags": {},
       "order": 6,
       "mode": 0,
@@ -652,9 +475,7 @@
         {
           "name": "CLIP",
           "type": "CLIP",
-          "links": [
-            99
-          ]
+          "links": [99]
         }
       ],
       "properties": {
@@ -676,23 +497,13 @@
         "secondTabOffset": 80,
         "secondTabWidth": 65
       },
-      "widgets_values": [
-        "qwen_3_4b.safetensors",
-        "lumina2",
-        "default"
-      ]
+      "widgets_values": ["qwen_3_4b.safetensors", "lumina2", "default"]
     },
     {
       "id": 95,
       "type": "MarkdownNote",
-      "pos": [
-        -2153.7881416614327,
-        290.7424443498148
-      ],
-      "size": [
-        517.3415184072126,
-        407.03128052216414
-      ],
+      "pos": [-2153.7881416614327, 290.7424443498148],
+      "size": [517.3415184072126, 407.03128052216414],
       "flags": {
         "collapsed": false
       },
@@ -709,51 +520,10 @@
       "bgcolor": "#000"
     },
     {
-      "id": 87,
-      "type": "PreviewAny",
-      "pos": [
-        -768.7525711503521,
-        984.5940797316546
-      ],
-      "size": [
-        233,
-        174
-      ],
-      "flags": {},
-      "order": 25,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "source",
-          "type": "*",
-          "link": 93
-        }
-      ],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.28.0",
-        "Node name for S&R": "PreviewAny"
-      },
-      "widgets_values": []
-    },
-    {
       "id": 93,
       "type": "InteliwebLabel",
-      "pos": [
-        -253.9243194565439,
-        322.30893376398234
-      ],
-      "size": [
-        593,
-        85
-      ],
+      "pos": [-253.9243194565439, 322.30893376398234],
+      "size": [593, 85],
       "flags": {
         "no_title": true
       },
@@ -773,10 +543,10 @@
         "borderRadius": 22,
         "opacity": 1,
         "lineHeight": 1,
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "cnr_id": "comfyui_inteliweb_nodes",
         "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
         "Node name for S&R": "InteliwebLabel",
-        "cnr_id": "comfyui_inteliweb_nodes",
+        "aux_id": "maoper11/comfyui_inteliweb_nodes",
         "backgroundColorBeforeTransparent": "#a3e635"
       },
       "widgets_values": [],
@@ -786,14 +556,8 @@
     {
       "id": 97,
       "type": "InteliwebLabel",
-      "pos": [
-        -312.905681547639,
-        893.8575579007229
-      ],
-      "size": [
-        237,
-        68
-      ],
+      "pos": [-312.905681547639, 893.8575579007229],
+      "size": [237, 68],
       "flags": {
         "no_title": true
       },
@@ -813,10 +577,10 @@
         "borderRadius": 22,
         "opacity": 1,
         "lineHeight": 1,
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "cnr_id": "comfyui_inteliweb_nodes",
         "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
         "Node name for S&R": "InteliwebLabel",
-        "cnr_id": "comfyui_inteliweb_nodes",
+        "aux_id": "maoper11/comfyui_inteliweb_nodes",
         "backgroundColorBeforeTransparent": "#a3e635"
       },
       "widgets_values": [],
@@ -826,14 +590,8 @@
     {
       "id": 98,
       "type": "InteliwebLabel",
-      "pos": [
-        42.694318452361514,
-        890.4575579007237
-      ],
-      "size": [
-        257,
-        68
-      ],
+      "pos": [42.694318452361514, 890.4575579007237],
+      "size": [257, 68],
       "flags": {
         "no_title": true
       },
@@ -853,10 +611,10 @@
         "borderRadius": 22,
         "opacity": 1,
         "lineHeight": 1,
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "cnr_id": "comfyui_inteliweb_nodes",
         "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
         "Node name for S&R": "InteliwebLabel",
-        "cnr_id": "comfyui_inteliweb_nodes",
+        "aux_id": "maoper11/comfyui_inteliweb_nodes",
         "backgroundColorBeforeTransparent": "#a3e635"
       },
       "widgets_values": [],
@@ -866,14 +624,8 @@
     {
       "id": 78,
       "type": "InteliwebReplaceTextMulti",
-      "pos": [
-        -84.12156761833427,
-        1420.67933149712
-      ],
-      "size": [
-        400,
-        568
-      ],
+      "pos": [-84.12156761833427, 1420.67933149712],
+      "size": [400, 568],
       "flags": {},
       "order": 30,
       "mode": 0,
@@ -891,17 +643,14 @@
         {
           "name": "STRING",
           "type": "STRING",
-          "links": [
-            97,
-            105
-          ]
+          "links": [97, 105]
         }
       ],
       "properties": {
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "cnr_id": "comfyui_inteliweb_nodes",
         "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
         "Node name for S&R": "InteliwebReplaceTextMulti",
-        "cnr_id": "comfyui_inteliweb_nodes"
+        "aux_id": "maoper11/comfyui_inteliweb_nodes"
       },
       "widgets_values": [
         "",
@@ -930,14 +679,8 @@
     {
       "id": 99,
       "type": "InteliwebLabel",
-      "pos": [
-        -569.7086815476398,
-        1290.2205579007225
-      ],
-      "size": [
-        289,
-        68
-      ],
+      "pos": [-569.7086815476398, 1290.2205579007225],
+      "size": [289, 68],
       "flags": {
         "no_title": true
       },
@@ -957,10 +700,10 @@
         "borderRadius": 22,
         "opacity": 1,
         "lineHeight": 1,
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "cnr_id": "comfyui_inteliweb_nodes",
         "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
         "Node name for S&R": "InteliwebLabel",
-        "cnr_id": "comfyui_inteliweb_nodes",
+        "aux_id": "maoper11/comfyui_inteliweb_nodes",
         "backgroundColorBeforeTransparent": "#4b9b67"
       },
       "widgets_values": [],
@@ -970,14 +713,8 @@
     {
       "id": 90,
       "type": "GetInteliweb",
-      "pos": [
-        76.34202606948551,
-        459.0042805721494
-      ],
-      "size": [
-        210,
-        60
-      ],
+      "pos": [76.34202606948551, 459.0042805721494],
+      "size": [210, 60],
       "flags": {},
       "order": 12,
       "mode": 0,
@@ -987,34 +724,24 @@
           "label": "MODEL",
           "name": "MODEL",
           "type": "MODEL",
-          "links": [
-            102
-          ]
+          "links": [102]
         }
       ],
       "title": "Get: model",
       "properties": {
-        "inteliwebVariableName": "model",
         "Node name for S&R": "GetInteliweb",
-        "aux_id": "maoper11/comfyui_inteliweb_nodes"
+        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "inteliwebVariableName": "model"
       },
-      "widgets_values": [
-        "model"
-      ],
+      "widgets_values": ["model"],
       "color": "#223",
       "bgcolor": "#335"
     },
     {
       "id": 69,
       "type": "ModelSamplingAuraFlow",
-      "pos": [
-        404.19556465145024,
-        462.4017629070341
-      ],
-      "size": [
-        310,
-        104
-      ],
+      "pos": [404.19556465145024, 462.4017629070341],
+      "size": [310, 104],
       "flags": {},
       "order": 23,
       "mode": 0,
@@ -1030,9 +757,7 @@
           "name": "MODEL",
           "type": "MODEL",
           "slot_index": 0,
-          "links": [
-            75
-          ]
+          "links": [75]
         }
       ],
       "properties": {
@@ -1047,81 +772,13 @@
         "secondTabOffset": 80,
         "secondTabWidth": 65
       },
-      "widgets_values": [
-        3
-      ]
-    },
-    {
-      "id": 79,
-      "type": "InteliwebStringIndexSelector",
-      "pos": [
-        -633.2786266183371,
-        1421.3726834971183
-      ],
-      "size": [
-        400,
-        618
-      ],
-      "flags": {},
-      "order": 26,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "index",
-          "type": "INT",
-          "widget": {
-            "name": "index"
-          },
-          "link": 91
-        }
-      ],
-      "outputs": [
-        {
-          "name": "string",
-          "type": "STRING",
-          "links": [
-            88,
-            92,
-            96
-          ]
-        },
-        {
-          "name": "SELECTED_INDEX",
-          "type": "INT",
-          "links": null
-        }
-      ],
-      "properties": {
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
-        "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
-        "Node name for S&R": "InteliwebStringIndexSelector",
-        "cnr_id": "comfyui_inteliweb_nodes"
-      },
-      "widgets_values": [
-        "a cat",
-        "a dog",
-        "a bunny",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        1
-      ]
+      "widgets_values": [3]
     },
     {
       "id": 81,
       "type": "InteliwebInputSwitch",
-      "pos": [
-        -335.65237152742543,
-        1037.0227306789386
-      ],
-      "size": [
-        270,
-        118
-      ],
+      "pos": [-335.65237152742543, 1037.0227306789386],
+      "size": [270, 118],
       "flags": {},
       "order": 31,
       "mode": 0,
@@ -1157,9 +814,7 @@
           "label": "STRING",
           "name": "STRING",
           "type": "STRING",
-          "links": [
-            89
-          ]
+          "links": [89]
         },
         {
           "name": "selected_label",
@@ -1173,26 +828,18 @@
         }
       ],
       "properties": {
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "cnr_id": "comfyui_inteliweb_nodes",
         "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
         "Node name for S&R": "InteliwebInputSwitch",
-        "cnr_id": "comfyui_inteliweb_nodes"
+        "aux_id": "maoper11/comfyui_inteliweb_nodes"
       },
-      "widgets_values": [
-        3
-      ]
+      "widgets_values": [3]
     },
     {
       "id": 100,
       "type": "InteliwebLabel",
-      "pos": [
-        -24.174981547638655,
-        1289.482557900722
-      ],
-      "size": [
-        293,
-        68
-      ],
+      "pos": [-24.174981547638655, 1289.482557900722],
+      "size": [293, 68],
       "flags": {
         "no_title": true
       },
@@ -1212,10 +859,10 @@
         "borderRadius": 22,
         "opacity": 1,
         "lineHeight": 1,
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "cnr_id": "comfyui_inteliweb_nodes",
         "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
         "Node name for S&R": "InteliwebLabel",
-        "cnr_id": "comfyui_inteliweb_nodes",
+        "aux_id": "maoper11/comfyui_inteliweb_nodes",
         "backgroundColorBeforeTransparent": "#8fa2c7"
       },
       "widgets_values": [],
@@ -1225,14 +872,8 @@
     {
       "id": 74,
       "type": "LoadImage",
-      "pos": [
-        2446.5091750483616,
-        728.2267573827713
-      ],
-      "size": [
-        282.798828125,
-        314.00000000000006
-      ],
+      "pos": [2446.5091750483616, 728.2267573827713],
+      "size": [282.798828125, 314.00000000000006],
       "flags": {},
       "order": 14,
       "mode": 0,
@@ -1241,9 +882,7 @@
         {
           "name": "IMAGE",
           "type": "IMAGE",
-          "links": [
-            84
-          ]
+          "links": [84]
         },
         {
           "name": "MASK",
@@ -1256,22 +895,13 @@
         "ver": "0.28.0",
         "Node name for S&R": "LoadImage"
       },
-      "widgets_values": [
-        "example.png",
-        "image"
-      ]
+      "widgets_values": ["example.png", "image"]
     },
     {
       "id": 9,
       "type": "SaveImage",
-      "pos": [
-        1569.6766088044792,
-        1066.444190049831
-      ],
-      "size": [
-        508.5127296999999,
-        669.4357887999997
-      ],
+      "pos": [1569.6766088044792, 1066.444190049831],
+      "size": [508.5127296999999, 669.4357887999997],
       "flags": {},
       "order": 37,
       "mode": 0,
@@ -1301,61 +931,13 @@
         "secondTabOffset": 80,
         "secondTabWidth": 65
       },
-      "widgets_values": [
-        "ComfyUI"
-      ]
-    },
-    {
-      "id": 76,
-      "type": "InteliwebLabel",
-      "pos": [
-        -752.8517139157333,
-        -62.14420792934077
-      ],
-      "size": [
-        2322,
-        274
-      ],
-      "flags": {
-        "no_title": true
-      },
-      "order": 15,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "properties": {
-        "text": "Label Inteliweb Demo",
-        "fontSize": 222,
-        "fontFamily": "Arial",
-        "fontStyle": "bold",
-        "textColor": "#000000",
-        "backgroundColor": "#a3e635",
-        "textAlign": "center",
-        "padding": 26,
-        "borderRadius": 53,
-        "opacity": 1,
-        "lineHeight": 1,
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
-        "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
-        "Node name for S&R": "InteliwebLabel",
-        "cnr_id": "comfyui_inteliweb_nodes",
-        "backgroundColorBeforeTransparent": "#a3e635"
-      },
-      "widgets_values": [],
-      "color": "rgba(0,0,0,0)",
-      "bgcolor": "rgba(0,0,0,0)"
+      "widgets_values": ["ComfyUI"]
     },
     {
       "id": 75,
       "type": "InteliwebLoraStack",
-      "pos": [
-        -949.5249506183357,
-        499.22113916378834
-      ],
-      "size": [
-        447.27272727272725,
-        226
-      ],
+      "pos": [-949.5249506183357, 499.22113916378834],
+      "size": [447.27272727272725, 130],
       "flags": {},
       "order": 22,
       "mode": 0,
@@ -1376,42 +958,30 @@
         {
           "name": "MODEL",
           "type": "MODEL",
-          "links": [
-            100
-          ]
+          "links": [100]
         },
         {
           "name": "CLIP",
           "type": "CLIP",
-          "links": [
-            101
-          ]
+          "links": [101]
         }
       ],
       "properties": {
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "cnr_id": "comfyui_inteliweb_nodes",
         "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
         "Node name for S&R": "InteliwebLoraStack",
-        "cnr_id": "comfyui_inteliweb_nodes"
+        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "inteliwebLoraStack": "{\"version\":1,\"separate_strengths\":false,\"loras\":[]}"
       },
-      "widgets_values": [
-        "{\"version\":1,\"separate_strengths\":false,\"loras\":[{\"on\":true,\"name\":\"ZIT/lenovo_z.safetensors\",\"strength\":1,\"strength_model\":1,\"strength_clip\":1}]}",
-        ""
-      ]
+      "widgets_values": [""]
     },
     {
       "id": 77,
       "type": "InteliwebPromptList",
-      "pos": [
-        -1209.462128394518,
-        833.1259774677573
-      ],
-      "size": [
-        400,
-        324
-      ],
+      "pos": [-1209.462128394518, 833.1259774677573],
+      "size": [400, 324],
       "flags": {},
-      "order": 16,
+      "order": 15,
       "mode": 0,
       "inputs": [
         {
@@ -1431,37 +1001,22 @@
           "name": "PROMPT_STRINGS",
           "shape": 6,
           "type": "STRING",
-          "links": [
-            87,
-            93
-          ]
+          "links": [87, 93]
         }
       ],
       "properties": {
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "cnr_id": "comfyui_inteliweb_nodes",
         "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
         "Node name for S&R": "InteliwebPromptList",
-        "cnr_id": "comfyui_inteliweb_nodes"
+        "aux_id": "maoper11/comfyui_inteliweb_nodes"
       },
-      "widgets_values": [
-        "a cat",
-        "a dog",
-        "a bunny",
-        "",
-        ""
-      ]
+      "widgets_values": ["a cat", "a dog", "a bunny", "", ""]
     },
     {
       "id": 103,
       "type": "InteliwebPurgeVRAM",
-      "pos": [
-        1611.645610771933,
-        704.1283005738593
-      ],
-      "size": [
-        270,
-        174
-      ],
+      "pos": [1611.645610771933, 704.1283005738593],
+      "size": [270, 174],
       "flags": {},
       "order": 36,
       "mode": 0,
@@ -1476,42 +1031,27 @@
         {
           "name": "anything",
           "type": "*",
-          "links": [
-            109
-          ]
+          "links": [109]
         },
         {
           "name": "STATS",
           "type": "STRING",
-          "links": [
-            111
-          ]
+          "links": [111]
         }
       ],
       "properties": {
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "cnr_id": "comfyui_inteliweb_nodes",
         "ver": "82fa9e01a3d6e2f451b10057d9e2953637445259",
-        "Node name for S&R": "InteliwebPurgeVRAM"
+        "Node name for S&R": "InteliwebPurgeVRAM",
+        "aux_id": "maoper11/comfyui_inteliweb_nodes"
       },
-      "widgets_values": [
-        true,
-        true,
-        true,
-        true,
-        "Save Image Cleanup"
-      ]
+      "widgets_values": [true, true, true, true, "Save Image Cleanup"]
     },
     {
       "id": 105,
       "type": "PreviewAny",
-      "pos": [
-        1939.7167807739827,
-        694.8919096169567
-      ],
-      "size": [
-        367.5370534799531,
-        190.44136329485684
-      ],
+      "pos": [1939.7167807739827, 694.8919096169567],
+      "size": [367.5370534799531, 190.44136329485684],
       "flags": {},
       "order": 38,
       "mode": 0,
@@ -1539,18 +1079,12 @@
     {
       "id": 92,
       "type": "InteliwebLabel",
-      "pos": [
-        -842.568603308059,
-        331.4247546115932
-      ],
-      "size": [
-        239,
-        96
-      ],
+      "pos": [-842.568603308059, 331.4247546115932],
+      "size": [239, 96],
       "flags": {
         "no_title": true
       },
-      "order": 17,
+      "order": 16,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -1566,11 +1100,127 @@
         "borderRadius": 22,
         "opacity": 1,
         "lineHeight": 1.45,
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "cnr_id": "comfyui_inteliweb_nodes",
         "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
         "Node name for S&R": "InteliwebLabel",
-        "cnr_id": "comfyui_inteliweb_nodes",
+        "aux_id": "maoper11/comfyui_inteliweb_nodes",
         "backgroundColorBeforeTransparent": "#330a80"
+      },
+      "widgets_values": [],
+      "color": "rgba(0,0,0,0)",
+      "bgcolor": "rgba(0,0,0,0)"
+    },
+    {
+      "id": 82,
+      "type": "InteliwebSeed",
+      "pos": [30.731608472576124, 1032.9255188607576],
+      "size": [270, 130],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SEED",
+          "type": "INT",
+          "links": [86]
+        }
+      ],
+      "properties": {
+        "inteliwebSeed": 665462458261359,
+        "cnr_id": "comfyui_inteliweb_nodes",
+        "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
+        "Node name for S&R": "InteliwebSeed",
+        "aux_id": "maoper11/comfyui_inteliweb_nodes"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 83,
+      "type": "InteliwebSystemCheck",
+      "pos": [2471.609176412585, 1167.2983317366475],
+      "size": [533.3855476031013, 788.708348717937],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfyui_inteliweb_nodes",
+        "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
+        "Node name for S&R": "InteliwebSystemCheck",
+        "aux_id": "maoper11/comfyui_inteliweb_nodes"
+      },
+      "widgets_values": [],
+      "color": "#1f2430",
+      "bgcolor": "#0f172a"
+    },
+    {
+      "id": 72,
+      "type": "InteliwebImageCompare",
+      "pos": [2895.20406393725, 394.58942404943883],
+      "size": [453.2399999999998, 586.6222222222221],
+      "flags": {},
+      "order": 24,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image_a",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 83
+        },
+        {
+          "name": "image_b",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 84
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfyui_inteliweb_nodes",
+        "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
+        "Node name for S&R": "InteliwebImageCompare",
+        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "compare_mode": "left_right",
+        "toggle_image": "a",
+        "split_x": 0.06339346622931256,
+        "split_y": 0.004436669934931274,
+        "compare_state_version": 3,
+        "inteliweb_image_compare_preview": "{\"version\":1,\"a\":{\"filename\":\"inteliweb_compare_udojr_00001_a.png\",\"subfolder\":\"\",\"type\":\"temp\",\"slot\":\"a\"},\"b\":{\"filename\":\"inteliweb_compare_udojr_00002_b.png\",\"subfolder\":\"\",\"type\":\"temp\",\"slot\":\"b\"}}"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 76,
+      "type": "InteliwebLabel",
+      "pos": [-752.8517139157333, -62.14420792934077],
+      "size": [2322, 274],
+      "flags": {
+        "no_title": true
+      },
+      "order": 19,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "text": "Label Inteliweb Demo",
+        "fontSize": 222,
+        "fontFamily": "Arial",
+        "fontStyle": "bold",
+        "textColor": "#000000",
+        "backgroundColor": "#a3e635",
+        "textAlign": "center",
+        "padding": 26,
+        "borderRadius": 53,
+        "opacity": 1,
+        "lineHeight": 1,
+        "cnr_id": "comfyui_inteliweb_nodes",
+        "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
+        "Node name for S&R": "InteliwebLabel",
+        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "backgroundColorBeforeTransparent": "#a3e635"
       },
       "widgets_values": [],
       "color": "rgba(0,0,0,0)",
@@ -1579,14 +1229,8 @@
     {
       "id": 86,
       "type": "PreviewAny",
-      "pos": [
-        -596.4338647867171,
-        2106.3323260952893
-      ],
-      "size": [
-        254,
-        160.5
-      ],
+      "pos": [-596.4338647867171, 2106.3323260952893],
+      "size": [254, 160.5],
       "flags": {},
       "order": 29,
       "mode": 0,
@@ -1614,14 +1258,8 @@
     {
       "id": 94,
       "type": "PreviewAny",
-      "pos": [
-        12.490044818657214,
-        2122.8110934649926
-      ],
-      "size": [
-        254,
-        160.5
-      ],
+      "pos": [12.490044818657214, 2122.8110934649926],
+      "size": [254, 160.5],
       "flags": {},
       "order": 32,
       "mode": 0,
@@ -1647,351 +1285,157 @@
       "widgets_values": []
     },
     {
-      "id": 72,
-      "type": "InteliwebImageCompare",
-      "pos": [
-        2895.20406393725,
-        394.58942404943883
-      ],
-      "size": [
-        453.2399999999998,
-        586.6222222222221
-      ],
+      "id": 79,
+      "type": "InteliwebStringIndexSelector",
+      "pos": [-633.2786266183371, 1421.3726834971183],
+      "size": [400, 618],
       "flags": {},
-      "order": 24,
+      "order": 26,
       "mode": 0,
       "inputs": [
         {
-          "name": "image_a",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 83
-        },
-        {
-          "name": "image_b",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 84
+          "name": "index",
+          "type": "INT",
+          "widget": {
+            "name": "index"
+          },
+          "link": 91
         }
       ],
-      "outputs": [],
+      "outputs": [
+        {
+          "name": "string",
+          "type": "STRING",
+          "links": [88, 92, 96]
+        },
+        {
+          "name": "SELECTED_INDEX",
+          "type": "INT",
+          "links": null
+        }
+      ],
       "properties": {
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
+        "cnr_id": "comfyui_inteliweb_nodes",
         "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
-        "Node name for S&R": "InteliwebImageCompare",
-        "compare_mode": "left_right",
-        "toggle_image": "a",
-        "split_x": 0.06339346622931256,
-        "split_y": 0.004436669934931274,
-        "compare_state_version": 3,
-        "cnr_id": "comfyui_inteliweb_nodes"
+        "Node name for S&R": "InteliwebStringIndexSelector",
+        "aux_id": "maoper11/comfyui_inteliweb_nodes"
       },
       "widgets_values": [
-        "{\"version\":1,\"a\":{\"filename\":\"inteliweb_compare_sugxv_00003_a.png\",\"subfolder\":\"\",\"type\":\"temp\",\"slot\":\"a\"},\"b\":{\"filename\":\"inteliweb_compare_sugxv_00004_b.png\",\"subfolder\":\"\",\"type\":\"temp\",\"slot\":\"b\"}}"
+        "a cat",
+        "a dog",
+        "a bunny",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        1
       ]
     },
     {
-      "id": 82,
-      "type": "InteliwebSeed",
-      "pos": [
-        30.731608472576124,
-        1032.9255188607576
-      ],
-      "size": [
-        270,
-        130
-      ],
+      "id": 87,
+      "type": "PreviewAny",
+      "pos": [-767.288471150352, 986.0581797316546],
+      "size": [233, 174],
       "flags": {},
-      "order": 18,
+      "order": 25,
       "mode": 0,
-      "inputs": [],
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 93
+        }
+      ],
       "outputs": [
         {
-          "name": "SEED",
-          "type": "INT",
-          "links": [
-            86
-          ]
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
         }
       ],
       "properties": {
-        "aux_id": "maoper11/comfyui_inteliweb_nodes",
-        "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
-        "inteliwebSeed": 665462458261359,
-        "Node name for S&R": "InteliwebSeed",
-        "cnr_id": "comfyui_inteliweb_nodes"
+        "cnr_id": "comfy-core",
+        "ver": "0.28.0",
+        "Node name for S&R": "PreviewAny"
       },
       "widgets_values": []
     },
     {
-      "id": 83,
-      "type": "InteliwebSystemCheck",
-      "pos": [
-        2471.609176412585,
-        1167.2983317366475
-      ],
-      "size": [
-        533.3855476031013,
-        788.708348717937
-      ],
+      "id": 88,
+      "type": "SetInteliweb",
+      "pos": [-275.0324239305128, 452.4376105721491],
+      "size": [210, 60],
       "flags": {},
-      "order": 19,
+      "order": 27,
       "mode": 0,
-      "inputs": [],
-      "outputs": [],
+      "inputs": [
+        {
+          "label": "MODEL",
+          "name": "value",
+          "type": "MODEL",
+          "link": 100
+        }
+      ],
+      "outputs": [
+        {
+          "label": "MODEL",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": null
+        }
+      ],
+      "title": "Set: model",
       "properties": {
+        "Node name for S&R": "SetInteliweb",
         "aux_id": "maoper11/comfyui_inteliweb_nodes",
-        "ver": "e084fe37f453ce9194d37eb2dbea15f7c6fcda62",
-        "Node name for S&R": "InteliwebSystemCheck",
-        "cnr_id": "comfyui_inteliweb_nodes"
+        "previousName": "model",
+        "inteliwebVariableName": "model"
       },
-      "widgets_values": [],
-      "color": "#1f2430",
-      "bgcolor": "#0f172a"
+      "widgets_values": ["model"],
+      "color": "#223",
+      "bgcolor": "#335"
     }
   ],
   "links": [
-    [
-      73,
-      70,
-      0,
-      65,
-      0,
-      "LATENT"
-    ],
-    [
-      74,
-      63,
-      0,
-      65,
-      1,
-      "VAE"
-    ],
-    [
-      75,
-      69,
-      0,
-      70,
-      0,
-      "MODEL"
-    ],
-    [
-      76,
-      67,
-      0,
-      70,
-      1,
-      "CONDITIONING"
-    ],
-    [
-      78,
-      68,
-      0,
-      70,
-      3,
-      "LATENT"
-    ],
-    [
-      82,
-      71,
-      0,
-      70,
-      2,
-      "CONDITIONING"
-    ],
-    [
-      83,
-      73,
-      0,
-      72,
-      0,
-      "IMAGE"
-    ],
-    [
-      84,
-      74,
-      0,
-      72,
-      1,
-      "IMAGE"
-    ],
-    [
-      86,
-      82,
-      0,
-      70,
-      4,
-      "INT"
-    ],
-    [
-      87,
-      77,
-      1,
-      81,
-      0,
-      "STRING"
-    ],
-    [
-      88,
-      79,
-      0,
-      81,
-      1,
-      "STRING"
-    ],
-    [
-      89,
-      81,
-      0,
-      67,
-      1,
-      "STRING"
-    ],
-    [
-      90,
-      84,
-      1,
-      85,
-      0,
-      "INT"
-    ],
-    [
-      91,
-      85,
-      1,
-      79,
-      0,
-      "INT"
-    ],
-    [
-      92,
-      79,
-      0,
-      86,
-      0,
-      "STRING"
-    ],
-    [
-      93,
-      77,
-      1,
-      87,
-      0,
-      "STRING"
-    ],
-    [
-      96,
-      79,
-      0,
-      78,
-      0,
-      "STRING"
-    ],
-    [
-      97,
-      78,
-      0,
-      81,
-      2,
-      "STRING"
-    ],
-    [
-      98,
-      66,
-      0,
-      75,
-      0,
-      "MODEL"
-    ],
-    [
-      99,
-      62,
-      0,
-      75,
-      1,
-      "CLIP"
-    ],
-    [
-      100,
-      75,
-      0,
-      88,
-      0,
-      "MODEL"
-    ],
-    [
-      101,
-      75,
-      1,
-      89,
-      0,
-      "CLIP"
-    ],
-    [
-      102,
-      90,
-      0,
-      69,
-      0,
-      "MODEL"
-    ],
-    [
-      103,
-      91,
-      0,
-      67,
-      0,
-      "CLIP"
-    ],
-    [
-      104,
-      91,
-      0,
-      71,
-      0,
-      "CLIP"
-    ],
-    [
-      105,
-      78,
-      0,
-      94,
-      0,
-      "STRING"
-    ],
-    [
-      108,
-      65,
-      0,
-      103,
-      0,
-      "IMAGE"
-    ],
-    [
-      109,
-      103,
-      0,
-      9,
-      0,
-      "IMAGE"
-    ],
-    [
-      111,
-      103,
-      1,
-      105,
-      0,
-      "STRING"
-    ]
+    [73, 70, 0, 65, 0, "LATENT"],
+    [74, 63, 0, 65, 1, "VAE"],
+    [75, 69, 0, 70, 0, "MODEL"],
+    [76, 67, 0, 70, 1, "CONDITIONING"],
+    [78, 68, 0, 70, 3, "LATENT"],
+    [82, 71, 0, 70, 2, "CONDITIONING"],
+    [83, 73, 0, 72, 0, "IMAGE"],
+    [84, 74, 0, 72, 1, "IMAGE"],
+    [86, 82, 0, 70, 4, "INT"],
+    [87, 77, 1, 81, 0, "STRING"],
+    [88, 79, 0, 81, 1, "STRING"],
+    [89, 81, 0, 67, 1, "STRING"],
+    [90, 84, 1, 85, 0, "INT"],
+    [91, 85, 1, 79, 0, "INT"],
+    [92, 79, 0, 86, 0, "STRING"],
+    [93, 77, 1, 87, 0, "STRING"],
+    [96, 79, 0, 78, 0, "STRING"],
+    [97, 78, 0, 81, 2, "STRING"],
+    [98, 66, 0, 75, 0, "MODEL"],
+    [99, 62, 0, 75, 1, "CLIP"],
+    [100, 75, 0, 88, 0, "MODEL"],
+    [101, 75, 1, 89, 0, "CLIP"],
+    [102, 90, 0, 69, 0, "MODEL"],
+    [103, 91, 0, 67, 0, "CLIP"],
+    [104, 91, 0, 71, 0, "CLIP"],
+    [105, 78, 0, 94, 0, "STRING"],
+    [108, 65, 0, 103, 0, "IMAGE"],
+    [109, 103, 0, 9, 0, "IMAGE"],
+    [111, 103, 1, 105, 0, "STRING"]
   ],
   "groups": [
     {
       "id": 1,
       "title": "Inteliweb AI Nodes",
       "bounding": [
-        -1613.7078238776267,
-        256.52501057214954,
-        3964.0881903821046,
+        -1613.7078238776267, 256.52501057214954, 3964.0881903821046,
         2090.1038573413207
       ],
       "color": "#3f789e",
@@ -2003,9 +1447,7 @@
       "id": 2,
       "title": "Image Comparer",
       "bounding": [
-        2436.5091750483616,
-        255.96897960499436,
-        967.1888888888876,
+        2436.5091750483616, 255.96897960499436, 967.1888888888876,
         796.2577777777774
       ],
       "color": "#3f789e",
@@ -2017,13 +1459,10 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.35049389948139265,
-      "offset": [
-        2703.108460300392,
-        217.66152734391918
-      ]
+      "scale": 0.31863081771035684,
+      "offset": [2439.232056176159, 173.54988494700694]
     },
-    "frontendVersion": "1.47.10",
+    "frontendVersion": "1.48.7",
     "VHS_latentpreview": false,
     "VHS_latentpreviewrate": 0,
     "VHS_MetadataImage": true,
