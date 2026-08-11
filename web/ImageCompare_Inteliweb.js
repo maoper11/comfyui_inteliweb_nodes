@@ -16,10 +16,21 @@ const MODES = Object.freeze([
 
 const HEADER_HEIGHT = 38;
 const CLASSIC_TOP_OFFSET = 50;
-const MIN_WIDTH = 360;
-const MIN_CONTENT_WIDTH = MIN_WIDTH - 20;
-const MIN_HEIGHT = 300;
+const TOOLBAR_SIDE_PADDING = 8;
+const MIN_BUTTON_WIDTH = 54;
 const BUTTON_GAP = 4;
+const NODE_CONTENT_HORIZONTAL_INSET = 20;
+const MIN_TOOLBAR_WIDTH =
+  TOOLBAR_SIDE_PADDING * 2 +
+  MODES.length * MIN_BUTTON_WIDTH +
+  (MODES.length - 1) * BUTTON_GAP;
+const MIN_WIDTH = Math.max(
+  360,
+  MIN_TOOLBAR_WIDTH + NODE_CONTENT_HORIZONTAL_INSET,
+);
+const MIN_CONTENT_WIDTH = MIN_WIDTH - NODE_CONTENT_HORIZONTAL_INSET;
+const MIN_HEIGHT = 300;
+const MIN_VIEWER_HEIGHT = 180;
 const STATE_VERSION = 3;
 const PREVIEW_STATE_VERSION = 1;
 const PREVIEW_STATE_PROPERTY = "inteliweb_image_compare_preview";
@@ -61,9 +72,19 @@ function injectStyles() {
 .lg-node:has(.inteliweb-image-compare) .lg-node-widgets {
   row-gap: 0 !important;
 }
-.inteliweb-image-compare,
+.lg-node:has(.inteliweb-image-compare) {
+  --min-node-width: ${MIN_WIDTH}px !important;
+  min-width: ${MIN_WIDTH}px !important;
+}
+.inteliweb-image-compare {
+  background: transparent !important;
+  contain: size layout paint;
+  min-width: 0 !important;
+}
 .inteliweb-image-compare canvas {
   background: transparent !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
 }
 `;
   document.head.appendChild(style);
@@ -81,7 +102,8 @@ function ensureState(node) {
     state.compare_state_version = STATE_VERSION;
   }
 
-  if (!MODES.some(([key]) => key === state.compare_mode)) state.compare_mode = "left_right";
+  if (!MODES.some(([key]) => key === state.compare_mode))
+    state.compare_mode = "left_right";
   if (!["a", "b"].includes(state.toggle_image)) state.toggle_image = "a";
   if (!Number.isFinite(Number(state.split_x))) state.split_x = 0;
   if (!Number.isFinite(Number(state.split_y))) state.split_y = 0;
@@ -93,7 +115,9 @@ function ensureState(node) {
 }
 
 function previewStateWidget(node) {
-  return node.widgets?.find((widget) => widget.name === LEGACY_PREVIEW_STATE_WIDGET);
+  return node.widgets?.find(
+    (widget) => widget.name === LEGACY_PREVIEW_STATE_WIDGET,
+  );
 }
 
 function cleanPreviewDescriptor(data, slot) {
@@ -145,8 +169,11 @@ function migratePreviewState(node, serializedNode) {
     return;
   }
 
-  const legacyValue = previewStateWidget(node)?.value ?? serializedNode?.widgets_values?.[0];
-  node.properties[PREVIEW_STATE_PROPERTY] = JSON.stringify(parsePreviewState(legacyValue));
+  const legacyValue =
+    previewStateWidget(node)?.value ?? serializedNode?.widgets_values?.[0];
+  node.properties[PREVIEW_STATE_PROPERTY] = JSON.stringify(
+    parsePreviewState(legacyValue),
+  );
 }
 
 function removeLegacyPreviewStateArtifacts(node) {
@@ -189,7 +216,8 @@ function loadImage(data, generation, node) {
   if (!data) return Promise.resolve(null);
   return new Promise((resolve) => {
     const image = new Image();
-    image.onload = () => resolve(node.__inteliwebCompareGeneration === generation ? image : null);
+    image.onload = () =>
+      resolve(node.__inteliwebCompareGeneration === generation ? image : null);
     image.onerror = () => resolve(null);
     image.src = imageUrl(data);
   });
@@ -216,10 +244,18 @@ function restorePreviewState(node) {
 }
 
 function containRect(image, viewport) {
-  if (!image?.naturalWidth || !image?.naturalHeight || viewport.width <= 0 || viewport.height <= 0) {
+  if (
+    !image?.naturalWidth ||
+    !image?.naturalHeight ||
+    viewport.width <= 0 ||
+    viewport.height <= 0
+  ) {
     return { x: viewport.x, y: viewport.y, width: 0, height: 0 };
   }
-  const scale = Math.min(viewport.width / image.naturalWidth, viewport.height / image.naturalHeight);
+  const scale = Math.min(
+    viewport.width / image.naturalWidth,
+    viewport.height / image.naturalHeight,
+  );
   const width = image.naturalWidth * scale;
   const height = image.naturalHeight * scale;
   return {
@@ -240,10 +276,11 @@ function drawContained(ctx, image, viewport) {
 
 function buttonRects(width, classic = false) {
   const top = rendererTop(classic);
-  const leftPad = 8;
-  const rightPad = 8;
-  const available = width - leftPad - rightPad - BUTTON_GAP * (MODES.length - 1);
-  const buttonWidth = Math.max(54, available / MODES.length);
+  const leftPad = TOOLBAR_SIDE_PADDING;
+  const rightPad = TOOLBAR_SIDE_PADDING;
+  const available =
+    width - leftPad - rightPad - BUTTON_GAP * (MODES.length - 1);
+  const buttonWidth = Math.max(MIN_BUTTON_WIDTH, available / MODES.length);
   return MODES.map(([key, icon, label], index) => ({
     key,
     icon,
@@ -256,7 +293,12 @@ function buttonRects(width, classic = false) {
 }
 
 function pointInRect(x, y, rect) {
-  return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
+  return (
+    x >= rect.x &&
+    x <= rect.x + rect.width &&
+    y >= rect.y &&
+    y <= rect.y + rect.height
+  );
 }
 
 function drawToolbar(ctx, node, width, classic = false) {
@@ -272,10 +314,13 @@ function drawToolbar(ctx, node, width, classic = false) {
   for (const rect of buttonRects(width, classic)) {
     const active = state.compare_mode === rect.key;
     ctx.fillStyle = active ? "rgba(0, 0, 0, .52)" : "rgba(0, 0, 0, .24)";
-    ctx.strokeStyle = active ? "rgba(255, 255, 255, .7)" : "rgba(255, 255, 255, .28)";
+    ctx.strokeStyle = active
+      ? "rgba(255, 255, 255, .7)"
+      : "rgba(255, 255, 255, .28)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(rect.x, rect.y, rect.width, rect.height, 5);
+    if (ctx.roundRect)
+      ctx.roundRect(rect.x, rect.y, rect.width, rect.height, 5);
     else ctx.rect(rect.x, rect.y, rect.width, rect.height);
     ctx.fill();
     ctx.stroke();
@@ -300,7 +345,13 @@ function drawBadge(ctx, label, x, y) {
   ctx.restore();
 }
 
-function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = false } = {}) {
+function drawComparer(
+  ctx,
+  node,
+  width,
+  height,
+  { clearCanvas = true, classic = false } = {},
+) {
   const state = ensureState(node);
   const images = node.__inteliwebCompareImages;
   const top = rendererTop(classic);
@@ -320,7 +371,11 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
     ctx.font = "12px system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("Connect images and run to compare", width / 2, imageArea.y + imageArea.height / 2);
+    ctx.fillText(
+      "Connect images and run to compare",
+      width / 2,
+      imageArea.y + imageArea.height / 2,
+    );
     ctx.restore();
     return;
   }
@@ -336,8 +391,18 @@ function drawComparer(ctx, node, width, height, { clearCanvas = true, classic = 
   if (state.compare_mode === "side_by_side") {
     const gap = 2;
     const half = (width - gap) / 2;
-    const left = { x: 0, y: imageArea.y, width: half, height: imageArea.height };
-    const right = { x: half + gap, y: imageArea.y, width: half, height: imageArea.height };
+    const left = {
+      x: 0,
+      y: imageArea.y,
+      width: half,
+      height: imageArea.height,
+    };
+    const right = {
+      x: half + gap,
+      y: imageArea.y,
+      width: half,
+      height: imageArea.height,
+    };
     drawContained(ctx, images.a, left);
     drawContained(ctx, images.b, right);
     ctx.fillStyle = "rgba(255, 255, 255, .35)";
@@ -418,7 +483,11 @@ function handlePointerDown(node, x, y, width, height, classic = false) {
 function handlePointerMove(node, x, y, width, height, classic = false) {
   const state = ensureState(node);
   const imageTop = rendererTop(classic) + HEADER_HEIGHT;
-  if (y < imageTop || !node.__inteliwebCompareImages?.a || !node.__inteliwebCompareImages?.b) {
+  if (
+    y < imageTop ||
+    !node.__inteliwebCompareImages?.a ||
+    !node.__inteliwebCompareImages?.b
+  ) {
     return false;
   }
 
@@ -428,7 +497,11 @@ function handlePointerMove(node, x, y, width, height, classic = false) {
     return true;
   }
   if (state.compare_mode === "up_down") {
-    state.split_y = clamp((y - imageTop) / Math.max(1, height - imageTop), 0, 1);
+    state.split_y = clamp(
+      (y - imageTop) / Math.max(1, height - imageTop),
+      0,
+      1,
+    );
     markDirty(node);
     return true;
   }
@@ -441,7 +514,9 @@ async function applyExecution(node, output) {
     if (data?.slot === "a" || data?.slot === "b") bySlot[data.slot] = data;
   }
   writePreviewState(node, bySlot);
-  node.__inteliwebCompareRestoreKey = JSON.stringify(parsePreviewState({ a: bySlot.a, b: bySlot.b }));
+  node.__inteliwebCompareRestoreKey = JSON.stringify(
+    parsePreviewState({ a: bySlot.a, b: bySlot.b }),
+  );
   await loadPreviewDescriptors(node, bySlot);
 }
 
@@ -451,12 +526,18 @@ function installClassic(nodeType) {
     originalDraw?.apply(this, arguments);
     if (isNodes2()) return;
     applyMinimums(this, false);
-    drawComparer(ctx, this, this.size[0], this.size[1], { clearCanvas: false, classic: true });
+    drawComparer(ctx, this, this.size[0], this.size[1], {
+      clearCanvas: false,
+      classic: true,
+    });
   };
 
   const originalDown = nodeType.prototype.onMouseDown;
   nodeType.prototype.onMouseDown = function (event, pos, canvas) {
-    if (!isNodes2() && handlePointerDown(this, pos[0], pos[1], this.size[0], this.size[1], true)) {
+    if (
+      !isNodes2() &&
+      handlePointerDown(this, pos[0], pos[1], this.size[0], this.size[1], true)
+    ) {
       return true;
     }
     return originalDown?.apply(this, arguments) ?? false;
@@ -464,7 +545,8 @@ function installClassic(nodeType) {
 
   const originalMove = nodeType.prototype.onMouseMove;
   nodeType.prototype.onMouseMove = function (event, pos, canvas) {
-    if (!isNodes2()) handlePointerMove(this, pos[0], pos[1], this.size[0], this.size[1], true);
+    if (!isNodes2())
+      handlePointerMove(this, pos[0], pos[1], this.size[0], this.size[1], true);
     return originalMove?.apply(this, arguments);
   };
 }
@@ -473,6 +555,7 @@ function removeNodes2Widget(node) {
   const elements = new Set();
   const mounted = node.__inteliwebCompareDom;
   mounted?.observer?.disconnect();
+  mounted?.restoreNodeMinimums?.();
   if (mounted?.root) elements.add(mounted.root);
 
   for (let index = (node.widgets?.length || 0) - 1; index >= 0; index -= 1) {
@@ -513,23 +596,67 @@ function createNodes2Widget(node) {
 
   const root = document.createElement("div");
   root.className = "inteliweb-image-compare";
-  root.style.cssText =
-    "position:relative;width:100%;height:100%;min-height:180px;overflow:hidden;box-sizing:border-box;";
+  root.style.cssText = `position:relative;width:100%;height:100%;min-width:0;min-height:${MIN_VIEWER_HEIGHT}px;overflow:hidden;box-sizing:border-box;contain:size layout paint;`;
   root.setAttribute("role", "group");
   root.setAttribute("aria-label", "Image comparison viewer");
 
   const canvas = document.createElement("canvas");
-  canvas.style.cssText = "display:block;width:100%;height:100%;cursor:default;";
+  canvas.style.cssText =
+    "position:absolute;inset:0;display:block;width:100%;height:100%;min-width:0;min-height:0;cursor:default;";
   canvas.title = "Image comparison viewer";
   root.appendChild(canvas);
 
-  const widgetHeight = () => Math.max(180, (node.size?.[1] || MIN_HEIGHT) - 86);
+  let vueNodeElement = null;
+  let previousNodeMinimums = null;
+  const restoreNodeMinimums = () => {
+    if (!vueNodeElement || !previousNodeMinimums) return;
+    for (const [property, { value, priority }] of Object.entries(
+      previousNodeMinimums,
+    )) {
+      if (value) vueNodeElement.style.setProperty(property, value, priority);
+      else vueNodeElement.style.removeProperty(property);
+    }
+    vueNodeElement = null;
+    previousNodeMinimums = null;
+  };
+  const enforceNodeMinimums = () => {
+    const element = root.closest?.("[data-node-id]");
+    if (!element?.style) return;
+    if (element !== vueNodeElement) {
+      restoreNodeMinimums();
+      vueNodeElement = element;
+      previousNodeMinimums = Object.fromEntries(
+        ["min-width", "--min-node-width"].map((property) => [
+          property,
+          {
+            value: element.style.getPropertyValue(property),
+            priority: element.style.getPropertyPriority(property),
+          },
+        ]),
+      );
+    }
+    element.style.setProperty("min-width", `${MIN_WIDTH}px`);
+    element.style.setProperty("--min-node-width", `${MIN_WIDTH}px`);
+  };
+
+  // This is only a canvas-rendering fallback. It must not participate in the
+  // Nodes 2.0 layout calculation, otherwise node height feeds back into its own
+  // minimum and each vertical resize can make the node grow indefinitely.
+  const fallbackViewerHeight = () =>
+    Math.max(MIN_VIEWER_HEIGHT, (node.size?.[1] || MIN_HEIGHT) - 86);
   const logicalSize = () => ({
-    width: Math.max(1, root.clientWidth || root.offsetWidth || node.size?.[0] || MIN_WIDTH),
-    height: Math.max(1, root.clientHeight || root.offsetHeight || widgetHeight()),
+    width: Math.max(
+      1,
+      root.clientWidth || root.offsetWidth || node.size?.[0] || MIN_WIDTH,
+    ),
+    height: Math.max(
+      1,
+      root.clientHeight || root.offsetHeight || fallbackViewerHeight(),
+    ),
   });
 
   const render = () => {
+    enforceNodeMinimums();
     const { width, height } = logicalSize();
     const dpr = window.devicePixelRatio || 1;
     const pixelWidth = Math.round(width * dpr);
@@ -577,24 +704,33 @@ function createNodes2Widget(node) {
       canvas.style.cursor = "pointer";
       canvas.title = toolbarButton.label;
     } else if (handlePointerMove(node, x, y, width, height)) {
-      canvas.style.cursor = ensureState(node).compare_mode === "up_down" ? "ns-resize" : "ew-resize";
+      canvas.style.cursor =
+        ensureState(node).compare_mode === "up_down"
+          ? "ns-resize"
+          : "ew-resize";
       canvas.title = "Drag to move the comparison divider";
     } else {
-      const toggleArea = y >= HEADER_HEIGHT && ensureState(node).compare_mode === "toggle";
+      const toggleArea =
+        y >= HEADER_HEIGHT && ensureState(node).compare_mode === "toggle";
       canvas.style.cursor = toggleArea ? "pointer" : "default";
-      canvas.title = toggleArea ? "Click to toggle image A / B" : "Image comparison viewer";
+      canvas.title = toggleArea
+        ? "Click to toggle image A / B"
+        : "Image comparison viewer";
     }
   });
 
-  const widget = node.addDOMWidget(DOM_WIDGET_NAME, "INTELIWEB_IMAGE_COMPARE", root, {
-    serialize: false,
-    hideOnZoom: false,
-    margin: 0,
-    getMinHeight: widgetHeight,
-    getMaxHeight: widgetHeight,
-    getHeight: widgetHeight,
-    afterResize: () => requestAnimationFrame(render),
-  });
+  const widget = node.addDOMWidget(
+    DOM_WIDGET_NAME,
+    "INTELIWEB_IMAGE_COMPARE",
+    root,
+    {
+      serialize: false,
+      hideOnZoom: false,
+      margin: 0,
+      getMinHeight: () => MIN_VIEWER_HEIGHT,
+      afterResize: () => requestAnimationFrame(render),
+    },
+  );
   if (!widget) {
     root.remove();
     node.__inteliwebCompareRender = null;
@@ -605,14 +741,22 @@ function createNodes2Widget(node) {
   widget.options.canvasOnly = false;
   widget.options.margin = 0;
   widget.computeLayoutSize = () => ({
-    minHeight: widgetHeight(),
-    maxHeight: widgetHeight(),
+    minHeight: MIN_VIEWER_HEIGHT,
     minWidth: MIN_CONTENT_WIDTH,
   });
 
-  const observer = globalThis.ResizeObserver ? new ResizeObserver(render) : null;
+  const observer = globalThis.ResizeObserver
+    ? new ResizeObserver(render)
+    : null;
   observer?.observe(root);
-  node.__inteliwebCompareDom = { root, canvas, observer, widget };
+  node.__inteliwebCompareDom = {
+    root,
+    canvas,
+    observer,
+    widget,
+    enforceNodeMinimums,
+    restoreNodeMinimums,
+  };
 
   requestAnimationFrame(render);
   return true;
@@ -661,7 +805,8 @@ function walkGraph(graph, callback, visited = new WeakSet()) {
     if (!node) continue;
     callback(node);
     const innerGraph = node.subgraph || node._graph;
-    if (innerGraph && innerGraph !== graph) walkGraph(innerGraph, callback, visited);
+    if (innerGraph && innerGraph !== graph)
+      walkGraph(innerGraph, callback, visited);
   }
 }
 
@@ -721,7 +866,8 @@ app.registerExtension({
   },
 
   beforeRegisterNodeDef(nodeType, nodeData) {
-    if (nodeData?.name !== NODE_CLASS || nodeType.prototype[NODE_PATCH_FLAG]) return;
+    if (nodeData?.name !== NODE_CLASS || nodeType.prototype[NODE_PATCH_FLAG])
+      return;
     nodeType.prototype[NODE_PATCH_FLAG] = true;
     installClassic(nodeType);
 
@@ -762,7 +908,8 @@ app.registerExtension({
 
     const originalRemoved = nodeType.prototype.onRemoved;
     nodeType.prototype.onRemoved = function (...args) {
-      this.__inteliwebCompareGeneration = (this.__inteliwebCompareGeneration || 0) + 1;
+      this.__inteliwebCompareGeneration =
+        (this.__inteliwebCompareGeneration || 0) + 1;
       removeNodes2Widget(this);
       return originalRemoved?.apply(this, args);
     };
