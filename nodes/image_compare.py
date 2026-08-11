@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import random
 
@@ -10,12 +9,6 @@ import numpy as np
 from PIL import Image
 
 import folder_paths
-
-
-_DEFAULT_PREVIEW_STATE = json.dumps(
-    {"version": 1, "a": None, "b": None},
-    separators=(",", ":"),
-)
 
 
 class InteliwebImageCompare:
@@ -38,12 +31,6 @@ class InteliwebImageCompare:
             "optional": {
                 "image_a": ("IMAGE", {"tooltip": "First image to compare."}),
                 "image_b": ("IMAGE", {"tooltip": "Second image to compare."}),
-            },
-            "hidden": {
-                "preview_state": (
-                    "STRING",
-                    {"default": _DEFAULT_PREVIEW_STATE},
-                ),
             },
         }
 
@@ -77,8 +64,7 @@ class InteliwebImageCompare:
             "slot": slot,
         }
 
-    def compare_images(self, preview_state=_DEFAULT_PREVIEW_STATE, image_a=None, image_b=None):
-        del preview_state
+    def compare_images(self, image_a=None, image_b=None):
         images = []
         preview_a = self._save_preview(image_a, "a")
         preview_b = self._save_preview(image_b, "b")

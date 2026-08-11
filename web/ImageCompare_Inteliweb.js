@@ -34,7 +34,6 @@ const MIN_VIEWER_HEIGHT = 180;
 const STATE_VERSION = 3;
 const PREVIEW_STATE_VERSION = 1;
 const PREVIEW_STATE_PROPERTY = "inteliweb_image_compare_preview";
-const LEGACY_PREVIEW_STATE_WIDGET = "preview_state";
 const STYLE_ID = "inteliweb-image-compare-css";
 let rendererSyncGeneration = 0;
 
@@ -59,19 +58,6 @@ function injectStyles() {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-.lg-node:has(.inteliweb-image-compare) .lg-node-widget:has(textarea),
-.lg-node:has(.inteliweb-image-compare) .lg-node-widget:has(input[type="text"][value^="{\"version\""]),
-.lg-node:has(.inteliweb-image-compare) textarea {
-  display: none !important;
-  min-height: 0 !important;
-  height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-}
-.lg-node:has(.inteliweb-image-compare) .lg-node-widgets {
-  row-gap: 0 !important;
-}
 .lg-node:has(.inteliweb-image-compare) {
   --min-node-width: ${MIN_WIDTH}px !important;
   min-width: ${MIN_WIDTH}px !important;
@@ -114,12 +100,6 @@ function ensureState(node) {
   return state;
 }
 
-function previewStateWidget(node) {
-  return node.widgets?.find(
-    (widget) => widget.name === LEGACY_PREVIEW_STATE_WIDGET,
-  );
-}
-
 function cleanPreviewDescriptor(data, slot) {
   if (!data || typeof data !== "object" || !data.filename) return null;
   return {
@@ -158,47 +138,6 @@ function writePreviewState(node, bySlot) {
     b: cleanPreviewDescriptor(bySlot.b, "b"),
   });
   node.graph?.setDirtyCanvas?.(true, true);
-}
-
-function migratePreviewState(node, serializedNode) {
-  node.properties ||= {};
-  if (node.properties[PREVIEW_STATE_PROPERTY] != null) {
-    node.properties[PREVIEW_STATE_PROPERTY] = JSON.stringify(
-      parsePreviewState(node.properties[PREVIEW_STATE_PROPERTY]),
-    );
-    return;
-  }
-
-  const legacyValue =
-    previewStateWidget(node)?.value ?? serializedNode?.widgets_values?.[0];
-  node.properties[PREVIEW_STATE_PROPERTY] = JSON.stringify(
-    parsePreviewState(legacyValue),
-  );
-}
-
-function removeLegacyPreviewStateArtifacts(node) {
-  const elements = new Set();
-  for (let index = (node.widgets?.length || 0) - 1; index >= 0; index -= 1) {
-    const widget = node.widgets[index];
-    if (widget?.name !== LEGACY_PREVIEW_STATE_WIDGET) continue;
-    for (const element of [widget.element, widget.inputEl, widget.el]) {
-      if (element) elements.add(element);
-    }
-    widget.onRemove?.();
-    node.widgets.splice(index, 1);
-  }
-
-  for (const element of elements) {
-    const wrapper = element?.closest?.(".lg-node-widget");
-    element?.remove?.();
-    wrapper?.remove?.();
-  }
-
-  for (let index = (node.inputs?.length || 0) - 1; index >= 0; index -= 1) {
-    if (node.inputs[index]?.name !== LEGACY_PREVIEW_STATE_WIDGET) continue;
-    if (typeof node.removeInput === "function") node.removeInput(index);
-    else node.inputs.splice(index, 1);
-  }
 }
 
 function imageUrl(data) {
@@ -777,12 +716,10 @@ function applyMinimums(node, nodes2 = isNodes2()) {
   node.size[1] = Math.max(Number(node.size[1]) || 0, minHeight);
 }
 
-function prepareNode(node, nodes2 = isNodes2(), serializedNode) {
+function prepareNode(node, nodes2 = isNodes2()) {
   if (!isImageCompare(node)) return;
   injectStyles();
   ensureState(node);
-  migratePreviewState(node, serializedNode);
-  removeLegacyPreviewStateArtifacts(node);
   applyMinimums(node, nodes2);
 
   if (nodes2) createNodes2Widget(node);
@@ -790,7 +727,6 @@ function prepareNode(node, nodes2 = isNodes2(), serializedNode) {
 
   requestAnimationFrame(() => {
     if (!isImageCompare(node)) return;
-    removeLegacyPreviewStateArtifacts(node);
     applyMinimums(node, isNodes2());
     restorePreviewState(node);
     node.__inteliwebCompareRender?.();
@@ -881,9 +817,7 @@ app.registerExtension({
     const originalConfigure = nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure = function (...args) {
       const result = originalConfigure?.apply(this, args);
-      migratePreviewState(this, args[0]);
-      removeLegacyPreviewStateArtifacts(this);
-      queueMicrotask(() => prepareNode(this, isNodes2(), args[0]));
+      queueMicrotask(() => prepareNode(this, isNodes2()));
       return result;
     };
 
