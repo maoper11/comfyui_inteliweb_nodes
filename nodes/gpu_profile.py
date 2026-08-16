@@ -19,6 +19,13 @@ def _normalize_profile(value: object, fallback: str = "HIGH") -> str:
     return text if text in PROFILE_VALUES else fallback
 
 
+def _profile_from_status(value: object, fallback: str = "HIGH") -> str:
+    """Extract LOW/MEDIUM/HIGH/ULTRA from an informational status string."""
+    text = str(value or "").upper().strip()
+    head = text.split("•", 1)[0].strip()
+    return _normalize_profile(head, fallback)
+
+
 class InteliwebGPUProfileSelector:
     """Emit a GPU profile and optionally publish it to a frontend global channel."""
 
@@ -117,15 +124,6 @@ class InteliwebModelProfileRouter:
                         "tooltip": "Global synchronization channel listened to by this router.",
                     },
                 ),
-                "global_profile": (
-                    "STRING",
-                    {
-                        "default": "HIGH",
-                        "multiline": False,
-                        "advanced": True,
-                        "tooltip": "Internal synchronized global profile. Informational only; it is managed automatically.",
-                    },
-                ),
             },
             "optional": optional,
         }
@@ -143,24 +141,22 @@ class InteliwebModelProfileRouter:
     @staticmethod
     def _effective_profile(
         profile: str,
-        global_profile: str,
+        effective_profile: str,
         profile_in: object = None,
     ) -> str:
         if profile_in is not None:
             return _normalize_profile(profile_in)
         if str(profile).upper() == "GLOBAL":
-            return _normalize_profile(global_profile)
+            return _profile_from_status(effective_profile)
         return _normalize_profile(profile)
 
     def check_lazy_status(self, *args, **kwargs):
-        # PROFILE IN is itself lazy. If connected and not yet evaluated, request it
-        # first because it has absolute priority over GLOBAL/local selection.
         if "profile_in" in kwargs and kwargs.get("profile_in") is None:
             return ["profile_in"]
 
         effective = self._effective_profile(
             kwargs.get("profile", "GLOBAL"),
-            kwargs.get("global_profile", "HIGH"),
+            kwargs.get("effective_profile", "HIGH • GLOBAL"),
             kwargs.get("profile_in"),
         ).lower()
 
@@ -174,7 +170,7 @@ class InteliwebModelProfileRouter:
     def route(self, *args, **kwargs):
         effective = self._effective_profile(
             kwargs.get("profile", "GLOBAL"),
-            kwargs.get("global_profile", "HIGH"),
+            kwargs.get("effective_profile", "HIGH • GLOBAL"),
             kwargs.get("profile_in"),
         )
         prefix = effective.lower()
