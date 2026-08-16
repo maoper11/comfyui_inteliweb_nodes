@@ -7,6 +7,7 @@ const GET_NODE = "GetInteliweb";
 
 const ACTIVE = 0;
 const MUTE = 2;
+const NO_GLOBAL_CHANNEL = "none";
 const PROFILES = new Set(["LOW", "MEDIUM", "HIGH", "ULTRA"]);
 const PROFILE_INPUTS = ["model", "text_encoder", "vae"];
 const PROFILE_PREFIXES = ["low", "medium", "high", "ultra"];
@@ -134,7 +135,41 @@ function ensureUniqueGlobalChannels(graph) {
   }
 }
 
+function availableGlobalChannels(graph) {
+  const channels = [];
+  const seen = new Set();
+  for (const node of allNodes(graph).filter((candidate) => isClass(candidate, SELECTOR))) {
+    if (value(node, "scope", "GLOBAL") !== "GLOBAL") continue;
+    const channel = String(value(node, "global_channel", "gpu_profile")).trim();
+    if (!channel || seen.has(channel)) continue;
+    seen.add(channel);
+    channels.push(channel);
+  }
+  return channels.length ? channels : [NO_GLOBAL_CHANNEL];
+}
+
+function setComboValues(target, values) {
+  if (!target) return;
+  target.options ||= {};
+  target.options.values = values;
+}
+
+function syncRouterChannelChoices(graph) {
+  const channels = availableGlobalChannels(graph);
+  const channelSet = new Set(channels);
+  for (const router of allNodes(graph).filter((node) => isClass(node, ROUTER))) {
+    const target = widget(router, "global_channel");
+    if (!target) continue;
+    setComboValues(target, channels);
+    const current = String(target.value ?? "").trim();
+    if (!channelSet.has(current)) {
+      setValue(router, "global_channel", channels[0], false);
+    }
+  }
+}
+
 function globalProfile(graph, channel) {
+  if (!channel || channel === NO_GLOBAL_CHANNEL) return null;
   const owner = allNodes(graph).find(
     (node) =>
       isClass(node, SELECTOR) &&
@@ -152,12 +187,13 @@ function effectiveProfile(router) {
     return { profile: null, source: "INPUT" };
   }
 
-  const selected = String(value(router, "profile", "GLOBAL")).toUpperCase();
+  const selected = String(value(router, "profile", "HIGH")).toUpperCase();
   if (selected !== "GLOBAL") return { profile: normalizeProfile(selected), source: "LOCAL" };
 
-  const channel = value(router, "global_channel", "gpu_profile");
+  const channel = value(router, "global_channel", NO_GLOBAL_CHANNEL);
   const global = globalProfile(router.graph, channel);
-  return { profile: global || "HIGH", source: "GLOBAL" };
+  if (global) return { profile: global, source: "GLOBAL" };
+  return { profile: "HIGH", source: "LOCAL" };
 }
 
 function setNodeMode(node, mode) {
@@ -168,6 +204,7 @@ function setNodeMode(node, mode) {
 }
 
 function syncRouters(graph) {
+  syncRouterChannelChoices(graph);
   const routers = allNodes(graph).filter((node) => isClass(node, ROUTER));
   const activeNodes = new Set();
   const inactiveNodes = new Set();
@@ -229,6 +266,7 @@ function hideClassicWidget(target) {
 function setupSelector(node) {
   const refresh = () => {
     ensureUniqueGlobalChannels(node.graph);
+    syncRouterChannelChoices(node.graph);
     syncRouters(node.graph);
   };
   wrapWidgetCallback(node, "scope", refresh);
@@ -241,6 +279,7 @@ function setupRouter(node) {
   markReadOnly(effective);
   hideClassicWidget(effective);
 
+  syncRouterChannelChoices(node.graph);
   const refresh = () => syncRouters(node.graph);
   wrapWidgetCallback(node, "profile", refresh);
   wrapWidgetCallback(node, "global_channel", refresh);
@@ -259,6 +298,7 @@ app.registerExtension({
         if (isClass(this, SELECTOR)) setupSelector(this);
         if (isClass(this, ROUTER)) setupRouter(this);
         ensureUniqueGlobalChannels(this.graph);
+        syncRouterChannelChoices(this.graph);
         syncRouters(this.graph);
       });
       return result;
@@ -296,6 +336,7 @@ app.registerExtension({
     if (isClass(node, SELECTOR) || isClass(node, ROUTER)) {
       queueMicrotask(() => {
         ensureUniqueGlobalChannels(node.graph);
+        syncRouterChannelChoices(node.graph);
         syncRouters(node.graph);
       });
     }
@@ -303,6 +344,7 @@ app.registerExtension({
 
   afterConfigureGraph() {
     ensureUniqueGlobalChannels(app.graph);
+    syncRouterChannelChoices(app.graph);
     syncRouters(app.graph);
   },
 });
