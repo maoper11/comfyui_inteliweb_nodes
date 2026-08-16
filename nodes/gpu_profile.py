@@ -45,7 +45,8 @@ class InteliwebGPUProfileSelector:
                     {
                         "default": "gpu_profile",
                         "multiline": False,
-                        "tooltip": "Advanced: global synchronization channel name.",
+                        "advanced": True,
+                        "tooltip": "Global synchronization channel name. Additional GLOBAL selectors are automatically assigned a unique channel.",
                     },
                 ),
             }
@@ -54,7 +55,7 @@ class InteliwebGPUProfileSelector:
     RETURN_TYPES = (PROFILE_TYPE,)
     RETURN_NAMES = ("GPU PROFILE",)
     FUNCTION = "select_profile"
-    CATEGORY = "Inteliweb/Utils"
+    CATEGORY = "Inteliweb/Loaders"
     DESCRIPTION = (
         "Selects LOW, MEDIUM, HIGH or ULTRA. In GLOBAL scope the frontend publishes "
         "the value on a named workflow channel; LOCAL scope only emits GPU PROFILE."
@@ -99,12 +100,21 @@ class InteliwebModelProfileRouter:
                         "tooltip": "GLOBAL follows Global Channel. LOW/MEDIUM/HIGH/ULTRA make this router local.",
                     },
                 ),
+                "effective_profile": (
+                    "STRING",
+                    {
+                        "default": "HIGH • GLOBAL",
+                        "multiline": False,
+                        "tooltip": "Informational status automatically updated by the Inteliweb frontend extension.",
+                    },
+                ),
                 "global_channel": (
                     "STRING",
                     {
                         "default": "gpu_profile",
                         "multiline": False,
-                        "tooltip": "Advanced: global synchronization channel listened to by this router.",
+                        "advanced": True,
+                        "tooltip": "Global synchronization channel listened to by this router.",
                     },
                 ),
                 "global_profile": (
