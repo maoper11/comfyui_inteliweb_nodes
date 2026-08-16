@@ -118,10 +118,12 @@ class InteliwebModelProfileRouter:
                     },
                 ),
                 "global_profile": (
-                    list(PROFILE_VALUES),
+                    "STRING",
                     {
                         "default": "HIGH",
-                        "tooltip": "Frontend-synchronized global profile for execution.",
+                        "multiline": False,
+                        "advanced": True,
+                        "tooltip": "Internal synchronized global profile. Informational only; it is managed automatically.",
                     },
                 ),
             },
