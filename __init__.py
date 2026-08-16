@@ -26,7 +26,7 @@ InteliwebStringIndexSelector.CATEGORY = "Inteliweb/Text"
 InteliwebLabel.CATEGORY = "Inteliweb/Text"
 InteliwebLoraStack.CATEGORY = "Inteliweb/Loaders"
 InteliwebImageCompare.CATEGORY = "Inteliweb/Image"
-InteliwebGPUProfileSelector.CATEGORY = "Inteliweb/Utils"
+InteliwebGPUProfileSelector.CATEGORY = "Inteliweb/Loaders"
 InteliwebModelProfileRouter.CATEGORY = "Inteliweb/Loaders"
 
 # Registers the scanner-friendly /inteliweb/resource_monitor endpoint.
