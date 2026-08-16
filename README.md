@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.20.4-blue" alt="version 0.20.4" />
+  <img src="https://img.shields.io/badge/version-0.20.5-blue" alt="version 0.20.5" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -11,6 +11,17 @@
 </p>
 
 > Utilidades de Inteliweb AI para controlar semillas, organizar conexiones, comparar imágenes, cargar LoRAs, documentar workflows, monitorear recursos, liberar memoria, enrutar entradas y construir prompts dentro de ComfyUI.
+
+## Cambios en v0.20.5
+
+- Añadido **GPU Profile Selector (Inteliweb)** para seleccionar perfiles `LOW`, `MEDIUM`, `HIGH` y `ULTRA`, con alcance `GLOBAL` o `LOCAL` y salida `GPU PROFILE`.
+- Añadido **Model Profile Router (Inteliweb)** con entradas opcionales y lazy para `MODEL`, `TEXT ENCODER` y `VAE` en los cuatro perfiles.
+- El Router puede trabajar en modo local, seguir un `Global Channel` o recibir un `GPU PROFILE` externo por `profile_in`; la prioridad es `INPUT > GLOBAL > LOCAL`.
+- Los canales globales se descubren dinámicamente dentro del workflow y los Selectors globales reciben nombres únicos como `gpu_profile`, `gpu_profile_1`, `gpu_profile_2`, etc.
+- Los loaders conectados a perfiles inactivos se cambian automáticamente a `MUTE`; si un loader es compartido por varios perfiles, el perfil activo tiene prioridad y lo mantiene habilitado.
+- Si un canal global desaparece, el Router vuelve de forma segura a `HIGH • LOCAL` y no migra automáticamente a otro canal.
+- Los estados y canales se guardan con el workflow y el Router ejecuta el enrutamiento en backend, conservando compatibilidad con API; la sincronización global y el auto-mute se gestionan desde el frontend.
+- Ambos nodos están en `Inteliweb/Loaders` y funcionan con Classic y Nodes 2.0.
 
 ## Cambios en v0.20.4
 
@@ -79,7 +90,7 @@
 - System Check comparte la misma fuente de RAM y VRAM que Resource Monitor.
 - Validado en RunPod, Vast AI y Windows Pinokio.
 
-## Instalación de v0.20.4 — rama principal `main`
+## Instalación de v0.20.5 — rama principal `main`
 
 ### ComfyUI Manager
 
@@ -170,6 +181,34 @@ Permiten reutilizar una conexión por nombre sin mantener cables largos atravesa
 - Funcionan como nodos virtuales: no agregan procesamiento al backend.
 - IDs internos: `SetInteliweb` y `GetInteliweb`.
 - Categoría: `Inteliweb/Logic`.
+
+### GPU Profile Selector (Inteliweb)
+
+Controla un perfil de GPU/VRAM reutilizable dentro del workflow.
+
+- Perfiles disponibles: `LOW`, `MEDIUM`, `HIGH` y `ULTRA`.
+- `scope = LOCAL` entrega el valor únicamente por la salida `GPU PROFILE`.
+- `scope = GLOBAL` publica el perfil en un `Global Channel` para que varios Routers lo sigan sin cables largos.
+- El primer canal global usa `gpu_profile`; los siguientes Selectors globales reciben automáticamente sufijos únicos.
+- La salida `GPU PROFILE` puede conectarse directamente a `profile_in` o almacenarse mediante Set/Get.
+- ID interno: `InteliwebGPUProfileSelector`.
+- Categoría: `Inteliweb/Loaders`.
+
+### Model Profile Router (Inteliweb)
+
+Selecciona de forma lazy el stack de modelos correspondiente al perfil de GPU activo.
+
+- Entradas opcionales para `MODEL`, `TEXT ENCODER` (`CLIP` internamente) y `VAE` en `LOW`, `MEDIUM`, `HIGH` y `ULTRA`.
+- Salidas `MODEL`, `TEXT ENCODER`, `VAE` y `GPU PROFILE`.
+- `profile` puede ser `GLOBAL`, `LOW`, `MEDIUM`, `HIGH` o `ULTRA`.
+- `profile_in` es opcional y tiene prioridad absoluta sobre el modo global o local.
+- En modo `GLOBAL`, `global_channel` muestra únicamente los canales globales disponibles en el workflow.
+- Si no existe un canal global válido, el Router vuelve a `HIGH • LOCAL`.
+- Los loaders conectados a perfiles inactivos se cambian a `MUTE`; los productores compartidos por el perfil activo permanecen habilitados.
+- El routing backend usa lazy evaluation para solicitar únicamente las entradas del perfil efectivo.
+- Compatible con loaders nativos, GGUF y otros loaders que entreguen tipos `MODEL`, `CLIP` y `VAE` estándar de ComfyUI.
+- ID interno: `InteliwebModelProfileRouter`.
+- Categoría: `Inteliweb/Loaders`.
 
 ### Image Compare (Inteliweb)
 
@@ -325,6 +364,7 @@ comfyui_inteliweb_nodes/
 ├── __init__.py
 ├── resource_monitor.py
 ├── nodes/
+│   ├── gpu_profile.py
 │   ├── image_compare.py
 │   ├── input_switch.py
 │   ├── label.py
@@ -337,6 +377,7 @@ comfyui_inteliweb_nodes/
 │   ├── string_index_selector.py
 │   └── system_check.py
 ├── web/
+│   ├── GPUProfile_Inteliweb.js
 │   ├── GroupHeaderControls_Inteliweb.js
 │   ├── ImageCompare_Inteliweb.js
 │   ├── InputSwitch_Inteliweb.js
