@@ -139,6 +139,19 @@ class InteliwebModelProfileRouter:
     SEARCH_ALIASES = ["Model Profile Router", "GPU Router", "VRAM Router", "Model Switch"]
 
     @staticmethod
+    def VALIDATE_INPUTS(global_channel):
+        """Accept workflow-local channel names populated dynamically by the frontend.
+
+        The backend node definition exposes a placeholder combo containing only
+        ``none`` because workflow-local channels are not knowable from INPUT_TYPES.
+        Declaring custom validation for this input intentionally bypasses ComfyUI's
+        static combo-membership check while leaving the frontend free to present the
+        real channel list discovered in the current workflow.
+        """
+        del global_channel
+        return True
+
+    @staticmethod
     def _effective_profile(
         profile: str,
         effective_profile: str,
