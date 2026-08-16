@@ -12,6 +12,7 @@ from typing import Any
 PROFILE_TYPE = "INTELIWEB_GPU_PROFILE"
 PROFILE_VALUES = ("LOW", "MEDIUM", "HIGH", "ULTRA")
 ROUTER_PROFILE_VALUES = ("GLOBAL",) + PROFILE_VALUES
+NO_GLOBAL_CHANNEL = "none"
 
 
 def _normalize_profile(value: object, fallback: str = "HIGH") -> str:
@@ -103,25 +104,24 @@ class InteliwebModelProfileRouter:
                 "profile": (
                     list(ROUTER_PROFILE_VALUES),
                     {
-                        "default": "GLOBAL",
+                        "default": "HIGH",
                         "tooltip": "GLOBAL follows Global Channel. LOW/MEDIUM/HIGH/ULTRA make this router local.",
                     },
                 ),
                 "effective_profile": (
                     "STRING",
                     {
-                        "default": "HIGH • GLOBAL",
+                        "default": "HIGH • LOCAL",
                         "multiline": False,
                         "tooltip": "Informational status automatically updated by the Inteliweb frontend extension.",
                     },
                 ),
                 "global_channel": (
-                    "STRING",
+                    [NO_GLOBAL_CHANNEL],
                     {
-                        "default": "gpu_profile",
-                        "multiline": False,
+                        "default": NO_GLOBAL_CHANNEL,
                         "advanced": True,
-                        "tooltip": "Global synchronization channel listened to by this router.",
+                        "tooltip": "Global channel listened to by this router. The list is populated from GLOBAL GPU Profile Selectors in the workflow.",
                     },
                 ),
             },
@@ -155,8 +155,8 @@ class InteliwebModelProfileRouter:
             return ["profile_in"]
 
         effective = self._effective_profile(
-            kwargs.get("profile", "GLOBAL"),
-            kwargs.get("effective_profile", "HIGH • GLOBAL"),
+            kwargs.get("profile", "HIGH"),
+            kwargs.get("effective_profile", "HIGH • LOCAL"),
             kwargs.get("profile_in"),
         ).lower()
 
@@ -169,8 +169,8 @@ class InteliwebModelProfileRouter:
 
     def route(self, *args, **kwargs):
         effective = self._effective_profile(
-            kwargs.get("profile", "GLOBAL"),
-            kwargs.get("effective_profile", "HIGH • GLOBAL"),
+            kwargs.get("profile", "HIGH"),
+            kwargs.get("effective_profile", "HIGH • LOCAL"),
             kwargs.get("profile_in"),
         )
         prefix = effective.lower()
