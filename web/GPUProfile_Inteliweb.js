@@ -59,8 +59,7 @@ function value(node, name, fallback = "") {
 
 function setValue(node, name, next, notify = false) {
   const target = widget(node, name);
-  if (!target) return;
-  if (target.value === next) return;
+  if (!target || target.value === next) return;
   target.value = next;
   if (notify && typeof target.callback === "function") target.callback(next, node, target);
   node.setDirtyCanvas?.(true, true);
@@ -158,11 +157,7 @@ function effectiveProfile(router) {
 
   const channel = value(router, "global_channel", "gpu_profile");
   const global = globalProfile(router.graph, channel);
-  if (global) {
-    setValue(router, "global_profile", global, false);
-    return { profile: global, source: "GLOBAL" };
-  }
-  return { profile: normalizeProfile(value(router, "global_profile", "HIGH")), source: "GLOBAL" };
+  return { profile: global || "HIGH", source: "GLOBAL" };
 }
 
 function setNodeMode(node, mode) {
@@ -200,8 +195,6 @@ function syncRouters(graph) {
     router.setDirtyCanvas?.(true, true);
   }
 
-  // ACTIVE always wins. A shared loader that is required by any active profile
-  // must never be muted by another inactive connection or router.
   for (const node of inactiveNodes) if (!activeNodes.has(node)) setNodeMode(node, MUTE);
   for (const node of activeNodes) setNodeMode(node, ACTIVE);
 }
@@ -218,14 +211,19 @@ function wrapWidgetCallback(node, name, callback) {
   };
 }
 
-function markStatusWidget(node) {
-  const target = widget(node, "effective_profile");
+function markReadOnly(target) {
   if (!target) return;
-  // Classic LiteGraph respects disabled; Nodes 2.0 still renders the native
-  // backend widget, which is exactly what we want for cross-frontend visibility.
   target.disabled = true;
   target.options ||= {};
   target.options.disabled = true;
+  target.options.readOnly = true;
+}
+
+function hideClassicWidget(target) {
+  if (!target || target.__inteliwebClassicHidden) return;
+  target.__inteliwebClassicHidden = true;
+  target.__inteliwebOriginalComputeSize = target.computeSize;
+  target.computeSize = () => [0, -4];
 }
 
 function setupSelector(node) {
@@ -239,7 +237,10 @@ function setupSelector(node) {
 }
 
 function setupRouter(node) {
-  markStatusWidget(node);
+  const effective = widget(node, "effective_profile");
+  markReadOnly(effective);
+  hideClassicWidget(effective);
+
   const refresh = () => syncRouters(node.graph);
   wrapWidgetCallback(node, "profile", refresh);
   wrapWidgetCallback(node, "global_channel", refresh);
@@ -271,8 +272,6 @@ app.registerExtension({
         return result;
       };
 
-      // Keep the compact title status in classic LiteGraph. Nodes 2.0 does not
-      // rely on this hook, so it uses the native effective_profile widget above.
       const originalDrawForeground = nodeType.prototype.onDrawForeground;
       nodeType.prototype.onDrawForeground = function (ctx, ...args) {
         originalDrawForeground?.call(this, ctx, ...args);
