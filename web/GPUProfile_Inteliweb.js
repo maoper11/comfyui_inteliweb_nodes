@@ -145,7 +145,7 @@ function availableGlobalChannels(graph) {
     seen.add(channel);
     channels.push(channel);
   }
-  return channels.length ? channels : [NO_GLOBAL_CHANNEL];
+  return channels;
 }
 
 function setComboValues(target, values) {
@@ -157,13 +157,34 @@ function setComboValues(target, values) {
 function syncRouterChannelChoices(graph) {
   const channels = availableGlobalChannels(graph);
   const channelSet = new Set(channels);
+  const options = [NO_GLOBAL_CHANNEL, ...channels];
+
   for (const router of allNodes(graph).filter((node) => isClass(node, ROUTER))) {
     const target = widget(router, "global_channel");
     if (!target) continue;
-    setComboValues(target, channels);
-    const current = String(target.value ?? "").trim();
-    if (!channelSet.has(current)) {
-      setValue(router, "global_channel", channels[0], false);
+
+    setComboValues(target, options);
+
+    const current = String(target.value ?? NO_GLOBAL_CHANNEL).trim() || NO_GLOBAL_CHANNEL;
+    const selected = String(value(router, "profile", "HIGH")).toUpperCase();
+    const hasProfileInput = Boolean(sourceNodeForInput(router, "profile_in"));
+    const channelIsValid = current === NO_GLOBAL_CHANNEL || channelSet.has(current);
+
+    // Never migrate a router silently to another global channel. If the channel it
+    // listened to disappears, fall back to the explicit safe state HIGH • LOCAL.
+    if (!channelIsValid) {
+      setValue(router, "global_channel", NO_GLOBAL_CHANNEL, false);
+      if (!hasProfileInput && selected === "GLOBAL") {
+        setValue(router, "profile", "HIGH", false);
+      }
+      continue;
+    }
+
+    // GLOBAL without an actual channel is contradictory. Keep the UI and execution
+    // state aligned by turning it into HIGH • LOCAL. PROFILE IN remains authoritative
+    // when connected, so we do not rewrite the local selector in that case.
+    if (!hasProfileInput && selected === "GLOBAL" && current === NO_GLOBAL_CHANNEL) {
+      setValue(router, "profile", "HIGH", false);
     }
   }
 }
