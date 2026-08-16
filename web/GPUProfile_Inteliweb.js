@@ -60,6 +60,7 @@ function value(node, name, fallback = "") {
 function setValue(node, name, next, notify = false) {
   const target = widget(node, name);
   if (!target) return;
+  if (target.value === next) return;
   target.value = next;
   if (notify && typeof target.callback === "function") target.callback(next, node, target);
   node.setDirtyCanvas?.(true, true);
@@ -149,7 +150,6 @@ function effectiveProfile(router) {
   if (externalSource) {
     const external = profileFromSource(externalSource);
     if (external) return { profile: external, source: "INPUT" };
-    // Unknown runtime source: do not guess and do not auto-mute this router.
     return { profile: null, source: "INPUT" };
   }
 
@@ -183,6 +183,9 @@ function syncRouters(graph) {
     router.properties.inteliwebEffectiveProfile = effective.profile || "?";
     router.properties.inteliwebProfileSource = effective.source;
 
+    const status = `${effective.profile || "?"} • ${effective.source}`;
+    setValue(router, "effective_profile", status, false);
+
     if (!effective.profile) continue;
     const activePrefix = effective.profile.toLowerCase();
 
@@ -197,46 +200,10 @@ function syncRouters(graph) {
     router.setDirtyCanvas?.(true, true);
   }
 
-  // A loader used by any active profile must never be muted by another inactive
-  // connection. This is intentionally resolved across every router in the graph.
+  // ACTIVE always wins. A shared loader that is required by any active profile
+  // must never be muted by another inactive connection or router.
   for (const node of inactiveNodes) if (!activeNodes.has(node)) setNodeMode(node, MUTE);
   for (const node of activeNodes) setNodeMode(node, ACTIVE);
-}
-
-function hideWidget(target, hidden) {
-  if (!target) return;
-  if (!target.__inteliwebOriginalComputeSize) {
-    target.__inteliwebOriginalComputeSize = target.computeSize;
-    target.__inteliwebOriginalType = target.type;
-  }
-  target.hidden = hidden;
-  if (hidden) {
-    target.computeSize = () => [0, -4];
-    target.type = "hidden";
-  } else {
-    target.computeSize = target.__inteliwebOriginalComputeSize;
-    target.type = target.__inteliwebOriginalType;
-  }
-}
-
-function installAdvanced(node, { alwaysHidden = [] } = {}) {
-  if (node.__inteliwebAdvancedInstalled) return;
-  node.__inteliwebAdvancedInstalled = true;
-  node.properties ||= {};
-  node.properties.inteliwebAdvancedOpen ??= false;
-
-  for (const name of alwaysHidden) hideWidget(widget(node, name), true);
-  hideWidget(widget(node, "global_channel"), !node.properties.inteliwebAdvancedOpen);
-
-  node.addWidget("button", node.properties.inteliwebAdvancedOpen ? "Advanced ▾" : "Advanced ▸", null, () => {
-    node.properties.inteliwebAdvancedOpen = !node.properties.inteliwebAdvancedOpen;
-    const opened = node.properties.inteliwebAdvancedOpen;
-    hideWidget(widget(node, "global_channel"), !opened);
-    const button = node.widgets?.find((item) => item?.name === "Advanced ▸" || item?.name === "Advanced ▾");
-    if (button) button.name = opened ? "Advanced ▾" : "Advanced ▸";
-    node.setSize?.(node.computeSize?.() || node.size);
-    node.setDirtyCanvas?.(true, true);
-  });
 }
 
 function wrapWidgetCallback(node, name, callback) {
@@ -251,8 +218,17 @@ function wrapWidgetCallback(node, name, callback) {
   };
 }
 
+function markStatusWidget(node) {
+  const target = widget(node, "effective_profile");
+  if (!target) return;
+  // Classic LiteGraph respects disabled; Nodes 2.0 still renders the native
+  // backend widget, which is exactly what we want for cross-frontend visibility.
+  target.disabled = true;
+  target.options ||= {};
+  target.options.disabled = true;
+}
+
 function setupSelector(node) {
-  installAdvanced(node);
   const refresh = () => {
     ensureUniqueGlobalChannels(node.graph);
     syncRouters(node.graph);
@@ -263,7 +239,7 @@ function setupSelector(node) {
 }
 
 function setupRouter(node) {
-  installAdvanced(node, { alwaysHidden: ["global_profile"] });
+  markStatusWidget(node);
   const refresh = () => syncRouters(node.graph);
   wrapWidgetCallback(node, "profile", refresh);
   wrapWidgetCallback(node, "global_channel", refresh);
@@ -295,6 +271,8 @@ app.registerExtension({
         return result;
       };
 
+      // Keep the compact title status in classic LiteGraph. Nodes 2.0 does not
+      // rely on this hook, so it uses the native effective_profile widget above.
       const originalDrawForeground = nodeType.prototype.onDrawForeground;
       nodeType.prototype.onDrawForeground = function (ctx, ...args) {
         originalDrawForeground?.call(this, ctx, ...args);
