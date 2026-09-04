@@ -2,12 +2,8 @@
 
 <p align="left">
   <img src="https://img.shields.io/badge/version-0.21.0-blue" alt="version 0.21.0" />
-  <a href="http://www.apache.org/licenses/LICENSE-2.0">
-    <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
-  </a>
-  <a href="https://github.com/comfyanonymous/ComfyUI">
-    <img src="https://img.shields.io/badge/ComfyUI-custom%20node-0A84FF" alt="ComfyUI custom node" />
-  </a>
+  <a href="http://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/license-Apache%202.0-brightgreen" alt="Apache-2.0" /></a>
+  <a href="https://github.com/comfyanonymous/ComfyUI"><img src="https://img.shields.io/badge/ComfyUI-custom%20node-0A84FF" alt="ComfyUI custom node" /></a>
 </p>
 
 > Utilidades de Inteliweb AI para recibir avisos de sonido, controlar semillas, organizar conexiones, comparar imágenes, cargar LoRAs, documentar workflows, monitorear recursos, liberar memoria, enrutar entradas y construir prompts dentro de ComfyUI.
