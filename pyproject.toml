@@ -1,7 +1,7 @@
 [project]
 name = "comfyui_inteliweb_nodes"
-version = "0.20.5"
-description = "Inteliweb utilities for ComfyUI: seed, Set/Get, monitoring, memory, routing, prompts, and text tools."
+version = "0.21.0"
+description = "Inteliweb utilities for ComfyUI: notifications, seed, Set/Get, monitoring, memory, routing, prompts, and text tools."
 readme = "README.md"
 license = { text = "Apache-2.0" }
 dependencies = ["psutil", "nvidia-ml-py"]
@@ -15,4 +15,4 @@ PublisherId = "maoper11"
 DisplayName = "ComfyUI_Inteliweb_nodes"
 Icon = "https://raw.githubusercontent.com/maoper11/comfyui_inteliweb_nodes/main/assets/icon.png"
 Categories = ["Utility"]
-Tags = ["system", "check", "monitor", "resource-monitor", "seed", "random-seed", "set", "get", "variables", "switch", "input-switch", "router", "lazy", "prompt", "prompt-list", "text", "string", "replace", "string-selector", "cpu", "gpu", "ram", "vram", "temperature", "inteliweb"]
+Tags = ["system", "check", "monitor", "resource-monitor", "notification", "sound", "workflow-complete", "seed", "random-seed", "set", "get", "variables", "switch", "input-switch", "router", "lazy", "prompt", "prompt-list", "text", "string", "replace", "string-selector", "cpu", "gpu", "ram", "vram", "temperature", "inteliweb"]

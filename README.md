@@ -1,7 +1,7 @@
 # comfyui_inteliweb_nodes
 
 <p align="left">
-  <img src="https://img.shields.io/badge/version-0.20.5-blue" alt="version 0.20.5" />
+  <img src="https://img.shields.io/badge/version-0.21.0-blue" alt="version 0.21.0" />
   <a href="http://www.apache.org/licenses/LICENSE-2.0">
     <img src="https://img.shields.io/badge/license-Apache--2.0-brightgreen" alt="Apache-2.0" />
   </a>
@@ -10,7 +10,15 @@
   </a>
 </p>
 
-> Utilidades de Inteliweb AI para controlar semillas, organizar conexiones, comparar imágenes, cargar LoRAs, documentar workflows, monitorear recursos, liberar memoria, enrutar entradas y construir prompts dentro de ComfyUI.
+> Utilidades de Inteliweb AI para recibir avisos de sonido, controlar semillas, organizar conexiones, comparar imágenes, cargar LoRAs, documentar workflows, monitorear recursos, liberar memoria, enrutar entradas y construir prompts dentro de ComfyUI.
+
+## Cambios en v0.21.0
+
+- Añadido **Sound Notify (Inteliweb)**, un nodo terminal que reproduce un sonido en el navegador cuando el workflow alcanza su entrada.
+- Incluye un switch por nodo y los sonidos `Tada`, `Tidi`, `Vista`, `Echo` y `Dang`.
+- El nodo se vuelve a ejecutar en cada lanzamiento aunque sus entradas estén en caché.
+- Los MP3 se sirven desde `assets/sounds` mediante una ruta validada que funciona con instalaciones locales, remotas y detrás de proxies.
+- Usa solamente widgets nativos y funciona con Classic y Nodes 2.0.
 
 ## Cambios en v0.20.5
 
@@ -90,7 +98,7 @@
 - System Check comparte la misma fuente de RAM y VRAM que Resource Monitor.
 - Validado en RunPod, Vast AI y Windows Pinokio.
 
-## Instalación de v0.20.5 — rama principal `main`
+## Instalación de v0.21.0 — rama principal `main`
 
 ### ComfyUI Manager
 
@@ -149,6 +157,19 @@ Group Shape (Inteliweb)
 El shape se guarda dentro de las flags del grupo y conserva el grupo como un `LGraphGroup` estándar.
 
 ## Nodos incluidos
+
+### Sound Notify (Inteliweb)
+
+Reproduce un aviso de sonido en el navegador cuando el workflow alcanza este nodo terminal.
+
+- Acepta cualquier tipo de dato mediante la entrada `anything`.
+- `enabled` permite activar o silenciar cada nodo de forma independiente.
+- `sound` permite elegir entre `Tada`, `Tidi`, `Vista`, `Echo` y `Dang`.
+- Se ejecuta en cada lanzamiento, incluso cuando los nodos anteriores usan resultados en caché.
+- No modifica ni devuelve el dato conectado.
+- El sonido se reproduce en el navegador que tiene abierto ComfyUI, no en el servidor remoto.
+- ID interno: `InteliwebSoundNotify`.
+- Categoría: `Inteliweb/Utils`.
 
 ### Seed (Inteliweb)
 
@@ -373,6 +394,7 @@ comfyui_inteliweb_nodes/
 │   ├── purge_vram.py
 │   ├── replace_text_multi.py
 │   ├── seed.py
+│   ├── sound_notify.py
 │   ├── set_get.py
 │   ├── string_index_selector.py
 │   └── system_check.py
@@ -385,9 +407,11 @@ comfyui_inteliweb_nodes/
 │   ├── LoraStack_Inteliweb.js
 │   ├── ResourceMonitor_Inteliweb.js
 │   ├── Seed_Inteliweb.js
+│   ├── SoundNotify_Inteliweb.js
 │   ├── SetGet_Inteliweb.js
 │   └── SystemCheck_Inteliweb.js
 ├── assets/
+│   └── sounds/
 └── workflows/
 ```
 

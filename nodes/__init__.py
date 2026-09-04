@@ -8,6 +8,7 @@ from .prompt_list import InteliwebPromptList
 from .purge_vram import InteliwebPurgeVRAM
 from .replace_text_multi import InteliwebReplaceTextMulti
 from .seed import InteliwebSeed
+from .sound_notify import InteliwebSoundNotify
 from .string_index_selector import InteliwebStringIndexSelector
 from .system_check import InteliwebSystemCheck
 
@@ -20,6 +21,7 @@ __all__ = [
     "InteliwebPurgeVRAM",
     "InteliwebReplaceTextMulti",
     "InteliwebSeed",
+    "InteliwebSoundNotify",
     "InteliwebStringIndexSelector",
     "InteliwebSystemCheck",
 ]

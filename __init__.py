@@ -7,6 +7,7 @@ from .nodes import (
     InteliwebPurgeVRAM,
     InteliwebReplaceTextMulti,
     InteliwebSeed,
+    InteliwebSoundNotify,
     InteliwebStringIndexSelector,
     InteliwebSystemCheck,
 )
@@ -20,6 +21,7 @@ InteliwebSystemCheck.CATEGORY = "Inteliweb/Utils"
 InteliwebPurgeVRAM.CATEGORY = "Inteliweb/Utils"
 InteliwebInputSwitch.CATEGORY = "Inteliweb/Utils"
 InteliwebSeed.CATEGORY = "Inteliweb/Utils"
+InteliwebSoundNotify.CATEGORY = "Inteliweb/Utils"
 InteliwebReplaceTextMulti.CATEGORY = "Inteliweb/Text"
 InteliwebPromptList.CATEGORY = "Inteliweb/Text"
 InteliwebStringIndexSelector.CATEGORY = "Inteliweb/Text"
@@ -37,6 +39,7 @@ NODE_CLASS_MAPPINGS = {
     "InteliwebPurgeVRAM": InteliwebPurgeVRAM,
     "InteliwebInputSwitch": InteliwebInputSwitch,
     "InteliwebSeed": InteliwebSeed,
+    "InteliwebSoundNotify": InteliwebSoundNotify,
     "InteliwebReplaceTextMulti": InteliwebReplaceTextMulti,
     "InteliwebPromptList": InteliwebPromptList,
     "InteliwebStringIndexSelector": InteliwebStringIndexSelector,
@@ -52,6 +55,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "InteliwebPurgeVRAM": "Free Memory (Inteliweb)",
     "InteliwebInputSwitch": "Input Switch (Inteliweb)",
     "InteliwebSeed": "Seed (Inteliweb)",
+    "InteliwebSoundNotify": "Sound Notify (Inteliweb)",
     "InteliwebReplaceTextMulti": "Replace Text Multi (Inteliweb)",
     "InteliwebPromptList": "Prompt List (Inteliweb)",
     "InteliwebStringIndexSelector": "String Index Selector (Inteliweb)",
