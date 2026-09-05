@@ -93,6 +93,12 @@ function variableName(node) {
 
 function profileFromSource(node, seen = new Set()) {
   if (!node || seen.has(node)) return null;
+
+  // A router emits its effective profile, so its GPU PROFILE output can feed the
+  // PROFILE IN of another router. Keep the same visited set across the chain to
+  // make multi-router and Set/Get resolution independent of graph iteration order.
+  if (isClass(node, ROUTER)) return effectiveProfile(node, seen).profile;
+
   seen.add(node);
 
   if (isClass(node, SELECTOR)) return normalizeProfile(value(node, "profile", "HIGH"));
@@ -200,10 +206,13 @@ function globalProfile(graph, channel) {
   return owner ? normalizeProfile(value(owner, "profile", "HIGH")) : null;
 }
 
-function effectiveProfile(router) {
+function effectiveProfile(router, seen = new Set()) {
+  if (!router || seen.has(router)) return { profile: null, source: "INPUT" };
+  seen.add(router);
+
   const externalSource = sourceNodeForInput(router, "profile_in");
   if (externalSource) {
-    const external = profileFromSource(externalSource);
+    const external = profileFromSource(externalSource, seen);
     if (external) return { profile: external, source: "INPUT" };
     return { profile: null, source: "INPUT" };
   }

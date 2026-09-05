@@ -208,6 +208,7 @@ Controla un perfil de GPU/VRAM reutilizable dentro del workflow.
 - `scope = GLOBAL` publica el perfil en un `Global Channel` para que varios Routers lo sigan sin cables largos.
 - El primer canal global usa `gpu_profile`; los siguientes Selectors globales reciben automáticamente sufijos únicos.
 - La salida `GPU PROFILE` puede conectarse directamente a `profile_in` o almacenarse mediante Set/Get.
+- También puede encadenarse desde la salida `GPU PROFILE` de un **Model Profile Router** hacia el `profile_in` de otro Router. El siguiente nodo hereda el perfil efectivo durante la misma ejecución y lo muestra como `LOW/MEDIUM/HIGH/ULTRA • INPUT`.
 - ID interno: `InteliwebGPUProfileSelector`.
 - Categoría: `Inteliweb/Loaders`.
 
@@ -219,6 +220,7 @@ Selecciona de forma lazy el stack de modelos correspondiente al perfil de GPU ac
 - Salidas `MODEL`, `TEXT ENCODER`, `VAE` y `GPU PROFILE`.
 - `profile` puede ser `GLOBAL`, `LOW`, `MEDIUM`, `HIGH` o `ULTRA`.
 - `profile_in` es opcional y tiene prioridad absoluta sobre el modo global o local.
+- Los Routers pueden encadenarse mediante `GPU PROFILE → profile_in`; los cambios de perfil se propagan por toda la cadena antes de ejecutar el workflow.
 - En modo `GLOBAL`, `global_channel` muestra únicamente los canales globales disponibles en el workflow.
 - Si no existe un canal global válido, el Router vuelve a `HIGH • LOCAL`.
 - Los loaders conectados a perfiles inactivos se cambian a `MUTE`; los productores compartidos por el perfil activo permanecen habilitados.
