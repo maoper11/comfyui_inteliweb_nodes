@@ -23,7 +23,10 @@ function isGraphConfigureCall() {
 }
 
 function selectedWidget(node) {
-  return node.widgets?.find((widget) => widget.name === "select") ?? node.widgets?.[0];
+  return (
+    node.widgets?.find((widget) => widget.name === "select") ??
+    node.widgets?.[0]
+  );
 }
 
 function updateSelectRange(node) {
@@ -38,7 +41,8 @@ function updateSelectRange(node) {
 function connectedType(node) {
   for (const input of dataInputs(node)) {
     if (!input.link || !node.graph) continue;
-    const link = node.graph.links?.get?.(input.link) ?? node.graph.links?.[input.link];
+    const link =
+      node.graph.links?.get?.(input.link) ?? node.graph.links?.[input.link];
     if (!link) continue;
     const source = node.graph.getNodeById?.(link.origin_id);
     const type = source?.outputs?.[link.origin_slot]?.type ?? link.type;
@@ -61,7 +65,8 @@ function renameInputs(node) {
   let index = 1;
   for (const input of dataInputs(node)) {
     input.name = `${PREFIX}${index}`;
-    if (!input.label || /^input\d+$/.test(input.label)) input.label = input.name;
+    if (!input.label || /^input\d+$/.test(input.label))
+      input.label = input.name;
     index += 1;
   }
 }
@@ -75,7 +80,8 @@ function ensureTrailingInput(node) {
   }
 
   const last = inputs[inputs.length - 1];
-  if (last.link) node.addInput(`${PREFIX}${inputs.length + 1}`, last.type || "*");
+  if (last.link)
+    node.addInput(`${PREFIX}${inputs.length + 1}`, last.type || "*");
 }
 
 function removeEmptyMiddleInputs(node) {
@@ -106,13 +112,29 @@ app.registerExtension({
     const originalConnectionsChange = nodeType.prototype.onConnectionsChange;
     nodeType.prototype.onConnectionsChange = function (...args) {
       const result = originalConnectionsChange?.apply(this, args);
+
       if (isGraphConfigureCall()) {
         queueMicrotask(() => normalizeNode(this));
         return result;
       }
 
-      const [, , , linkInfo] = args;
+      const [slotType, , isConnected, linkInfo] = args;
       if (!linkInfo) return result;
+
+      /*
+       * Al importar un JSON API, ComfyUI conecta las entradas consecutivamente.
+       * El próximo socket debe existir inmediatamente, antes de que ComfyUI
+       * intente restaurar el siguiente enlace.
+       *
+       * LiteGraph usa:
+       *   1 = entrada
+       *   2 = salida
+       */
+      if (slotType === 1 && isConnected) {
+        ensureTrailingInput(this);
+      }
+
+      // La normalización completa puede ejecutarse después.
       queueMicrotask(() => normalizeNode(this));
       return result;
     };
