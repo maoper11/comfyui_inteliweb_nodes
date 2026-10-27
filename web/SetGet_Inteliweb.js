@@ -5,7 +5,7 @@ const GET_TYPE = "GetInteliweb";
 const CATEGORY = "Inteliweb/Utils";
 const PACKAGE_ID = "maoper11/comfyui_inteliweb_nodes";
 const SETTING_PREFIX = "Inteliweb.SetGet.";
-const IMPLEMENTATION_VERSION = 4;
+const IMPLEMENTATION_VERSION = 5;
 const NAME_WIDGET = "name";
 
 const SET_METADATA = Object.freeze({
@@ -109,7 +109,9 @@ function restoreVariableName(node, serializedData = null) {
 function firstWiredInput(node) {
   for (let index = 0; index < (node?.inputs?.length || 0); index++) {
     const input = node.inputs[index];
-    if (input?.link != null) return { ...input, index };
+    // Use LiteGraph's physical input lookup, not our virtual getInputLink override.
+    const link = node.graph ? LiteGraph.LGraphNode.prototype.getInputLink.call(node, index) : null;
+    if (link) return { ...input, index, link: link.id };
   }
   return null;
 }
